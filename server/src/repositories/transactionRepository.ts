@@ -1,7 +1,7 @@
 import db from '../db';
 import type { Transaction, CreateTransactionDto } from '../types';
 
-const COLUMNS = 'id, amount, date, description, category_id';
+const COLUMNS = 'id, amount, date, description, category_id, recurring_transaction_id';
 
 const transactionRepository = {
   findAll(): Transaction[] {

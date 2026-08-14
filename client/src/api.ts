@@ -6,6 +6,7 @@ import type {
   DashboardRow,
   RecurringTransaction,
   CreateRecurringTransactionDto,
+  UpdateRecurringTransactionDto,
 } from './types';
 
 const BASE = '/api';
@@ -44,6 +45,11 @@ export const api = {
   createRecurringTransaction: (data: CreateRecurringTransactionDto) =>
     request<RecurringTransaction>('/recurring-transactions', {
       method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateRecurringTransaction: (id: number, data: UpdateRecurringTransactionDto) =>
+    request<RecurringTransaction>(`/recurring-transactions/${id}`, {
+      method: 'PUT',
       body: JSON.stringify(data),
     }),
   deleteRecurringTransaction: (id: number) =>

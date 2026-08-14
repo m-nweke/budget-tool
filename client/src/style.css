@@ -225,6 +225,12 @@ a {
   color: var(--color-danger);
 }
 
+.badge-recurring {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+  margin-left: var(--space-2);
+}
+
 /* Empty state */
 .empty-state {
   text-align: center;

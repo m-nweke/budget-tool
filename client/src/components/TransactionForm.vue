@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { Category, Transaction, CreateTransactionDto } from '../types';
+import type { Category, Transaction, CreateTransactionDto, RecurrenceInterval } from '../types';
 
 const props = defineProps<{
   transaction: Transaction | null;
   categories: Category[];
 }>();
 const emit = defineEmits<{
-  submit: [data: CreateTransactionDto, recurring: boolean];
+  submit: [
+    data: CreateTransactionDto,
+    recurrence: { recurring: boolean; interval: RecurrenceInterval; end_date: string | null }
+  ];
   cancel: [];
 }>();
 
@@ -16,6 +19,8 @@ const date = ref('');
 const description = ref('');
 const categoryId = ref<number | string>('');
 const recurring = ref(false);
+const interval = ref<RecurrenceInterval>('monthly');
+const endDate = ref('');
 
 watch(
   () => props.transaction,
@@ -37,7 +42,7 @@ function handleSubmit() {
       description: description.value,
       category_id: Number(categoryId.value),
     },
-    recurring.value
+    { recurring: recurring.value, interval: interval.value, end_date: endDate.value || null }
   );
 }
 </script>
@@ -67,10 +72,30 @@ function handleSubmit() {
         </option>
       </select>
     </label>
-    <label v-if="!transaction" class="checkbox-field">
-      <input v-model="recurring" type="checkbox" />
-      Repeat monthly (e.g. a subscription)
-    </label>
+
+    <template v-if="!transaction">
+      <label class="checkbox-field">
+        <input v-model="recurring" type="checkbox" />
+        Repeat this transaction (e.g. a subscription)
+      </label>
+
+      <div v-if="recurring" class="form-row recurrence-fields">
+        <label class="field">
+          Repeats
+          <select v-model="interval">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Every 2 weeks</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </label>
+        <label class="field">
+          Ends on (optional)
+          <input v-model="endDate" type="date" />
+        </label>
+      </div>
+    </template>
+
     <div class="actions">
       <button type="submit" class="btn btn-primary">{{ transaction ? 'Save Changes' : 'Create Transaction' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
@@ -101,6 +126,12 @@ function handleSubmit() {
   gap: var(--space-2);
   font-size: 0.9rem;
   color: var(--color-text);
+}
+
+.recurrence-fields {
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
 }
 
 .actions {

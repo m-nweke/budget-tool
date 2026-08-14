@@ -33,6 +33,7 @@ db.exec(`
     category_id INTEGER NOT NULL REFERENCES categories(id),
     interval TEXT NOT NULL DEFAULT 'monthly',
     next_run_date TEXT NOT NULL,
+    end_date TEXT,
     active INTEGER NOT NULL DEFAULT 1
   );
 

@@ -3,7 +3,13 @@ import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import TransactionForm from '../components/TransactionForm.vue';
 import { formatCurrency } from '../utils/format';
-import type { Category, Transaction, CreateTransactionDto, RecurringTransaction } from '../types';
+import type {
+  Category,
+  Transaction,
+  CreateTransactionDto,
+  RecurringTransaction,
+  RecurrenceInterval,
+} from '../types';
 
 const transactions = ref<Transaction[]>([]);
 const categories = ref<Category[]>([]);
@@ -45,17 +51,22 @@ function closeForm() {
   editingTransaction.value = null;
 }
 
-async function handleSubmit(data: CreateTransactionDto, recurring: boolean) {
+async function handleSubmit(
+  data: CreateTransactionDto,
+  recurrence: { recurring: boolean; interval: RecurrenceInterval; end_date: string | null }
+) {
   error.value = '';
   try {
     if (editingTransaction.value) {
       await api.updateTransaction(editingTransaction.value.id, data);
-    } else if (recurring) {
+    } else if (recurrence.recurring) {
       await api.createRecurringTransaction({
         amount: data.amount,
         description: data.description,
         category_id: data.category_id,
         start_date: data.date,
+        interval: recurrence.interval,
+        end_date: recurrence.end_date,
       });
     } else {
       await api.createTransaction(data);
@@ -144,7 +155,10 @@ onMounted(loadData);
         <tbody>
           <tr v-for="transaction in transactions" :key="transaction.id">
             <td>{{ transaction.date }}</td>
-            <td>{{ transaction.description || '—' }}</td>
+            <td>
+              {{ transaction.description || '—' }}
+              <span v-if="transaction.recurring_transaction_id" class="badge badge-recurring">↻ Recurring</span>
+            </td>
             <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
             <td>{{ categoryNameById[transaction.category_id] }}</td>
             <td class="row-actions">
@@ -163,7 +177,8 @@ onMounted(loadData);
           <div>
             <div class="recurring-description">{{ rt.description || categoryNameById[rt.category_id] }}</div>
             <div class="recurring-meta">
-              {{ formatCurrency(rt.amount) }} monthly · next on {{ rt.next_run_date }}
+              {{ formatCurrency(rt.amount) }} · {{ rt.interval }} · next on {{ rt.next_run_date }}
+              <template v-if="rt.end_date">· ends {{ rt.end_date }}</template>
             </div>
           </div>
           <button class="btn btn-secondary btn-sm" @click="handleCancelRecurring(rt)">Cancel</button>
