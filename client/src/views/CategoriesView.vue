@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import CategoryForm from '../components/CategoryForm.vue';
+import KebabMenu from '../components/KebabMenu.vue';
 import { formatCurrency } from '../utils/format';
 import type { Category, CreateCategoryDto } from '../types';
 
@@ -10,6 +11,11 @@ const showForm = ref(false);
 const editingCategory = ref<Category | null>(null);
 const error = ref('');
 const loaded = ref(false);
+const viewTop = ref<HTMLElement | null>(null);
+
+function scrollToForm() {
+  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 async function loadCategories() {
   categories.value = await api.getCategories();
@@ -19,11 +25,13 @@ async function loadCategories() {
 function openCreateForm() {
   editingCategory.value = null;
   showForm.value = true;
+  scrollToForm();
 }
 
 function openEditForm(category: Category) {
   editingCategory.value = category;
   showForm.value = true;
+  scrollToForm();
 }
 
 function closeForm() {
@@ -60,7 +68,7 @@ onMounted(loadCategories);
 </script>
 
 <template>
-  <div class="view-header">
+  <div ref="viewTop" class="view-header">
     <div>
       <h1>Categories</h1>
       <p>Set a budget for each spending category.</p>
@@ -89,10 +97,10 @@ onMounted(loadCategories);
         <div class="category-name">{{ category.name }}</div>
         <div class="category-amount">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
       </div>
-      <div class="row-actions">
-        <button class="btn btn-secondary btn-sm" @click="openEditForm(category)">Edit</button>
-        <button class="btn btn-danger btn-sm" @click="handleDelete(category)">Delete</button>
-      </div>
+      <KebabMenu>
+        <button type="button" @click="openEditForm(category)">Edit</button>
+        <button type="button" class="danger" @click="handleDelete(category)">Delete</button>
+      </KebabMenu>
     </li>
   </ul>
 </template>
@@ -142,10 +150,5 @@ onMounted(loadCategories);
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 2px;
-}
-
-.row-actions {
-  display: flex;
-  gap: var(--space-2);
 }
 </style>
