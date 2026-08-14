@@ -51,3 +51,13 @@ A running log of the key technical decisions made while planning this project, w
 ### 11. Text-to-log, receipt OCR, and AI features scoped out of the build entirely
 **Decision:** SMS-based transaction logging, receipt photo OCR, AI-generated insights, and a conversational assistant are documented as future direction but not built, even as stretch phases.
 **Why:** These involve external service integration (Twilio, OCR, LLM calls) that would consume the entire 1-hour window on setup alone, with little left to show for the core problem. They're stronger as "here's what I'd add next and why" talking points than as rushed, half-working implementations.
+
+### 12. Plain JavaScript over TypeScript
+**Decision:** Both client and server are plain JS (Vite's `vue` template, not `vue-ts`; no `tsconfig` on the server) — not a deliberate ADR-level call at the time, just the unexamined default of the scaffold commands.
+**Why:** Kept within the spirit of the time-boxed build — no compile step, no type definitions to install/maintain for `express`/`better-sqlite3`, faster iteration for a small CRUD surface. Revisited explicitly after the fact rather than left silent: TypeScript is a natural next step and pairs well with the repository layer (decision 13) — the repository functions and their `Category`/`Transaction` shapes are exactly what would become typed interfaces first.
+**Alternative considered:** Converting now — rejected for this pass since it would touch every file in the project on top of the repository refactor already in flight; better as a deliberate, isolated follow-up.
+
+### 13. Repository layer between routes and SQLite, not raw SQL in route handlers
+**Decision:** Introduced `server/repositories/` — one module per table (`categoryRepository.js`, `transactionRepository.js`, `dashboardRepository.js`) exposing plain functions (`findAll`, `findById`, `create`, `update`, `remove`, etc.). Route handlers call these instead of running `db.prepare(...)` directly.
+**Why:** Keeps SQL and data-access concerns out of the HTTP layer — route handlers should be about request/response and validation, not query strings. Centralizing each table's queries in one file also means a schema change touches one place instead of every route file that happens to query that table.
+**Alternative considered:** An ORM (Sequelize/Prisma) with model classes — rejected as more setup and abstraction than a two-table MVP needs; plain function modules over plain objects (what `better-sqlite3` already returns) get the separation-of-concerns benefit without the overhead. Classes were considered too, but there's no per-row behavior to encapsulate here — just query logic — so functions operating on plain data are a better fit than object instances.
