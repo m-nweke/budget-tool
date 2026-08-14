@@ -1,9 +1,9 @@
-const path = require('path');
-const express = require('express');
+import path from 'path';
+import express, { Request, Response } from 'express';
 
-const categoriesRouter = require('./routes/categories');
-const transactionsRouter = require('./routes/transactions');
-const dashboardRouter = require('./routes/dashboard');
+import categoriesRouter from './routes/categories';
+import transactionsRouter from './routes/transactions';
+import dashboardRouter from './routes/dashboard';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,10 +14,10 @@ app.use('/api/categories', categoriesRouter);
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/dashboard', dashboardRouter);
 
-const clientDist = path.join(__dirname, '..', 'client', 'dist');
+const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
 app.use(express.static(clientDist));
 
-app.use((req, res) => {
+app.use((req: Request, res: Response) => {
   res.sendFile(path.join(clientDist, 'index.html'));
 });
 

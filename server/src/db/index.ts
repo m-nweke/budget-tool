@@ -1,5 +1,5 @@
-const path = require('path');
-const Database = require('better-sqlite3');
+import path from 'path';
+import Database from 'better-sqlite3';
 
 const db = new Database(path.join(__dirname, 'budget.sqlite'));
 
@@ -23,4 +23,4 @@ db.exec(`
   );
 `);
 
-module.exports = db;
+export default db;

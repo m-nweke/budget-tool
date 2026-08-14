@@ -1,13 +1,14 @@
-const express = require('express');
-const categoryRepository = require('../repositories/categoryRepository');
+import express, { Request, Response } from 'express';
+import categoryRepository from '../repositories/categoryRepository';
+import type { NewCategory } from '../types';
 
 const router = express.Router();
 
-router.get('/', (req, res) => {
+router.get('/', (req: Request, res: Response) => {
   res.json(categoryRepository.findAll());
 });
 
-router.post('/', (req, res) => {
+router.post('/', (req: Request<{}, {}, NewCategory>, res: Response) => {
   const { name, budgeted_amount } = req.body;
   if (!name || budgeted_amount === undefined || budgeted_amount === null) {
     return res.status(400).json({ error: 'name and budgeted_amount are required' });
@@ -16,7 +17,7 @@ router.post('/', (req, res) => {
   res.status(201).json(category);
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', (req: Request<{ id: string }, {}, NewCategory>, res: Response) => {
   const { name, budgeted_amount } = req.body;
   if (!name || budgeted_amount === undefined || budgeted_amount === null) {
     return res.status(400).json({ error: 'name and budgeted_amount are required' });
@@ -29,7 +30,7 @@ router.put('/:id', (req, res) => {
   res.json(category);
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   const existing = categoryRepository.findById(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'category not found' });
@@ -41,4 +42,4 @@ router.delete('/:id', (req, res) => {
   res.status(204).end();
 });
 
-module.exports = router;
+export default router;

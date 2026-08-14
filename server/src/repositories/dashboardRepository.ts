@@ -1,7 +1,8 @@
-const db = require('../db');
+import db from '../db';
+import type { DashboardRow } from '../types';
 
 const dashboardRepository = {
-  findSummary() {
+  findSummary(): DashboardRow[] {
     return db
       .prepare(
         `SELECT
@@ -14,8 +15,8 @@ const dashboardRepository = {
          LEFT JOIN transactions t ON t.category_id = c.id
          GROUP BY c.id, c.name, c.budgeted_amount`
       )
-      .all();
+      .all() as DashboardRow[];
   },
 };
 
-module.exports = dashboardRepository;
+export default dashboardRepository;
