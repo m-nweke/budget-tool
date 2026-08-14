@@ -1,7 +1,8 @@
 import path from 'path';
 import Database from 'better-sqlite3';
 
-const db = new Database(path.join(__dirname, 'budget.sqlite'));
+// Tests set DB_PATH=:memory: for an isolated, disposable database per run.
+const db = new Database(process.env.DB_PATH || path.join(__dirname, 'budget.sqlite'));
 
 db.pragma('foreign_keys = ON');
 
@@ -23,7 +24,8 @@ db.exec(`
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     budgeted_amount REAL NOT NULL,
-    department_id INTEGER REFERENCES departments(id)
+    department_id INTEGER REFERENCES departments(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
   CREATE TABLE IF NOT EXISTS recurring_transactions (
