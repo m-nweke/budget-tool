@@ -99,7 +99,7 @@ onMounted(loadDashboard);
         />
       </div>
 
-      <p class="difference" :class="{ negative: row.difference < 0 }">
+      <p class="difference" :class="`level-${usageLevel(row)}`">
         {{ row.difference >= 0 ? `${formatCurrency(row.difference)} remaining` : `${formatCurrency(Math.abs(row.difference))} over` }}
       </p>
     </div>
@@ -209,10 +209,17 @@ onMounted(loadDashboard);
 .difference {
   font-size: 0.85rem;
   font-weight: 500;
+}
+
+.difference.level-low {
   color: var(--color-success);
 }
 
-.difference.negative {
+.difference.level-medium {
+  color: var(--color-warning);
+}
+
+.difference.level-high {
   color: var(--color-danger);
 }
 </style>
