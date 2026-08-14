@@ -15,7 +15,6 @@ interface SqliteError extends Error {
 // This is the safety net for everything else: known failure modes we didn't
 // (or can't) guard against explicitly, mapped to specific messages where the
 // cause is identifiable, and a generic 500 for truly unexpected errors.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express requires all 4 params to recognize this as error-handling middleware
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
   const bodyParserError = err as HttpBodyParserError;
   if (bodyParserError.type === 'entity.parse.failed') {
