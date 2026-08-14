@@ -17,7 +17,8 @@ db.exec(`
     name TEXT NOT NULL,
     email TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'department_employee',
-    department_id INTEGER REFERENCES departments(id)
+    department_id INTEGER REFERENCES departments(id),
+    password_hash TEXT
   );
 
   CREATE TABLE IF NOT EXISTS categories (
@@ -26,7 +27,22 @@ db.exec(`
     budgeted_amount REAL NOT NULL,
     department_id INTEGER REFERENCES departments(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    start_on TEXT NOT NULL DEFAULT (date('now'))
+    start_on TEXT NOT NULL DEFAULT (date('now')),
+    approval_threshold REAL
+  );
+
+  -- Grants a department_head manager-level access (view/manage/approve) to a
+  -- specific department. Deliberately separate from users.department_id
+  -- (an employee's single home department): a head's access is defined
+  -- entirely by rows here, with no implicit fallback to department_id, so
+  -- "which departments can this person see" stays fully configurable per
+  -- user instead of hardcoded 1:1 — a head with rows for several
+  -- departments (but not all of them) is how a c-suite-style user is
+  -- modeled, without a separate "sees everything" role.
+  CREATE TABLE IF NOT EXISTS department_access (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    department_id INTEGER NOT NULL REFERENCES departments(id),
+    PRIMARY KEY (user_id, department_id)
   );
 
   CREATE TABLE IF NOT EXISTS recurring_transactions (
@@ -59,6 +75,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transactions_category_id_date ON transactions(category_id, date);
   CREATE INDEX IF NOT EXISTS idx_transactions_recurring_transaction_id ON transactions(recurring_transaction_id);
   CREATE INDEX IF NOT EXISTS idx_recurring_transactions_category_id ON recurring_transactions(category_id);
+  -- No index on department_access.user_id: the composite PRIMARY KEY
+  -- (user_id, department_id) already gives SQLite an implicit index usable
+  -- for user_id-only lookups via its leftmost column.
+  CREATE INDEX IF NOT EXISTS idx_department_access_department_id ON department_access(department_id);
+  CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
+  -- UNIQUE, not just indexed: userRepository.findByEmail does a single
+  -- .get() and login will trust whatever row it returns, so two users
+  -- sharing an email would make login authenticate against an arbitrary
+  -- one of them. A unique index (rather than an inline UNIQUE column
+  -- constraint) is used so it applies identically to a fresh table and an
+  -- existing one via IF NOT EXISTS, matching every other index below.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
+  CREATE INDEX IF NOT EXISTS idx_categories_department_id ON categories(department_id);
 `);
 
 // Lightweight migration for columns added after a database already existed.
@@ -81,5 +110,8 @@ function migrateColumn(sql: string): void {
 // added nullable, then backfilled with today's date for any existing rows.
 migrateColumn('ALTER TABLE categories ADD COLUMN start_on TEXT');
 db.exec("UPDATE categories SET start_on = date('now') WHERE start_on IS NULL");
+
+migrateColumn('ALTER TABLE users ADD COLUMN password_hash TEXT');
+migrateColumn('ALTER TABLE categories ADD COLUMN approval_threshold REAL');
 
 export default db;
