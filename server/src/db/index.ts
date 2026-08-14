@@ -50,6 +50,14 @@ db.exec(`
     created_by INTEGER REFERENCES users(id),
     recurring_transaction_id INTEGER REFERENCES recurring_transactions(id)
   );
+
+  -- SQLite indexes primary keys automatically but NOT foreign key columns.
+  -- Every join/lookup column below is queried directly (dashboard's JOIN,
+  -- countTransactionsFor, countForCategory, generateDue), so without these
+  -- indexes each of those is a full table scan. See the queries doc.
+  CREATE INDEX IF NOT EXISTS idx_transactions_category_id_date ON transactions(category_id, date);
+  CREATE INDEX IF NOT EXISTS idx_transactions_recurring_transaction_id ON transactions(recurring_transaction_id);
+  CREATE INDEX IF NOT EXISTS idx_recurring_transactions_category_id ON recurring_transactions(category_id);
 `);
 
 export default db;

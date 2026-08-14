@@ -69,7 +69,12 @@ const recurringTransactionRepository = {
   // Materializes any due occurrences into real transactions. Called before
   // reads (transactions/dashboard) rather than on a schedule, since there's
   // no background job runner in this deployment (see decisions.md #18).
-  generateDue(): void {
+  // Wrapped in a single transaction: a multi-month backfill can mean many
+  // inserts in one call, and without this each one commits (and fsyncs)
+  // individually — batching them is both faster and makes the whole
+  // generation pass atomic (a crash mid-backfill can't leave next_run_date
+  // out of sync with which transactions actually got created).
+  generateDue: db.transaction(() => {
     const templates = recurringTransactionRepository.findAllActive();
     const today = todayISO();
 
@@ -107,7 +112,7 @@ const recurringTransactionRepository = {
         );
       }
     }
-  },
+  }),
 };
 
 export default recurringTransactionRepository;
