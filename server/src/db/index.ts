@@ -80,6 +80,13 @@ db.exec(`
   -- for user_id-only lookups via its leftmost column.
   CREATE INDEX IF NOT EXISTS idx_department_access_department_id ON department_access(department_id);
   CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
+  -- UNIQUE, not just indexed: userRepository.findByEmail does a single
+  -- .get() and login will trust whatever row it returns, so two users
+  -- sharing an email would make login authenticate against an arbitrary
+  -- one of them. A unique index (rather than an inline UNIQUE column
+  -- constraint) is used so it applies identically to a fresh table and an
+  -- existing one via IF NOT EXISTS, matching every other index below.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_categories_department_id ON categories(department_id);
 `);
 
