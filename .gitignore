@@ -1,6 +1,7 @@
 node_modules/
 client/dist/
 server/dist/
+*.tsbuildinfo
 server/db/*.sqlite
 .DS_Store
 docs/
