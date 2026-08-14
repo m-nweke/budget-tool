@@ -2,12 +2,14 @@
 import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import TransactionForm from '../components/TransactionForm.vue';
+import RecurringTransactionForm from '../components/RecurringTransactionForm.vue';
 import { formatCurrency } from '../utils/format';
 import type {
   Category,
   Transaction,
   CreateTransactionDto,
   RecurringTransaction,
+  UpdateRecurringTransactionDto,
   RecurrenceInterval,
 } from '../types';
 
@@ -16,6 +18,8 @@ const categories = ref<Category[]>([]);
 const recurringTransactions = ref<RecurringTransaction[]>([]);
 const showForm = ref(false);
 const editingTransaction = ref<Transaction | null>(null);
+const showRecurringForm = ref(false);
+const editingRecurringTransaction = ref<RecurringTransaction | null>(null);
 const error = ref('');
 const loaded = ref(false);
 
@@ -42,13 +46,32 @@ function openCreateForm() {
 }
 
 function openEditForm(transaction: Transaction) {
+  // A generated occurrence has no independent identity worth editing —
+  // editing always targets the recurring template (affects future
+  // occurrences), never the single spawned row.
+  if (transaction.recurring_transaction_id) {
+    const template = recurringTransactions.value.find(
+      (rt) => rt.id === transaction.recurring_transaction_id
+    );
+    if (template) {
+      openEditRecurringForm(template);
+      return;
+    }
+  }
   editingTransaction.value = transaction;
   showForm.value = true;
+}
+
+function openEditRecurringForm(recurringTransaction: RecurringTransaction) {
+  editingRecurringTransaction.value = recurringTransaction;
+  showRecurringForm.value = true;
 }
 
 function closeForm() {
   showForm.value = false;
   editingTransaction.value = null;
+  showRecurringForm.value = false;
+  editingRecurringTransaction.value = null;
 }
 
 async function handleSubmit(
@@ -71,6 +94,17 @@ async function handleSubmit(
     } else {
       await api.createTransaction(data);
     }
+    closeForm();
+    await loadData();
+  } catch (e) {
+    error.value = (e as Error).message;
+  }
+}
+
+async function handleRecurringSubmit(data: UpdateRecurringTransactionDto) {
+  error.value = '';
+  try {
+    await api.updateRecurringTransaction(editingRecurringTransaction.value!.id, data);
     closeForm();
     await loadData();
   } catch (e) {
@@ -108,7 +142,7 @@ onMounted(loadData);
       <p>Log spending against your categories.</p>
     </div>
     <button
-      v-if="!showForm && loaded && categories.length"
+      v-if="!showForm && !showRecurringForm && loaded && categories.length"
       class="btn btn-primary"
       @click="openCreateForm"
     >
@@ -131,6 +165,16 @@ onMounted(loadData);
         :transaction="editingTransaction"
         :categories="categories"
         @submit="handleSubmit"
+        @cancel="closeForm"
+      />
+    </div>
+
+    <div v-if="showRecurringForm && editingRecurringTransaction" class="panel form-panel">
+      <h2>Edit Recurring Series</h2>
+      <RecurringTransactionForm
+        :recurring-transaction="editingRecurringTransaction"
+        :categories="categories"
+        @submit="handleRecurringSubmit"
         @cancel="closeForm"
       />
     </div>
@@ -181,7 +225,10 @@ onMounted(loadData);
               <template v-if="rt.end_date">· ends {{ rt.end_date }}</template>
             </div>
           </div>
-          <button class="btn btn-secondary btn-sm" @click="handleCancelRecurring(rt)">Cancel</button>
+          <div class="row-actions">
+            <button class="btn btn-secondary btn-sm" @click="openEditRecurringForm(rt)">Edit</button>
+            <button class="btn btn-danger btn-sm" @click="handleCancelRecurring(rt)">Cancel</button>
+          </div>
         </li>
       </ul>
     </div>
