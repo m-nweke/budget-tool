@@ -1,110 +1,142 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { Category, Transaction, Interval } from '../types';
+import type { Category, Transaction, CreateTransactionDto, RecurrenceInterval } from '../types';
 
-const props = defineProps<{ transaction: Transaction | null; categories: Category[] }>();
+const props = defineProps<{
+  transaction: Transaction | null;
+  categories: Category[];
+}>();
 const emit = defineEmits<{
   submit: [
-    payload: {
-      amount: number;
-      date: string;
-      description: string;
-      category_id: number;
-      repeat: boolean;
-      interval: Interval;
-      end_date: string;
-    }
+    data: CreateTransactionDto,
+    recurrence: { recurring: boolean; interval: RecurrenceInterval; end_date: string | null }
   ];
   cancel: [];
 }>();
 
-const amount = ref<number>(0);
+const amount = ref<number | string>('');
 const date = ref('');
 const description = ref('');
-const categoryId = ref<number | null>(null);
-const repeat = ref(false);
-const interval = ref<Interval>('monthly');
+const categoryId = ref<number | string>('');
+const recurring = ref(false);
+const interval = ref<RecurrenceInterval>('monthly');
 const endDate = ref('');
 
 watch(
   () => props.transaction,
   (transaction) => {
-    amount.value = transaction?.amount ?? 0;
-    date.value = transaction?.date ?? new Date().toISOString().slice(0, 10);
-    description.value = transaction?.description ?? '';
-    categoryId.value = transaction?.category_id ?? (props.categories.length === 1 ? props.categories[0].id : null);
-    repeat.value = false;
-    interval.value = 'monthly';
-    endDate.value = '';
+    amount.value = transaction ? transaction.amount : '';
+    date.value = transaction ? transaction.date : '';
+    description.value = transaction ? transaction.description || '' : '';
+    categoryId.value = transaction ? transaction.category_id : '';
   },
   { immediate: true }
 );
 
-function onSubmit() {
-  if (categoryId.value === null) return;
-  emit('submit', {
-    amount: Number(amount.value),
-    date: date.value,
-    description: description.value,
-    category_id: categoryId.value,
-    repeat: repeat.value,
-    interval: interval.value,
-    end_date: endDate.value,
-  });
+function handleSubmit() {
+  emit(
+    'submit',
+    {
+      amount: Number(amount.value),
+      date: date.value,
+      description: description.value,
+      category_id: Number(categoryId.value),
+    },
+    { recurring: recurring.value, interval: interval.value, end_date: endDate.value || null }
+  );
 }
 </script>
 
 <template>
-  <form class="card form" @submit.prevent="onSubmit">
-    <h3>{{ props.transaction ? 'Edit Transaction' : 'New Transaction' }}</h3>
-
-    <label>
+  <form class="transaction-form" @submit.prevent="handleSubmit">
+    <div class="form-row">
+      <label class="field">
+        Amount
+        <input v-model="amount" type="number" step="0.01" min="0" placeholder="0.00" required />
+      </label>
+      <label class="field">
+        Date
+        <input v-model="date" type="date" required />
+      </label>
+    </div>
+    <label class="field">
+      Description
+      <input v-model="description" type="text" placeholder="e.g. Office chairs" />
+    </label>
+    <label class="field">
       Category
-      <select v-model.number="categoryId" required>
-        <option :value="null" disabled>Select a category</option>
-        <option v-for="c in props.categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+      <select v-model="categoryId" required>
+        <option disabled value="">Select a category</option>
+        <option v-for="category in categories" :key="category.id" :value="category.id">
+          {{ category.name }}
+        </option>
       </select>
     </label>
 
-    <label>
-      Amount
-      <input v-model.number="amount" type="number" step="0.01" required />
-    </label>
-
-    <label>
-      Date
-      <input v-model="date" type="date" required />
-    </label>
-
-    <label>
-      Description
-      <input v-model="description" />
-    </label>
-
-    <label v-if="!props.transaction" class="checkbox-label">
-      <input v-model="repeat" type="checkbox" />
-      Repeat this transaction
-    </label>
-
-    <template v-if="repeat && !props.transaction">
-      <label>
-        Interval
-        <select v-model="interval">
-          <option value="daily">Daily</option>
-          <option value="weekly">Weekly</option>
-          <option value="biweekly">Biweekly</option>
-          <option value="monthly">Monthly</option>
-        </select>
+    <template v-if="!transaction">
+      <label class="checkbox-field">
+        <input v-model="recurring" type="checkbox" />
+        Repeat this transaction (e.g. a subscription)
       </label>
-      <label>
-        End Date (optional)
-        <input v-model="endDate" type="date" />
-      </label>
+
+      <div v-if="recurring" class="form-row recurrence-fields">
+        <label class="field">
+          Repeats
+          <select v-model="interval">
+            <option value="daily">Daily</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Every 2 weeks</option>
+            <option value="monthly">Monthly</option>
+          </select>
+        </label>
+        <label class="field">
+          Ends on (optional)
+          <input v-model="endDate" type="date" />
+        </label>
+      </div>
     </template>
 
-    <div class="form-actions">
-      <button type="submit" class="primary">{{ props.transaction ? 'Save' : 'Create' }}</button>
-      <button type="button" @click="emit('cancel')">Cancel</button>
+    <div class="actions">
+      <button type="submit" class="btn btn-primary">{{ transaction ? 'Save Changes' : 'Create Transaction' }}</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
     </div>
   </form>
 </template>
+
+<style scoped>
+.transaction-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 420px;
+}
+
+.form-row {
+  display: flex;
+  gap: var(--space-4);
+}
+
+.form-row .field {
+  flex: 1;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.recurrence-fields {
+  padding: var(--space-3);
+  background: var(--color-bg);
+  border-radius: var(--radius-sm);
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+</style>

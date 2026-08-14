@@ -1,1 +1,1 @@
-export * from './Dashboard';
+export type { DashboardRow } from './DashboardRow';

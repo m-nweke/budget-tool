@@ -1,52 +1,72 @@
-import { Router } from 'express';
-import * as recurringRepo from '../repositories/recurringTransactionRepository';
-import { rebuildFromScratch } from '../utils/recurringGenerator';
-import { HttpError } from '../middleware/errorHandler';
+import express, { Request, Response } from 'express';
+import recurringTransactionRepository from '../repositories/recurringTransactionRepository';
+import categoryRepository from '../repositories/categoryRepository';
+import type { CreateRecurringTransactionDto, UpdateRecurringTransactionDto, RecurrenceInterval } from '../types';
 
-export const recurringTransactionsRouter = Router();
+const router = express.Router();
 
-const VALID_INTERVALS = ['daily', 'weekly', 'biweekly', 'monthly'];
+const VALID_INTERVALS: RecurrenceInterval[] = ['daily', 'weekly', 'biweekly', 'monthly'];
 
-recurringTransactionsRouter.get('/', (_req, res) => {
-  res.json(recurringRepo.findAll());
-});
-
-recurringTransactionsRouter.post('/', (req, res) => {
-  const { amount, description, category_id, interval, start_date, end_date } = req.body;
-
-  if (typeof amount !== 'number') throw new HttpError(400, 'amount must be a number');
-  if (typeof category_id !== 'number') throw new HttpError(400, 'category_id is required');
-  if (!VALID_INTERVALS.includes(interval)) throw new HttpError(400, 'interval must be one of daily/weekly/biweekly/monthly');
-  if (typeof start_date !== 'string' || !start_date) throw new HttpError(400, 'start_date is required');
-
-  const recurring = recurringRepo.create({ amount, description, category_id, interval, start_date, end_date });
-  res.status(201).json(recurring);
-});
-
-recurringTransactionsRouter.put('/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const existing = recurringRepo.findById(id);
-  if (!existing) throw new HttpError(404, 'Recurring transaction not found');
-
-  const { amount, description, category_id, interval, end_date, apply_to_existing } = req.body;
-  if (interval !== undefined && !VALID_INTERVALS.includes(interval)) {
-    throw new HttpError(400, 'interval must be one of daily/weekly/biweekly/monthly');
+function validate(
+  body: CreateRecurringTransactionDto | UpdateRecurringTransactionDto
+): string | null {
+  const { amount, category_id, interval, end_date } = body;
+  const start_date = 'start_date' in body ? body.start_date : undefined;
+  if (amount === undefined || amount === null || !category_id || !interval) {
+    return 'amount, category_id, and interval are required';
   }
-
-  const updated = recurringRepo.update(id, { amount, description, category_id, interval, end_date });
-
-  if (apply_to_existing === true) {
-    rebuildFromScratch(id);
+  if ('start_date' in body && !body.start_date) {
+    return 'start_date is required';
   }
+  if (!VALID_INTERVALS.includes(interval)) {
+    return `interval must be one of: ${VALID_INTERVALS.join(', ')}`;
+  }
+  if (end_date && start_date && end_date < start_date) {
+    return 'end_date cannot be before start_date';
+  }
+  return null;
+}
 
-  res.json(recurringRepo.findById(id) ?? updated);
+router.get('/', (req: Request, res: Response) => {
+  res.json(recurringTransactionRepository.findAllActive());
 });
 
-recurringTransactionsRouter.delete('/:id', (req, res) => {
-  const id = Number(req.params.id);
-  const existing = recurringRepo.findById(id);
-  if (!existing) throw new HttpError(404, 'Recurring transaction not found');
-
-  recurringRepo.deactivate(id);
-  res.status(204).send();
+router.post('/', (req: Request<{}, {}, CreateRecurringTransactionDto>, res: Response) => {
+  const error = validate(req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+  if (!categoryRepository.findById(req.body.category_id)) {
+    return res.status(400).json({ error: 'category_id does not reference an existing category' });
+  }
+  const recurringTransaction = recurringTransactionRepository.create(req.body);
+  recurringTransactionRepository.generateDue();
+  res.status(201).json(recurringTransaction);
 });
+
+router.put('/:id', (req: Request<{ id: string }, {}, UpdateRecurringTransactionDto>, res: Response) => {
+  const error = validate(req.body);
+  if (error) {
+    return res.status(400).json({ error });
+  }
+  const existing = recurringTransactionRepository.findById(req.params.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'recurring transaction not found' });
+  }
+  if (!categoryRepository.findById(req.body.category_id)) {
+    return res.status(400).json({ error: 'category_id does not reference an existing category' });
+  }
+  const recurringTransaction = recurringTransactionRepository.update(req.params.id, req.body);
+  res.json(recurringTransaction);
+});
+
+router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
+  const existing = recurringTransactionRepository.findById(req.params.id);
+  if (!existing) {
+    return res.status(404).json({ error: 'recurring transaction not found' });
+  }
+  recurringTransactionRepository.deactivate(req.params.id);
+  res.status(204).end();
+});
+
+export default router;

@@ -1,8 +1,8 @@
+import path from 'path';
 import Database from 'better-sqlite3';
 
-const dbPath = process.env.DB_PATH || 'budget.db';
-
-export const db = new Database(dbPath);
+// Tests set DB_PATH=:memory: for an isolated, disposable database per run.
+const db = new Database(process.env.DB_PATH || path.join(__dirname, 'budget.sqlite'));
 
 db.pragma('foreign_keys = ON');
 
@@ -52,7 +52,34 @@ db.exec(`
     recurring_transaction_id INTEGER REFERENCES recurring_transactions(id)
   );
 
+  -- SQLite indexes primary keys automatically but NOT foreign key columns.
+  -- Every join/lookup column below is queried directly (dashboard's JOIN,
+  -- countTransactionsFor, countForCategory, generateDue), so without these
+  -- indexes each of those is a full table scan. See the queries doc.
   CREATE INDEX IF NOT EXISTS idx_transactions_category_id_date ON transactions(category_id, date);
   CREATE INDEX IF NOT EXISTS idx_transactions_recurring_transaction_id ON transactions(recurring_transaction_id);
   CREATE INDEX IF NOT EXISTS idx_recurring_transactions_category_id ON recurring_transactions(category_id);
 `);
+
+// Lightweight migration for columns added after a database already existed.
+// `CREATE TABLE IF NOT EXISTS` only handles brand-new tables — it doesn't
+// alter existing ones, so a column added to the schema above needs an
+// explicit ALTER TABLE here too. Guarded because SQLite errors on adding a
+// column that's already there (a database created after this migration was
+// written already has it from the CREATE TABLE statement).
+function migrateColumn(sql: string): void {
+  try {
+    db.exec(sql);
+  } catch (err) {
+    const message = (err as Error).message;
+    if (!message.includes('duplicate column name')) throw err;
+  }
+}
+
+// SQLite's ALTER TABLE ADD COLUMN doesn't allow a non-constant default
+// (date('now') is a function call), unlike CREATE TABLE — so the column is
+// added nullable, then backfilled with today's date for any existing rows.
+migrateColumn('ALTER TABLE categories ADD COLUMN start_on TEXT');
+db.exec("UPDATE categories SET start_on = date('now') WHERE start_on IS NULL");
+
+export default db;

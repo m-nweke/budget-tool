@@ -1,13 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Dashboard from '../views/Dashboard.vue';
-import Transactions from '../views/Transactions.vue';
-import Categories from '../views/Categories.vue';
+import DashboardView from '../views/DashboardView.vue';
+import TransactionsView from '../views/TransactionsView.vue';
+import CategoriesView from '../views/CategoriesView.vue';
 
-export const router = createRouter({
+const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', component: Dashboard },
-    { path: '/transactions', component: Transactions },
-    { path: '/categories', component: Categories },
+    { path: '/', name: 'dashboard', component: DashboardView },
+    { path: '/transactions', name: 'transactions', component: TransactionsView },
+    { path: '/categories', name: 'categories', component: CategoriesView },
   ],
 });
+
+export default router;

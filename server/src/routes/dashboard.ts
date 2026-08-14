@@ -1,65 +1,33 @@
-import { Router } from 'express';
-import { db } from '../db';
-import { HttpError } from '../middleware/errorHandler';
-import { currentMonth, isValidMonth, monthCount, monthStart, monthEnd } from '../utils/dateMath';
-import type { Category, DashboardResponse } from '../types';
+import express, { Request, Response } from 'express';
+import dashboardRepository from '../repositories/dashboardRepository';
 
-export const dashboardRouter = Router();
+const router = express.Router();
+const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-dashboardRouter.get('/', (req, res) => {
-  const fromParam = req.query.from as string | undefined;
-  const toParam = req.query.to as string | undefined;
+function isValidMonth(value: unknown): value is string {
+  return typeof value === 'string' && MONTH_PATTERN.test(value);
+}
 
-  let from: string;
-  let to: string;
+router.get('/', (req: Request, res: Response) => {
+  const { from, to } = req.query;
 
-  if (!fromParam && !toParam) {
-    from = to = currentMonth();
-  } else if (fromParam && !toParam) {
-    if (!isValidMonth(fromParam)) throw new HttpError(400, 'from must be YYYY-MM with a valid month');
-    from = to = fromParam;
-  } else if (!fromParam && toParam) {
-    if (!isValidMonth(toParam)) throw new HttpError(400, 'to must be YYYY-MM with a valid month');
-    from = to = toParam;
-  } else {
-    if (!isValidMonth(fromParam!)) throw new HttpError(400, 'from must be YYYY-MM with a valid month');
-    if (!isValidMonth(toParam!)) throw new HttpError(400, 'to must be YYYY-MM with a valid month');
-    from = fromParam!;
-    to = toParam!;
-    if (from > to) throw new HttpError(400, 'from must be <= to');
+  if (from !== undefined && !isValidMonth(from)) {
+    return res.status(400).json({ error: 'from must be in YYYY-MM format' });
+  }
+  if (to !== undefined && !isValidMonth(to)) {
+    return res.status(400).json({ error: 'to must be in YYYY-MM format' });
+  }
+  if (isValidMonth(from) && isValidMonth(to) && from > to) {
+    return res.status(400).json({ error: 'from must not be after to' });
   }
 
-  const rangeStart = monthStart(from);
-  const rangeEnd = monthEnd(to);
-  const months = monthCount(from, to);
+  // Only one of from/to given means "just that single month" — defaulting
+  // the missing side to today's month (instead of mirroring the given side)
+  // could silently produce an inverted or unintended range.
+  const resolvedFrom = isValidMonth(from) ? from : isValidMonth(to) ? to : undefined;
+  const resolvedTo = isValidMonth(to) ? to : resolvedFrom;
 
-  const categories = db
-    .prepare('SELECT * FROM categories WHERE start_on <= ? ORDER BY name')
-    .all(rangeEnd) as Category[];
-
-  const spentStmt = db.prepare(
-    'SELECT COALESCE(SUM(amount), 0) as total FROM transactions WHERE category_id = ? AND date >= ? AND date <= ?'
-  );
-
-  const response: DashboardResponse = {
-    from,
-    to,
-    categories: categories.map((category) => {
-      // Scope the effective range to the later of the requested range start
-      // or the category's own start_on, so budget scaling reflects the
-      // months the category was actually active for.
-      const effectiveStart = category.start_on > rangeStart ? category.start_on.slice(0, 7) : from;
-      const effectiveMonths = monthCount(effectiveStart, to);
-      const spent = (spentStmt.get(category.id, rangeStart, rangeEnd) as { total: number }).total;
-
-      return {
-        id: category.id,
-        name: category.name,
-        budgeted_amount: category.budgeted_amount * effectiveMonths,
-        spent_amount: spent,
-      };
-    }),
-  };
-
-  res.json(response);
+  res.json(dashboardRepository.findSummary(resolvedFrom, resolvedTo));
 });
+
+export default router;

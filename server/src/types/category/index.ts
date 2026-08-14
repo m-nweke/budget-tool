@@ -1,3 +1,2 @@
-export * from './Category';
-export * from './CreateCategoryDto';
-export * from './UpdateCategoryDto';
+export type { Category } from './Category';
+export type { CreateCategoryDto } from './CreateCategoryDto';

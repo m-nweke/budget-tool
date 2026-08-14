@@ -1,60 +1,52 @@
-import { db } from '../db';
-import type { Category, CreateCategoryDto, UpdateCategoryDto } from '../types';
+import db from '../db';
+import { todayISO } from '../utils/dateUtils';
+import type { Category, CreateCategoryDto } from '../types';
 
-export function findAll(): Category[] {
-  return db.prepare('SELECT * FROM categories ORDER BY name').all() as Category[];
-}
+const COLUMNS = 'id, name, budgeted_amount, start_on';
 
-export function findById(id: number): Category | undefined {
-  return db.prepare('SELECT * FROM categories WHERE id = ?').get(id) as Category | undefined;
-}
+const categoryRepository = {
+  findAll(): Category[] {
+    return db.prepare(`SELECT ${COLUMNS} FROM categories`).all() as Category[];
+  },
 
-export function create(dto: CreateCategoryDto): Category {
-  const stmt = dto.start_on
-    ? db.prepare(
-        'INSERT INTO categories (name, budgeted_amount, department_id, start_on) VALUES (?, ?, ?, ?)'
-      )
-    : db.prepare('INSERT INTO categories (name, budgeted_amount, department_id) VALUES (?, ?, ?)');
+  findById(id: number | string): Category | undefined {
+    return db.prepare(`SELECT ${COLUMNS} FROM categories WHERE id = ?`).get(id) as
+      | Category
+      | undefined;
+  },
 
-  const params = dto.start_on
-    ? [dto.name, dto.budgeted_amount, dto.department_id ?? null, dto.start_on]
-    : [dto.name, dto.budgeted_amount, dto.department_id ?? null];
+  create({ name, budgeted_amount, start_on }: CreateCategoryDto): Category {
+    const result = db
+      .prepare('INSERT INTO categories (name, budgeted_amount, start_on) VALUES (?, ?, ?)')
+      .run(name, budgeted_amount, start_on || todayISO());
+    return categoryRepository.findById(result.lastInsertRowid as number) as Category;
+  },
 
-  const info = stmt.run(...params);
-  return findById(info.lastInsertRowid as number)!;
-}
+  update(id: number | string, { name, budgeted_amount, start_on }: CreateCategoryDto): Category {
+    // Unlike create(), an omitted start_on here must mean "leave it as-is",
+    // not "reset to today" — otherwise a caller that only means to change
+    // name/budgeted_amount would silently move the category's effective
+    // start date to now, dropping it off past months' dashboards.
+    const existing = categoryRepository.findById(id);
+    db.prepare('UPDATE categories SET name = ?, budgeted_amount = ?, start_on = ? WHERE id = ?').run(
+      name,
+      budgeted_amount,
+      start_on || existing?.start_on || todayISO(),
+      id
+    );
+    return categoryRepository.findById(id) as Category;
+  },
 
-export function update(id: number, dto: UpdateCategoryDto): Category | undefined {
-  const existing = findById(id);
-  if (!existing) return undefined;
+  remove(id: number | string): void {
+    db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+  },
 
-  db.prepare(
-    'UPDATE categories SET name = ?, budgeted_amount = ?, department_id = ?, start_on = ? WHERE id = ?'
-  ).run(
-    dto.name ?? existing.name,
-    dto.budgeted_amount ?? existing.budgeted_amount,
-    dto.department_id !== undefined ? dto.department_id : existing.department_id,
-    dto.start_on !== undefined ? dto.start_on : existing.start_on,
-    id
-  );
+  countTransactionsFor(id: number | string): number {
+    const row = db
+      .prepare('SELECT COUNT(*) AS count FROM transactions WHERE category_id = ?')
+      .get(id) as { count: number };
+    return row.count;
+  },
+};
 
-  return findById(id);
-}
-
-export function remove(id: number): void {
-  db.prepare('DELETE FROM categories WHERE id = ?').run(id);
-}
-
-export function countTransactionsForCategory(id: number): number {
-  const row = db
-    .prepare('SELECT COUNT(*) as count FROM transactions WHERE category_id = ?')
-    .get(id) as { count: number };
-  return row.count;
-}
-
-export function countRecurringForCategory(id: number): number {
-  const row = db
-    .prepare('SELECT COUNT(*) as count FROM recurring_transactions WHERE category_id = ?')
-    .get(id) as { count: number };
-  return row.count;
-}
+export default categoryRepository;

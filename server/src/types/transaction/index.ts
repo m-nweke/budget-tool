@@ -1,3 +1,2 @@
-export * from './Transaction';
-export * from './CreateTransactionDto';
-export * from './UpdateTransactionDto';
+export type { Transaction } from './Transaction';
+export type { CreateTransactionDto } from './CreateTransactionDto';

@@ -1,1 +1,1 @@
-export * from './DashboardCategory';
+export type { DashboardRow } from './DashboardRow';

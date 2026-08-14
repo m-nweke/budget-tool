@@ -1,44 +1,44 @@
-import type { Request, Response, NextFunction } from 'express';
-import { generateDue } from '../utils/recurringGenerator';
+import { Request, Response, NextFunction } from 'express';
 
-export class HttpError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
+interface HttpBodyParserError extends Error {
+  type?: string;
+  status?: number;
 }
 
+interface SqliteError extends Error {
+  code?: string;
+}
+
+// Registered last in server.ts. Express 5 auto-forwards synchronous throws
+// here, so route handlers don't need try/catch for unexpected errors — only
+// the explicit, anticipated validation (400s) needs to be handled inline.
+// This is the safety net for everything else: known failure modes we didn't
+// (or can't) guard against explicitly, mapped to specific messages where the
+// cause is identifiable, and a generic 500 for truly unexpected errors.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Express requires all 4 params to recognize this as error-handling middleware
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction): void {
-  if (err instanceof HttpError) {
-    res.status(err.status).json({ error: err.message });
+  const bodyParserError = err as HttpBodyParserError;
+  if (bodyParserError.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'Request body is not valid JSON' });
     return;
   }
 
-  const message = err instanceof Error ? err.message : '';
-
-  if (message.includes('FOREIGN KEY constraint failed')) {
-    res.status(400).json({ error: 'This operation violates a data relationship (e.g. referenced record still in use).' });
-    return;
-  }
-  if (message.includes('UNIQUE constraint failed')) {
-    res.status(400).json({ error: 'A record with this value already exists.' });
-    return;
-  }
-  if (message.includes('NOT NULL constraint failed')) {
-    res.status(400).json({ error: 'A required field is missing.' });
-    return;
+  const sqliteError = err as SqliteError;
+  switch (sqliteError.code) {
+    case 'SQLITE_CONSTRAINT_FOREIGNKEY':
+      res.status(400).json({ error: 'This action references a record that no longer exists' });
+      return;
+    case 'SQLITE_CONSTRAINT_NOTNULL':
+      res.status(400).json({ error: 'A required field is missing' });
+      return;
+    case 'SQLITE_CONSTRAINT_UNIQUE':
+      res.status(400).json({ error: 'A record with that value already exists' });
+      return;
+    case 'SQLITE_CONSTRAINT':
+      res.status(400).json({ error: 'This action conflicts with related data and cannot be completed' });
+      return;
   }
 
   console.error(err);
   res.status(500).json({ error: 'Internal server error' });
-}
-
-export function generateDueMiddleware(_req: Request, _res: Response, next: NextFunction): void {
-  try {
-    generateDue();
-    next();
-  } catch (err) {
-    next(err);
-  }
 }
