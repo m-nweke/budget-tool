@@ -1,16 +1,19 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import TransactionForm from '../components/TransactionForm.vue';
+import { formatCurrency } from '../format';
+import type { Category, Transaction, NewTransaction } from '../types';
 
-const transactions = ref([]);
-const categories = ref([]);
+const transactions = ref<Transaction[]>([]);
+const categories = ref<Category[]>([]);
 const showForm = ref(false);
-const editingTransaction = ref(null);
+const editingTransaction = ref<Transaction | null>(null);
 const error = ref('');
+const loaded = ref(false);
 
 const categoryNameById = computed(() => {
-  const map = {};
+  const map: Record<number, string> = {};
   for (const category of categories.value) {
     map[category.id] = category.name;
   }
@@ -22,6 +25,7 @@ async function loadData() {
     api.getTransactions(),
     api.getCategories(),
   ]);
+  loaded.value = true;
 }
 
 function openCreateForm() {
@@ -29,7 +33,7 @@ function openCreateForm() {
   showForm.value = true;
 }
 
-function openEditForm(transaction) {
+function openEditForm(transaction: Transaction) {
   editingTransaction.value = transaction;
   showForm.value = true;
 }
@@ -39,7 +43,7 @@ function closeForm() {
   editingTransaction.value = null;
 }
 
-async function handleSubmit(data) {
+async function handleSubmit(data: NewTransaction) {
   error.value = '';
   try {
     if (editingTransaction.value) {
@@ -50,17 +54,17 @@ async function handleSubmit(data) {
     closeForm();
     await loadData();
   } catch (e) {
-    error.value = e.message;
+    error.value = (e as Error).message;
   }
 }
 
-async function handleDelete(transaction) {
+async function handleDelete(transaction: Transaction) {
   error.value = '';
   try {
     await api.deleteTransaction(transaction.id);
     await loadData();
   } catch (e) {
-    error.value = e.message;
+    error.value = (e as Error).message;
   }
 }
 
@@ -68,64 +72,135 @@ onMounted(loadData);
 </script>
 
 <template>
-  <h1>Transactions</h1>
-  <p v-if="error" class="error">{{ error }}</p>
+  <div class="view-header">
+    <div>
+      <h1>Transactions</h1>
+      <p>Log spending against your categories.</p>
+    </div>
+    <button
+      v-if="!showForm && loaded && categories.length"
+      class="btn btn-primary"
+      @click="openCreateForm"
+    >
+      + Add Transaction
+    </button>
+  </div>
 
-  <button v-if="!showForm" @click="openCreateForm">Add Transaction</button>
+  <p v-if="error" class="alert">{{ error }}</p>
 
-  <TransactionForm
-    v-if="showForm"
-    :transaction="editingTransaction"
-    :categories="categories"
-    @submit="handleSubmit"
-    @cancel="closeForm"
-  />
+  <div v-if="loaded && !categories.length" class="empty-state">
+    <h3>Create a category first</h3>
+    <p>Transactions need to belong to a category, so set one up before logging spending.</p>
+    <RouterLink to="/categories" class="btn btn-primary">Go to Categories</RouterLink>
+  </div>
 
-  <table class="transactions-table">
-    <thead>
-      <tr>
-        <th>Date</th>
-        <th>Description</th>
-        <th>Amount</th>
-        <th>Category</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr v-for="transaction in transactions" :key="transaction.id">
-        <td>{{ transaction.date }}</td>
-        <td>{{ transaction.description }}</td>
-        <td>${{ transaction.amount.toFixed(2) }}</td>
-        <td>{{ categoryNameById[transaction.category_id] }}</td>
-        <td class="row-actions">
-          <button @click="openEditForm(transaction)">Edit</button>
-          <button @click="handleDelete(transaction)">Delete</button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+  <template v-else>
+    <div v-if="showForm" class="panel form-panel">
+      <h2>{{ editingTransaction ? 'Edit Transaction' : 'New Transaction' }}</h2>
+      <TransactionForm
+        :transaction="editingTransaction"
+        :categories="categories"
+        @submit="handleSubmit"
+        @cancel="closeForm"
+      />
+    </div>
+
+    <div v-if="loaded && !transactions.length && !showForm" class="empty-state">
+      <h3>No transactions yet</h3>
+      <p>Log your first transaction to see it reflected on the dashboard.</p>
+      <button class="btn btn-primary" @click="openCreateForm">Add your first transaction</button>
+    </div>
+
+    <div v-else class="card table-card">
+      <table class="transactions-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Amount</th>
+            <th>Category</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="transaction in transactions" :key="transaction.id">
+            <td>{{ transaction.date }}</td>
+            <td>{{ transaction.description || '—' }}</td>
+            <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
+            <td>{{ categoryNameById[transaction.category_id] }}</td>
+            <td class="row-actions">
+              <button class="btn btn-secondary btn-sm" @click="openEditForm(transaction)">Edit</button>
+              <button class="btn btn-danger btn-sm" @click="handleDelete(transaction)">Delete</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </template>
 </template>
 
 <style scoped>
-.error {
-  color: #b91c1c;
+.view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.view-header p {
+  margin-top: var(--space-1);
+}
+
+.form-panel {
+  margin-bottom: var(--space-5);
+}
+
+.form-panel h2 {
+  margin-bottom: var(--space-4);
+}
+
+.table-card {
+  overflow-x: auto;
 }
 
 .transactions-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 1rem;
+  font-size: 0.9rem;
 }
 
-.transactions-table th,
-.transactions-table td {
+.transactions-table th {
   text-align: left;
-  padding: 0.5rem;
-  border-bottom: 1px solid #eee;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.transactions-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.transactions-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.transactions-table tbody tr:hover {
+  background: var(--color-bg);
+}
+
+.amount-cell {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
 }
 
 .row-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  justify-content: flex-end;
 }
 </style>

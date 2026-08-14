@@ -1,15 +1,19 @@
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import CategoryForm from '../components/CategoryForm.vue';
+import { formatCurrency } from '../format';
+import type { Category, NewCategory } from '../types';
 
-const categories = ref([]);
+const categories = ref<Category[]>([]);
 const showForm = ref(false);
-const editingCategory = ref(null);
+const editingCategory = ref<Category | null>(null);
 const error = ref('');
+const loaded = ref(false);
 
 async function loadCategories() {
   categories.value = await api.getCategories();
+  loaded.value = true;
 }
 
 function openCreateForm() {
@@ -17,7 +21,7 @@ function openCreateForm() {
   showForm.value = true;
 }
 
-function openEditForm(category) {
+function openEditForm(category: Category) {
   editingCategory.value = category;
   showForm.value = true;
 }
@@ -27,7 +31,7 @@ function closeForm() {
   editingCategory.value = null;
 }
 
-async function handleSubmit(data) {
+async function handleSubmit(data: NewCategory) {
   error.value = '';
   try {
     if (editingCategory.value) {
@@ -38,17 +42,17 @@ async function handleSubmit(data) {
     closeForm();
     await loadCategories();
   } catch (e) {
-    error.value = e.message;
+    error.value = (e as Error).message;
   }
 }
 
-async function handleDelete(category) {
+async function handleDelete(category: Category) {
   error.value = '';
   try {
     await api.deleteCategory(category.id);
     await loadCategories();
   } catch (e) {
-    error.value = e.message;
+    error.value = (e as Error).message;
   }
 }
 
@@ -56,50 +60,92 @@ onMounted(loadCategories);
 </script>
 
 <template>
-  <h1>Categories</h1>
-  <p v-if="error" class="error">{{ error }}</p>
+  <div class="view-header">
+    <div>
+      <h1>Categories</h1>
+      <p>Set a budget for each spending category.</p>
+    </div>
+    <button v-if="!showForm && categories.length" class="btn btn-primary" @click="openCreateForm">
+      + Add Category
+    </button>
+  </div>
 
-  <button v-if="!showForm" @click="openCreateForm">Add Category</button>
+  <p v-if="error" class="alert">{{ error }}</p>
 
-  <CategoryForm
-    v-if="showForm"
-    :category="editingCategory"
-    @submit="handleSubmit"
-    @cancel="closeForm"
-  />
+  <div v-if="showForm" class="panel form-panel">
+    <h2>{{ editingCategory ? 'Edit Category' : 'New Category' }}</h2>
+    <CategoryForm :category="editingCategory" @submit="handleSubmit" @cancel="closeForm" />
+  </div>
 
-  <ul class="category-list">
-    <li v-for="category in categories" :key="category.id">
-      <span>{{ category.name }} — ${{ category.budgeted_amount.toFixed(2) }}</span>
-      <span class="row-actions">
-        <button @click="openEditForm(category)">Edit</button>
-        <button @click="handleDelete(category)">Delete</button>
-      </span>
+  <div v-if="loaded && !categories.length && !showForm" class="empty-state">
+    <h3>No categories yet</h3>
+    <p>Categories are how you set budgets — create one to start tracking spending against it.</p>
+    <button class="btn btn-primary" @click="openCreateForm">Create your first category</button>
+  </div>
+
+  <ul v-else class="category-list">
+    <li v-for="category in categories" :key="category.id" class="card category-row">
+      <div>
+        <div class="category-name">{{ category.name }}</div>
+        <div class="category-amount">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn btn-secondary btn-sm" @click="openEditForm(category)">Edit</button>
+        <button class="btn btn-danger btn-sm" @click="handleDelete(category)">Delete</button>
+      </div>
     </li>
   </ul>
 </template>
 
 <style scoped>
-.error {
-  color: #b91c1c;
+.view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.view-header p {
+  margin-top: var(--space-1);
+}
+
+.form-panel {
+  margin-bottom: var(--space-5);
+}
+
+.form-panel h2 {
+  margin-bottom: var(--space-4);
 }
 
 .category-list {
   list-style: none;
   padding: 0;
-  margin-top: 1rem;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
-.category-list li {
+.category-row {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #eee;
+  justify-content: space-between;
+  padding: var(--space-4);
+}
+
+.category-name {
+  font-weight: 600;
+}
+
+.category-amount {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
 }
 
 .row-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
 }
 </style>

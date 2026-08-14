@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import NavBar from './components/NavBar.vue';
 </script>
 
@@ -11,8 +11,8 @@ import NavBar from './components/NavBar.vue';
 
 <style scoped>
 .app-main {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding: 1.5rem;
+  padding: var(--space-6) var(--space-5);
 }
 </style>

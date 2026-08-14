@@ -1,16 +1,20 @@
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from 'vue';
+import type { Category, Transaction, NewTransaction } from '../types';
 
-const props = defineProps({
-  transaction: { type: Object, default: null },
-  categories: { type: Array, required: true },
-});
-const emit = defineEmits(['submit', 'cancel']);
+const props = defineProps<{
+  transaction: Transaction | null;
+  categories: Category[];
+}>();
+const emit = defineEmits<{
+  submit: [data: NewTransaction];
+  cancel: [];
+}>();
 
-const amount = ref('');
+const amount = ref<number | string>('');
 const date = ref('');
 const description = ref('');
-const categoryId = ref('');
+const categoryId = ref<number | string>('');
 
 watch(
   () => props.transaction,
@@ -35,19 +39,21 @@ function handleSubmit() {
 
 <template>
   <form class="transaction-form" @submit.prevent="handleSubmit">
-    <label>
-      Amount
-      <input v-model="amount" type="number" step="0.01" required />
-    </label>
-    <label>
-      Date
-      <input v-model="date" type="date" required />
-    </label>
-    <label>
+    <div class="form-row">
+      <label class="field">
+        Amount
+        <input v-model="amount" type="number" step="0.01" min="0" placeholder="0.00" required />
+      </label>
+      <label class="field">
+        Date
+        <input v-model="date" type="date" required />
+      </label>
+    </div>
+    <label class="field">
       Description
-      <input v-model="description" type="text" />
+      <input v-model="description" type="text" placeholder="e.g. Office chairs" />
     </label>
-    <label>
+    <label class="field">
       Category
       <select v-model="categoryId" required>
         <option disabled value="">Select a category</option>
@@ -57,8 +63,8 @@ function handleSubmit() {
       </select>
     </label>
     <div class="actions">
-      <button type="submit">{{ transaction ? 'Save' : 'Create' }}</button>
-      <button type="button" @click="$emit('cancel')">Cancel</button>
+      <button type="submit" class="btn btn-primary">{{ transaction ? 'Save Changes' : 'Create Transaction' }}</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
     </div>
   </form>
 </template>
@@ -67,20 +73,22 @@ function handleSubmit() {
 .transaction-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-width: 320px;
-  margin-bottom: 1.5rem;
+  gap: var(--space-4);
+  max-width: 420px;
 }
 
-label {
+.form-row {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: var(--space-4);
+}
+
+.form-row .field {
+  flex: 1;
 }
 
 .actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 </style>

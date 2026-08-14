@@ -1,13 +1,17 @@
-<script setup>
+<script setup lang="ts">
 import { ref, watch } from 'vue';
+import type { Category, NewCategory } from '../types';
 
-const props = defineProps({
-  category: { type: Object, default: null },
-});
-const emit = defineEmits(['submit', 'cancel']);
+const props = defineProps<{
+  category: Category | null;
+}>();
+const emit = defineEmits<{
+  submit: [data: NewCategory];
+  cancel: [];
+}>();
 
 const name = ref('');
-const budgetedAmount = ref('');
+const budgetedAmount = ref<number | string>('');
 
 watch(
   () => props.category,
@@ -28,17 +32,17 @@ function handleSubmit() {
 
 <template>
   <form class="category-form" @submit.prevent="handleSubmit">
-    <label>
+    <label class="field">
       Name
-      <input v-model="name" type="text" required />
+      <input v-model="name" type="text" placeholder="e.g. Office Supplies" required />
     </label>
-    <label>
+    <label class="field">
       Budgeted Amount
-      <input v-model="budgetedAmount" type="number" step="0.01" required />
+      <input v-model="budgetedAmount" type="number" step="0.01" min="0" placeholder="0.00" required />
     </label>
     <div class="actions">
-      <button type="submit">{{ category ? 'Save' : 'Create' }}</button>
-      <button type="button" @click="$emit('cancel')">Cancel</button>
+      <button type="submit" class="btn btn-primary">{{ category ? 'Save Changes' : 'Create Category' }}</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
     </div>
   </form>
 </template>
@@ -47,20 +51,13 @@ function handleSubmit() {
 .category-form {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  max-width: 320px;
-  margin-bottom: 1.5rem;
-}
-
-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.9rem;
+  gap: var(--space-4);
+  max-width: 360px;
 }
 
 .actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
 }
 </style>
