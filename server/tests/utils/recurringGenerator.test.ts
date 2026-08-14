@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { db } from '../db';
-import { generateDue, rebuildFromScratch, todayString } from './recurringGenerator';
-import * as categoryRepo from '../repositories/categoryRepository';
-import * as recurringRepo from '../repositories/recurringTransactionRepository';
-import * as transactionRepo from '../repositories/transactionRepository';
+import { db } from '../../src/db';
+import { generateDue, rebuildFromScratch, todayString } from '../../src/utils/recurringGenerator';
+import * as categoryRepo from '../../src/repositories/categoryRepository';
+import * as recurringRepo from '../../src/repositories/recurringTransactionRepository';
+import * as transactionRepo from '../../src/repositories/transactionRepository';
 
 function resetDb() {
   db.exec('DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories;');

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { advanceDate, monthCount, monthStart, monthEnd, isValidMonth } from './dateMath';
+import { advanceDate, monthCount, monthStart, monthEnd, isValidMonth } from '../../src/utils/dateMath';
 
 describe('advanceDate', () => {
   it('advances daily', () => {

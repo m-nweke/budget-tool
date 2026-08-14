@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { db } from '../db';
-import { categoriesRouter } from './categories';
-import { transactionsRouter } from './transactions';
-import { dashboardRouter } from './dashboard';
-import { errorHandler, generateDueMiddleware } from '../middleware/errorHandler';
+import { db } from '../../src/db';
+import { categoriesRouter } from '../../src/routes/categories';
+import { transactionsRouter } from '../../src/routes/transactions';
+import { dashboardRouter } from '../../src/routes/dashboard';
+import { errorHandler, generateDueMiddleware } from '../../src/middleware/errorHandler';
 
 function buildApp() {
   const app = express();

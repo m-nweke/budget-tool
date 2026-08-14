@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import request from 'supertest';
 import express from 'express';
-import { db } from '../db';
-import { categoriesRouter } from './categories';
-import { transactionsRouter } from './transactions';
-import { recurringTransactionsRouter } from './recurringTransactions';
-import { errorHandler, generateDueMiddleware } from '../middleware/errorHandler';
+import { db } from '../../src/db';
+import { categoriesRouter } from '../../src/routes/categories';
+import { transactionsRouter } from '../../src/routes/transactions';
+import { recurringTransactionsRouter } from '../../src/routes/recurringTransactions';
+import { errorHandler, generateDueMiddleware } from '../../src/middleware/errorHandler';
 
 function buildApp() {
   const app = express();
