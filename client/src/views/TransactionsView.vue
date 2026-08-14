@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import TransactionForm from '../components/TransactionForm.vue';
 import RecurringTransactionForm from '../components/RecurringTransactionForm.vue';
+import KebabMenu from '../components/KebabMenu.vue';
 import { formatCurrency } from '../utils/format';
 import type {
   Category,
@@ -206,11 +207,10 @@ onMounted(loadData);
             <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
             <td>{{ categoryNameById[transaction.category_id] }}</td>
             <td class="row-actions">
-              <template v-if="!transaction.recurring_transaction_id">
-                <button class="btn btn-secondary btn-sm" @click="openEditForm(transaction)">Edit</button>
-                <button class="btn btn-danger btn-sm" @click="handleDelete(transaction)">Delete</button>
-              </template>
-              <span v-else class="managed-note">Managed below ↓</span>
+              <KebabMenu v-if="!transaction.recurring_transaction_id">
+                <button type="button" @click="openEditForm(transaction)">Edit</button>
+                <button type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
+              </KebabMenu>
             </td>
           </tr>
         </tbody>
@@ -301,12 +301,6 @@ onMounted(loadData);
   display: flex;
   gap: var(--space-2);
   justify-content: flex-end;
-}
-
-.managed-note {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  font-style: italic;
 }
 
 .recurring-section {
