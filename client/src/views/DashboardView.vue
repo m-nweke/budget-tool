@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { api } from '../api';
 import { formatCurrency } from '../utils/format';
 import type { DashboardRow } from '../types';
@@ -7,10 +7,11 @@ import type { DashboardRow } from '../types';
 const rows = ref<DashboardRow[]>([]);
 const error = ref('');
 const loaded = ref(false);
+const month = ref(new Date().toISOString().slice(0, 7));
 
 async function loadDashboard() {
   try {
-    rows.value = await api.getDashboard();
+    rows.value = await api.getDashboard(month.value);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -23,6 +24,7 @@ function usagePercent(row: DashboardRow): number {
   return Math.min(100, Math.round((row.actual_spend / row.budgeted_amount) * 100));
 }
 
+watch(month, loadDashboard);
 onMounted(loadDashboard);
 </script>
 
@@ -32,6 +34,7 @@ onMounted(loadDashboard);
       <h1>Dashboard</h1>
       <p>Budget vs. actual spend by category.</p>
     </div>
+    <input v-model="month" type="month" class="month-picker" />
   </div>
 
   <p v-if="error" class="alert">{{ error }}</p>
@@ -76,11 +79,25 @@ onMounted(loadDashboard);
 
 <style scoped>
 .view-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
   margin-bottom: var(--space-5);
 }
 
 .view-header p {
   margin-top: var(--space-1);
+}
+
+.month-picker {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
 }
 
 .card-grid {

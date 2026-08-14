@@ -32,3 +32,14 @@ export function addByInterval(dateStr: string, interval: RecurrenceInterval): st
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
+
+export function currentMonth(): string {
+  return todayISO().slice(0, 7);
+}
+
+// Half-open range [start, end) for a 'YYYY-MM' month, so callers can filter
+// with `date >= start AND date < end` without special-casing month length.
+export function monthRange(month: string): { start: string; end: string } {
+  const start = `${month}-01`;
+  return { start, end: addOneMonth(start) };
+}

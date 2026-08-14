@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addOneMonth, addByInterval, todayISO } from './dateUtils';
+import { addOneMonth, addByInterval, todayISO, monthRange } from './dateUtils';
 
 describe('addOneMonth', () => {
   it('advances to the same day next month', () => {
@@ -42,5 +42,15 @@ describe('addByInterval', () => {
 describe('todayISO', () => {
   it('returns a YYYY-MM-DD formatted string', () => {
     expect(todayISO()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe('monthRange', () => {
+  it('returns a half-open [start, end) range for the month', () => {
+    expect(monthRange('2026-08')).toEqual({ start: '2026-08-01', end: '2026-09-01' });
+  });
+
+  it('rolls over into January for December', () => {
+    expect(monthRange('2026-12')).toEqual({ start: '2026-12-01', end: '2027-01-01' });
   });
 });
