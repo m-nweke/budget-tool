@@ -15,6 +15,7 @@
   --color-danger-border: #fecaca;
 
   --color-success: #16a34a;
+  --color-warning: #d97706;
 
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -58,6 +59,7 @@
     --color-danger-border: rgba(248, 113, 113, 0.35);
 
     --color-success: #4ade80;
+    --color-warning: #fbbf24;
 
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
     --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);

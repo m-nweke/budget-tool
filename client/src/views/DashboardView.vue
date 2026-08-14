@@ -27,9 +27,26 @@ async function loadDashboard() {
   }
 }
 
-function usagePercent(row: DashboardRow): number {
+function rawUsagePercent(row: DashboardRow): number {
   if (row.budgeted_amount <= 0) return 0;
-  return Math.min(100, Math.round((row.actual_spend / row.budgeted_amount) * 100));
+  return (row.actual_spend / row.budgeted_amount) * 100;
+}
+
+// Bar width is capped at 100% visually — true overage is communicated via
+// the "Over budget" badge/border and the difference text below, not by an
+// overflowing bar.
+function usagePercent(row: DashboardRow): number {
+  return Math.min(100, Math.round(rawUsagePercent(row)));
+}
+
+// Uses the uncapped percentage, not usagePercent()'s clamped display value —
+// a category at 150% of budget must still read as "high", not silently
+// fall back to whatever a 100%-capped number would imply.
+function usageLevel(row: DashboardRow): 'low' | 'medium' | 'high' {
+  const pct = rawUsagePercent(row);
+  if (pct >= 75) return 'high';
+  if (pct >= 50) return 'medium';
+  return 'low';
 }
 
 watch([fromMonth, toMonth], loadDashboard);
@@ -77,7 +94,7 @@ onMounted(loadDashboard);
       <div class="progress-track">
         <div
           class="progress-fill"
-          :class="{ over: row.actual_spend > row.budgeted_amount }"
+          :class="`level-${usageLevel(row)}`"
           :style="{ width: usagePercent(row) + '%' }"
         />
       </div>
@@ -173,12 +190,19 @@ onMounted(loadDashboard);
 
 .progress-fill {
   height: 100%;
-  background: var(--color-primary);
   border-radius: 999px;
-  transition: width 0.2s;
+  transition: width 0.2s, background-color 0.2s;
 }
 
-.progress-fill.over {
+.progress-fill.level-low {
+  background: var(--color-success);
+}
+
+.progress-fill.level-medium {
+  background: var(--color-warning);
+}
+
+.progress-fill.level-high {
   background: var(--color-danger);
 }
 
