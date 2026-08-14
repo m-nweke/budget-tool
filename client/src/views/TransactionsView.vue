@@ -23,6 +23,11 @@ const showRecurringForm = ref(false);
 const editingRecurringTransaction = ref<RecurringTransaction | null>(null);
 const error = ref('');
 const loaded = ref(false);
+const viewTop = ref<HTMLElement | null>(null);
+
+function scrollToForm() {
+  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 const categoryNameById = computed(() => {
   const map: Record<number, string> = {};
@@ -44,6 +49,7 @@ async function loadData() {
 function openCreateForm() {
   editingTransaction.value = null;
   showForm.value = true;
+  scrollToForm();
 }
 
 function openEditForm(transaction: Transaction) {
@@ -61,11 +67,13 @@ function openEditForm(transaction: Transaction) {
   }
   editingTransaction.value = transaction;
   showForm.value = true;
+  scrollToForm();
 }
 
 function openEditRecurringForm(recurringTransaction: RecurringTransaction) {
   editingRecurringTransaction.value = recurringTransaction;
   showRecurringForm.value = true;
+  scrollToForm();
 }
 
 function closeForm() {
@@ -137,7 +145,7 @@ onMounted(loadData);
 </script>
 
 <template>
-  <div class="view-header">
+  <div ref="viewTop" class="view-header">
     <div>
       <h1>Transactions</h1>
       <p>Log spending against your categories.</p>
@@ -194,7 +202,7 @@ onMounted(loadData);
             <th>Description</th>
             <th>Amount</th>
             <th>Category</th>
-            <th></th>
+            <th class="actions-col"></th>
           </tr>
         </thead>
         <tbody>
@@ -206,7 +214,7 @@ onMounted(loadData);
             </td>
             <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
             <td>{{ categoryNameById[transaction.category_id] }}</td>
-            <td class="row-actions">
+            <td class="table-row-actions">
               <KebabMenu v-if="!transaction.recurring_transaction_id">
                 <button type="button" @click="openEditForm(transaction)">Edit</button>
                 <button type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
@@ -279,6 +287,10 @@ onMounted(loadData);
   border-bottom: 1px solid var(--color-border);
 }
 
+.actions-col {
+  width: 56px;
+}
+
 .transactions-table td {
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--color-border);
@@ -295,6 +307,10 @@ onMounted(loadData);
 .amount-cell {
   font-variant-numeric: tabular-nums;
   font-weight: 500;
+}
+
+.table-row-actions {
+  text-align: right;
 }
 
 .row-actions {
