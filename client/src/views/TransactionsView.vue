@@ -24,6 +24,7 @@ const editingRecurringTransaction = ref<RecurringTransaction | null>(null);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
+const categoryFilter = ref<number | ''>('');
 
 function scrollToForm() {
   viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -37,6 +38,13 @@ const categoryNameById = computed(() => {
   return map;
 });
 
+const filteredTransactions = computed(() => {
+  if (!categoryFilter.value) return transactions.value;
+  return transactions.value.filter((t) => t.category_id === categoryFilter.value);
+});
+
+let filterInitialized = false;
+
 async function loadData() {
   [transactions.value, categories.value, recurringTransactions.value] = await Promise.all([
     api.getTransactions(),
@@ -44,6 +52,15 @@ async function loadData() {
     api.getRecurringTransactions(),
   ]);
   loaded.value = true;
+
+  // Auto-select the only category so the filter is immediately useful with
+  // one category; leave it on "all" once there's a real choice to make.
+  // Only on first load — later reloads (after create/edit/delete) shouldn't
+  // override a filter the user has since chosen for themselves.
+  if (!filterInitialized) {
+    filterInitialized = true;
+    categoryFilter.value = categories.value.length === 1 ? categories.value[0].id : '';
+  }
 }
 
 function openCreateForm() {
@@ -194,36 +211,56 @@ onMounted(loadData);
       <button class="btn btn-primary" @click="openCreateForm">Add your first transaction</button>
     </div>
 
-    <div v-else class="card table-card">
-      <table class="transactions-table">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Description</th>
-            <th>Amount</th>
-            <th>Category</th>
-            <th class="actions-col"></th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="transaction in transactions" :key="transaction.id">
-            <td>{{ transaction.date }}</td>
-            <td>
-              {{ transaction.description || '—' }}
-              <span v-if="transaction.recurring_transaction_id" class="badge badge-recurring">↻ Recurring</span>
-            </td>
-            <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
-            <td>{{ categoryNameById[transaction.category_id] }}</td>
-            <td class="table-row-actions">
-              <KebabMenu v-if="!transaction.recurring_transaction_id">
-                <button type="button" @click="openEditForm(transaction)">Edit</button>
-                <button type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
-              </KebabMenu>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
+    <template v-else>
+      <div class="filter-bar">
+        <label class="field filter-field">
+          Filter by category
+          <select v-model="categoryFilter">
+            <option value="">All categories</option>
+            <option v-for="category in categories" :key="category.id" :value="category.id">
+              {{ category.name }}
+            </option>
+          </select>
+        </label>
+      </div>
+
+      <div v-if="!filteredTransactions.length" class="empty-state">
+        <h3>No transactions in this category</h3>
+        <p>Try a different category, or clear the filter to see everything.</p>
+        <button class="btn btn-secondary" @click="categoryFilter = ''">Clear filter</button>
+      </div>
+
+      <div v-else class="card table-card">
+        <table class="transactions-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>Amount</th>
+              <th>Category</th>
+              <th class="actions-col"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="transaction in filteredTransactions" :key="transaction.id">
+              <td>{{ transaction.date }}</td>
+              <td>
+                {{ transaction.description || '—' }}
+                <span v-if="transaction.recurring_transaction_id" class="badge badge-recurring">↻ Recurring</span>
+              </td>
+              <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
+              <td>{{ categoryNameById[transaction.category_id] }}</td>
+              <td class="table-row-actions">
+                <KebabMenu v-if="!transaction.recurring_transaction_id">
+                  <button type="button" @click="openEditForm(transaction)">Edit</button>
+                  <button type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
+                </KebabMenu>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </template>
 
     <div v-if="recurringTransactions.length" class="recurring-section">
       <h2>Recurring</h2>
@@ -265,6 +302,14 @@ onMounted(loadData);
 
 .form-panel h2 {
   margin-bottom: var(--space-4);
+}
+
+.filter-bar {
+  margin-bottom: var(--space-4);
+}
+
+.filter-field {
+  max-width: 240px;
 }
 
 .table-card {
