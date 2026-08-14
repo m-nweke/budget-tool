@@ -1,7 +1,8 @@
 import db from '../db';
+import { todayISO } from '../utils/dateUtils';
 import type { Category, CreateCategoryDto } from '../types';
 
-const COLUMNS = 'id, name, budgeted_amount';
+const COLUMNS = 'id, name, budgeted_amount, start_on';
 
 const categoryRepository = {
   findAll(): Category[] {
@@ -14,17 +15,18 @@ const categoryRepository = {
       | undefined;
   },
 
-  create({ name, budgeted_amount }: CreateCategoryDto): Category {
+  create({ name, budgeted_amount, start_on }: CreateCategoryDto): Category {
     const result = db
-      .prepare('INSERT INTO categories (name, budgeted_amount) VALUES (?, ?)')
-      .run(name, budgeted_amount);
+      .prepare('INSERT INTO categories (name, budgeted_amount, start_on) VALUES (?, ?, ?)')
+      .run(name, budgeted_amount, start_on || todayISO());
     return categoryRepository.findById(result.lastInsertRowid as number) as Category;
   },
 
-  update(id: number | string, { name, budgeted_amount }: CreateCategoryDto): Category {
-    db.prepare('UPDATE categories SET name = ?, budgeted_amount = ? WHERE id = ?').run(
+  update(id: number | string, { name, budgeted_amount, start_on }: CreateCategoryDto): Category {
+    db.prepare('UPDATE categories SET name = ?, budgeted_amount = ?, start_on = ? WHERE id = ?').run(
       name,
       budgeted_amount,
+      start_on || todayISO(),
       id
     );
     return categoryRepository.findById(id) as Category;

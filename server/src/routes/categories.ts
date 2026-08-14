@@ -10,16 +10,16 @@ router.get('/', (req: Request, res: Response) => {
 });
 
 router.post('/', (req: Request<{}, {}, CreateCategoryDto>, res: Response) => {
-  const { name, budgeted_amount } = req.body;
+  const { name, budgeted_amount, start_on } = req.body;
   if (!name || budgeted_amount === undefined || budgeted_amount === null) {
     return res.status(400).json({ error: 'name and budgeted_amount are required' });
   }
-  const category = categoryRepository.create({ name, budgeted_amount });
+  const category = categoryRepository.create({ name, budgeted_amount, start_on });
   res.status(201).json(category);
 });
 
 router.put('/:id', (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Response) => {
-  const { name, budgeted_amount } = req.body;
+  const { name, budgeted_amount, start_on } = req.body;
   if (!name || budgeted_amount === undefined || budgeted_amount === null) {
     return res.status(400).json({ error: 'name and budgeted_amount are required' });
   }
@@ -27,7 +27,7 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Re
   if (!existing) {
     return res.status(404).json({ error: 'category not found' });
   }
-  const category = categoryRepository.update(req.params.id, { name, budgeted_amount });
+  const category = categoryRepository.update(req.params.id, { name, budgeted_amount, start_on });
   res.json(category);
 });
 

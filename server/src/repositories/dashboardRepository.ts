@@ -16,7 +16,7 @@ const dashboardRepository = {
          FROM categories c
          LEFT JOIN transactions t
            ON t.category_id = c.id AND t.date >= ? AND t.date < ?
-         WHERE c.created_at < ?
+         WHERE c.start_on < ?
          GROUP BY c.id, c.name, c.budgeted_amount`
       )
       .all(start, end, end) as DashboardRow[];

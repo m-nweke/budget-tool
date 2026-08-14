@@ -25,6 +25,26 @@ describe('categoryRepository', () => {
     expect(updated).toMatchObject({ id: created.id, name: 'Tools', budgeted_amount: 750 });
   });
 
+  it('start_on defaults to today when omitted', () => {
+    const created = categoryRepository.create({ name: 'Software', budgeted_amount: 500 });
+    expect(created.start_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('start_on can be explicitly backdated on create', () => {
+    const created = categoryRepository.create({ name: 'Salaries', budgeted_amount: 10000, start_on: '2026-01-01' });
+    expect(created.start_on).toBe('2026-01-01');
+  });
+
+  it('start_on can be changed on update', () => {
+    const created = categoryRepository.create({ name: 'Software', budgeted_amount: 500 });
+    const updated = categoryRepository.update(created.id, {
+      name: 'Software',
+      budgeted_amount: 500,
+      start_on: '2026-01-01',
+    });
+    expect(updated.start_on).toBe('2026-01-01');
+  });
+
   it('remove deletes the category', () => {
     const created = categoryRepository.create({ name: 'Software', budgeted_amount: 500 });
     categoryRepository.remove(created.id);

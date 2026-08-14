@@ -25,7 +25,8 @@ db.exec(`
     name TEXT NOT NULL,
     budgeted_amount REAL NOT NULL,
     department_id INTEGER REFERENCES departments(id),
-    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    start_on TEXT NOT NULL DEFAULT (date('now'))
   );
 
   CREATE TABLE IF NOT EXISTS recurring_transactions (
@@ -59,5 +60,26 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_transactions_recurring_transaction_id ON transactions(recurring_transaction_id);
   CREATE INDEX IF NOT EXISTS idx_recurring_transactions_category_id ON recurring_transactions(category_id);
 `);
+
+// Lightweight migration for columns added after a database already existed.
+// `CREATE TABLE IF NOT EXISTS` only handles brand-new tables — it doesn't
+// alter existing ones, so a column added to the schema above needs an
+// explicit ALTER TABLE here too. Guarded because SQLite errors on adding a
+// column that's already there (a database created after this migration was
+// written already has it from the CREATE TABLE statement).
+function migrateColumn(sql: string): void {
+  try {
+    db.exec(sql);
+  } catch (err) {
+    const message = (err as Error).message;
+    if (!message.includes('duplicate column name')) throw err;
+  }
+}
+
+// SQLite's ALTER TABLE ADD COLUMN doesn't allow a non-constant default
+// (date('now') is a function call), unlike CREATE TABLE — so the column is
+// added nullable, then backfilled with today's date for any existing rows.
+migrateColumn('ALTER TABLE categories ADD COLUMN start_on TEXT');
+db.exec("UPDATE categories SET start_on = date('now') WHERE start_on IS NULL");
 
 export default db;

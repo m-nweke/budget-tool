@@ -30,17 +30,28 @@ describe('findSummary month scoping', () => {
     expect(row.difference).toBe(500);
   });
 
-  it('excludes a category created after the requested month', () => {
-    db.prepare('UPDATE categories SET created_at = ? WHERE id = ?').run('2026-09-01 00:00:00', categoryId);
+  it('excludes a category whose start_on is after the requested month', () => {
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, start_on: '2026-09-01' });
 
     const rows = dashboardRepository.findSummary('2026-08');
     expect(rows).toHaveLength(0);
   });
 
-  it('includes a category created within the requested month', () => {
-    db.prepare('UPDATE categories SET created_at = ? WHERE id = ?').run('2026-08-15 00:00:00', categoryId);
+  it('includes a category whose start_on falls within the requested month', () => {
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, start_on: '2026-08-15' });
 
     const rows = dashboardRepository.findSummary('2026-08');
     expect(rows).toHaveLength(1);
+  });
+
+  it('backdated start_on surfaces transactions logged before the category existed in the system', () => {
+    // The exact scenario this field exists for: create a category today to
+    // track something that's been going on since January, backdate
+    // start_on, and January's dashboard should show it with real spend.
+    categoryRepository.update(categoryId, { name: 'Salaries', budgeted_amount: 10000, start_on: '2026-01-01' });
+    transactionRepository.create({ amount: 5000, date: '2026-01-15', description: 'Payroll', category_id: categoryId });
+
+    const [row] = dashboardRepository.findSummary('2026-01');
+    expect(row.actual_spend).toBe(5000);
   });
 });
