@@ -1,4 +1,7 @@
 node_modules/
 client/dist/
+server/dist/
 server/db/*.sqlite
 .DS_Store
+docs/
+*.md
