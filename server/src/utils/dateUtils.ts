@@ -43,3 +43,17 @@ export function monthRange(month: string): { start: string; end: string } {
   const start = `${month}-01`;
   return { start, end: addOneMonth(start) };
 }
+
+// Half-open range spanning from the start of `from` through the end of `to`
+// (inclusive of both endpoint months).
+export function monthRangeSpan(from: string, to: string): { start: string; end: string } {
+  return { start: monthRange(from).start, end: monthRange(to).end };
+}
+
+// Inclusive count of months between two 'YYYY-MM' strings, e.g. '2026-06' to
+// '2026-08' is 3 (June, July, August).
+export function monthCount(from: string, to: string): number {
+  const [fromYear, fromMonth] = from.split('-').map(Number);
+  const [toYear, toMonth] = to.split('-').map(Number);
+  return (toYear - fromYear) * 12 + (toMonth - fromMonth) + 1;
+}

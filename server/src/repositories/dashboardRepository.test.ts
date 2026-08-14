@@ -55,3 +55,31 @@ describe('findSummary month scoping', () => {
     expect(row.actual_spend).toBe(5000);
   });
 });
+
+describe('findSummary with a month range', () => {
+  it('sums spend across every month in the range', () => {
+    transactionRepository.create({ amount: 100, date: '2026-06-15', description: 'June', category_id: categoryId });
+    transactionRepository.create({ amount: 200, date: '2026-07-15', description: 'July', category_id: categoryId });
+    transactionRepository.create({ amount: 300, date: '2026-08-15', description: 'August', category_id: categoryId });
+    transactionRepository.create({ amount: 999, date: '2026-09-01', description: 'September', category_id: categoryId });
+
+    const [row] = dashboardRepository.findSummary('2026-06', '2026-08');
+    expect(row.actual_spend).toBe(600);
+  });
+
+  it('scales budgeted_amount by the number of months in the range', () => {
+    const [row] = dashboardRepository.findSummary('2026-06', '2026-08');
+    expect(row.budgeted_amount).toBe(1500); // 500/month * 3 months
+  });
+
+  it('a single-month range (from === to) behaves like the plain month case', () => {
+    const [row] = dashboardRepository.findSummary('2026-08', '2026-08');
+    expect(row.budgeted_amount).toBe(500);
+  });
+
+  it('excludes a category whose start_on is after the entire range', () => {
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, start_on: '2026-09-01' });
+    const rows = dashboardRepository.findSummary('2026-06', '2026-08');
+    expect(rows).toHaveLength(0);
+  });
+});

@@ -39,8 +39,13 @@ export const api = {
     request<Transaction>(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTransaction: (id: number) => request<null>(`/transactions/${id}`, { method: 'DELETE' }),
 
-  getDashboard: (month?: string) =>
-    request<DashboardRow[]>(`/dashboard${month ? `?month=${month}` : ''}`),
+  getDashboard: (from?: string, to?: string) => {
+    const params = new URLSearchParams();
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    const query = params.toString();
+    return request<DashboardRow[]>(`/dashboard${query ? `?${query}` : ''}`);
+  },
 
   getRecurringTransactions: () => request<RecurringTransaction[]>('/recurring-transactions'),
   createRecurringTransaction: (data: CreateRecurringTransactionDto) =>

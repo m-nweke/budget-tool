@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { addOneMonth, addByInterval, todayISO, monthRange } from './dateUtils';
+import { addOneMonth, addByInterval, todayISO, monthRange, monthRangeSpan, monthCount } from './dateUtils';
 
 describe('addOneMonth', () => {
   it('advances to the same day next month', () => {
@@ -52,5 +52,29 @@ describe('monthRange', () => {
 
   it('rolls over into January for December', () => {
     expect(monthRange('2026-12')).toEqual({ start: '2026-12-01', end: '2027-01-01' });
+  });
+});
+
+describe('monthRangeSpan', () => {
+  it('spans from the start of `from` to the end of `to`', () => {
+    expect(monthRangeSpan('2026-06', '2026-08')).toEqual({ start: '2026-06-01', end: '2026-09-01' });
+  });
+
+  it('a single-month span equals monthRange', () => {
+    expect(monthRangeSpan('2026-08', '2026-08')).toEqual(monthRange('2026-08'));
+  });
+});
+
+describe('monthCount', () => {
+  it('counts inclusively within the same year', () => {
+    expect(monthCount('2026-06', '2026-08')).toBe(3);
+  });
+
+  it('counts a single month as 1', () => {
+    expect(monthCount('2026-08', '2026-08')).toBe(1);
+  });
+
+  it('counts across a year boundary', () => {
+    expect(monthCount('2026-11', '2027-02')).toBe(4);
   });
 });

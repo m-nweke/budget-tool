@@ -7,11 +7,19 @@ import type { DashboardRow } from '../types';
 const rows = ref<DashboardRow[]>([]);
 const error = ref('');
 const loaded = ref(false);
-const month = ref(new Date().toISOString().slice(0, 7));
+const currentMonth = new Date().toISOString().slice(0, 7);
+const fromMonth = ref(currentMonth);
+const toMonth = ref(currentMonth);
 
 async function loadDashboard() {
+  // Keep the range from ever inverting rather than surfacing a 400 for
+  // something the UI itself allowed the user to select.
+  if (fromMonth.value > toMonth.value) {
+    toMonth.value = fromMonth.value;
+    return;
+  }
   try {
-    rows.value = await api.getDashboard(month.value);
+    rows.value = await api.getDashboard(fromMonth.value, toMonth.value);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -24,7 +32,7 @@ function usagePercent(row: DashboardRow): number {
   return Math.min(100, Math.round((row.actual_spend / row.budgeted_amount) * 100));
 }
 
-watch(month, loadDashboard);
+watch([fromMonth, toMonth], loadDashboard);
 onMounted(loadDashboard);
 </script>
 
@@ -34,7 +42,11 @@ onMounted(loadDashboard);
       <h1>Dashboard</h1>
       <p>Budget vs. actual spend by category.</p>
     </div>
-    <input v-model="month" type="month" class="month-picker" />
+    <div class="range-picker">
+      <input v-model="fromMonth" type="month" class="month-picker" />
+      <span class="range-separator">to</span>
+      <input v-model="toMonth" type="month" class="month-picker" />
+    </div>
   </div>
 
   <p v-if="error" class="alert">{{ error }}</p>
@@ -88,6 +100,17 @@ onMounted(loadDashboard);
 
 .view-header p {
   margin-top: var(--space-1);
+}
+
+.range-picker {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.range-separator {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 .month-picker {
