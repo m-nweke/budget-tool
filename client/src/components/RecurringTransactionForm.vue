@@ -16,6 +16,7 @@ const description = ref('');
 const categoryId = ref<number | string>('');
 const interval = ref<RecurrenceInterval>('monthly');
 const endDate = ref('');
+const applyToExisting = ref(false);
 
 watch(
   () => props.recurringTransaction,
@@ -25,6 +26,7 @@ watch(
     categoryId.value = rt.category_id;
     interval.value = rt.interval;
     endDate.value = rt.end_date || '';
+    applyToExisting.value = false;
   },
   { immediate: true }
 );
@@ -36,6 +38,7 @@ function handleSubmit() {
     category_id: Number(categoryId.value),
     interval: interval.value,
     end_date: endDate.value || null,
+    apply_to_existing: applyToExisting.value,
   });
 }
 </script>
@@ -43,7 +46,8 @@ function handleSubmit() {
 <template>
   <form class="recurring-form" @submit.prevent="handleSubmit">
     <p class="scope-note">
-      Editing this series affects future occurrences — transactions already generated stay as they are.
+      By default, editing this series only affects future occurrences — transactions already generated stay as they
+      are, unless you check the option below.
     </p>
     <div class="form-row">
       <label class="field">
@@ -77,6 +81,15 @@ function handleSubmit() {
       Ends on (optional)
       <input v-model="endDate" type="date" />
     </label>
+    <label class="checkbox-field">
+      <input v-model="applyToExisting" type="checkbox" />
+      Rebuild already-generated transactions under this new config
+    </label>
+    <p v-if="applyToExisting" class="warning-note">
+      This deletes every transaction this series has already generated and regenerates them from scratch using the
+      new amount, category, and interval — e.g. switching weekly → monthly replaces the weekly-spaced history with
+      monthly-spaced history. This cannot be undone.
+    </p>
     <div class="actions">
       <button type="submit" class="btn btn-primary">Save Series</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
@@ -108,6 +121,23 @@ function handleSubmit() {
 
 .form-row .field {
   flex: 1;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text);
+}
+
+.warning-note {
+  font-size: 0.85rem;
+  color: var(--color-danger);
+  background: var(--color-danger-bg);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  margin: 0;
 }
 
 .actions {

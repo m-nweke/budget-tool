@@ -5,6 +5,43 @@ import type { RecurringTransaction, CreateRecurringTransactionDto, UpdateRecurri
 
 const COLUMNS = 'id, amount, description, category_id, interval, next_run_date, end_date, active';
 
+// Generates every due occurrence for one template, starting from its
+// current next_run_date. Shared by generateDue() (all active templates) and
+// update()'s "apply to existing" regeneration path (one template, after its
+// generation cursor has been rewound — see recurringTransactionRepository.update).
+function generateDueForTemplate(template: RecurringTransaction): void {
+  const today = todayISO();
+  let nextRun = template.next_run_date;
+  let pastEnd = false;
+
+  while (nextRun <= today) {
+    if (template.end_date && nextRun > template.end_date) {
+      pastEnd = true;
+      break;
+    }
+    transactionRepository.createGenerated(
+      {
+        amount: template.amount,
+        date: nextRun,
+        description: template.description,
+        category_id: template.category_id,
+      },
+      template.id
+    );
+    nextRun = addByInterval(nextRun, template.interval);
+  }
+
+  if (template.end_date && nextRun > template.end_date) {
+    pastEnd = true;
+  }
+
+  if (pastEnd) {
+    recurringTransactionRepository.deactivate(template.id);
+  } else if (nextRun !== template.next_run_date) {
+    db.prepare('UPDATE recurring_transactions SET next_run_date = ? WHERE id = ?').run(nextRun, template.id);
+  }
+}
+
 const recurringTransactionRepository = {
   findAllActive(): RecurringTransaction[] {
     return db
@@ -34,24 +71,48 @@ const recurringTransactionRepository = {
     return recurringTransactionRepository.findById(result.lastInsertRowid as number) as RecurringTransaction;
   },
 
-  update(
-    id: number | string,
-    { amount, description, category_id, interval, end_date }: UpdateRecurringTransactionDto
-  ): RecurringTransaction {
-    db.prepare(
-      'UPDATE recurring_transactions SET amount = ?, description = ?, category_id = ?, interval = ?, end_date = ? WHERE id = ?'
-    ).run(amount, description || null, category_id, interval, end_date || null, id);
+  update: db.transaction(
+    (
+      id: number | string,
+      { amount, description, category_id, interval, end_date, apply_to_existing }: UpdateRecurringTransactionDto
+    ): RecurringTransaction => {
+      db.prepare(
+        'UPDATE recurring_transactions SET amount = ?, description = ?, category_id = ?, interval = ?, end_date = ? WHERE id = ?'
+      ).run(amount, description || null, category_id, interval, end_date || null, id);
 
-    const updated = recurringTransactionRepository.findById(id) as RecurringTransaction;
-    // If the new end_date already precedes where the series currently
-    // stands, there's nothing left to generate — deactivate immediately
-    // rather than leaving a "still active" series that will never fire.
-    if (updated.end_date && updated.end_date < updated.next_run_date) {
-      recurringTransactionRepository.deactivate(id);
-      return recurringTransactionRepository.findById(id) as RecurringTransaction;
+      // Opt-in: rebuild history under the new config rather than just
+      // patching fields on the old rows. Find when this series first
+      // actually produced a transaction, delete everything it's generated
+      // so far, rewind the generation cursor back to that date, and
+      // regenerate from scratch — so a weekly series changed to monthly
+      // ends up with genuinely monthly-spaced history, not old weekly rows
+      // with new field values.
+      if (apply_to_existing) {
+        const earliest = db
+          .prepare('SELECT MIN(date) AS date FROM transactions WHERE recurring_transaction_id = ?')
+          .get(id) as { date: string | null };
+
+        if (earliest.date) {
+          db.prepare('DELETE FROM transactions WHERE recurring_transaction_id = ?').run(id);
+          db.prepare('UPDATE recurring_transactions SET next_run_date = ?, active = 1 WHERE id = ?').run(
+            earliest.date,
+            id
+          );
+          generateDueForTemplate(recurringTransactionRepository.findById(id) as RecurringTransaction);
+        }
+      }
+
+      const updated = recurringTransactionRepository.findById(id) as RecurringTransaction;
+      // If the new end_date already precedes where the series currently
+      // stands, there's nothing left to generate — deactivate immediately
+      // rather than leaving a "still active" series that will never fire.
+      if (updated.active && updated.end_date && updated.end_date < updated.next_run_date) {
+        recurringTransactionRepository.deactivate(id);
+        return recurringTransactionRepository.findById(id) as RecurringTransaction;
+      }
+      return updated;
     }
-    return updated;
-  },
+  ),
 
   countForCategory(categoryId: number | string): number {
     // Counts every row regardless of `active` — a cancelled series still
@@ -75,42 +136,8 @@ const recurringTransactionRepository = {
   // generation pass atomic (a crash mid-backfill can't leave next_run_date
   // out of sync with which transactions actually got created).
   generateDue: db.transaction(() => {
-    const templates = recurringTransactionRepository.findAllActive();
-    const today = todayISO();
-
-    for (const template of templates) {
-      let nextRun = template.next_run_date;
-      let pastEnd = false;
-
-      while (nextRun <= today) {
-        if (template.end_date && nextRun > template.end_date) {
-          pastEnd = true;
-          break;
-        }
-        transactionRepository.createGenerated(
-          {
-            amount: template.amount,
-            date: nextRun,
-            description: template.description,
-            category_id: template.category_id,
-          },
-          template.id
-        );
-        nextRun = addByInterval(nextRun, template.interval);
-      }
-
-      if (template.end_date && nextRun > template.end_date) {
-        pastEnd = true;
-      }
-
-      if (pastEnd) {
-        recurringTransactionRepository.deactivate(template.id);
-      } else if (nextRun !== template.next_run_date) {
-        db.prepare('UPDATE recurring_transactions SET next_run_date = ? WHERE id = ?').run(
-          nextRun,
-          template.id
-        );
-      }
+    for (const template of recurringTransactionRepository.findAllActive()) {
+      generateDueForTemplate(template);
     }
   }),
 };

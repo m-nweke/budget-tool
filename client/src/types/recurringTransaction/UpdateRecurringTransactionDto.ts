@@ -6,4 +6,5 @@ export interface UpdateRecurringTransactionDto {
   category_id: number;
   interval: RecurrenceInterval;
   end_date?: string | null;
+  apply_to_existing?: boolean;
 }
