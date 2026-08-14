@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import categoryRepository from '../repositories/categoryRepository';
+import recurringTransactionRepository from '../repositories/recurringTransactionRepository';
 import type { CreateCategoryDto } from '../types';
 
 const router = express.Router();
@@ -37,6 +38,11 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   }
   if (categoryRepository.countTransactionsFor(req.params.id) > 0) {
     return res.status(400).json({ error: 'cannot delete a category that has transactions' });
+  }
+  if (recurringTransactionRepository.countForCategory(req.params.id) > 0) {
+    return res
+      .status(400)
+      .json({ error: 'cannot delete a category that has recurring transactions' });
   }
   categoryRepository.remove(req.params.id);
   res.status(204).end();
