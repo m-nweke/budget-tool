@@ -273,10 +273,10 @@ onMounted(loadData);
               <template v-if="rt.end_date">· ends {{ rt.end_date }}</template>
             </div>
           </div>
-          <div class="row-actions">
-            <button class="btn btn-secondary btn-sm" @click="openEditRecurringForm(rt)">Edit</button>
-            <button class="btn btn-danger btn-sm" @click="handleCancelRecurring(rt)">Cancel</button>
-          </div>
+          <KebabMenu>
+            <button type="button" @click="openEditRecurringForm(rt)">Edit</button>
+            <button type="button" class="danger" @click="handleCancelRecurring(rt)">Cancel</button>
+          </KebabMenu>
         </li>
       </ul>
     </div>
@@ -356,12 +356,6 @@ onMounted(loadData);
 
 .table-row-actions {
   text-align: right;
-}
-
-.row-actions {
-  display: flex;
-  gap: var(--space-2);
-  justify-content: flex-end;
 }
 
 .recurring-section {
