@@ -30,6 +30,17 @@ function scrollToForm() {
   viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
+// A generated occurrence is only "locked" to its series (edit/delete routed
+// through the template instead) while that series is still active. Once the
+// series is cancelled or has run past its end date, GET /recurring-transactions
+// no longer returns it, so relying on `!transaction.recurring_transaction_id`
+// alone would leave these rows permanently stuck with no way to edit or
+// delete them directly.
+function isLockedToActiveSeries(transaction: Transaction): boolean {
+  if (!transaction.recurring_transaction_id) return false;
+  return recurringTransactions.value.some((rt) => rt.id === transaction.recurring_transaction_id);
+}
+
 const categoryNameById = computed(() => {
   const map: Record<number, string> = {};
   for (const category of categories.value) {
@@ -251,7 +262,7 @@ onMounted(loadData);
               <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
               <td>{{ categoryNameById[transaction.category_id] }}</td>
               <td class="table-row-actions">
-                <KebabMenu v-if="!transaction.recurring_transaction_id">
+                <KebabMenu v-if="!isLockedToActiveSeries(transaction)">
                   <button type="button" @click="openEditForm(transaction)">Edit</button>
                   <button type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
                 </KebabMenu>

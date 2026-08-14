@@ -28,7 +28,11 @@ async function loadDashboard() {
 }
 
 function rawUsagePercent(row: DashboardRow): number {
-  if (row.budgeted_amount <= 0) return 0;
+  // A category with no (or negative) budget that still has spend against it
+  // is unambiguously over budget — treat that as "high", not "low", so the
+  // bar/text tier agrees with the "Over budget" badge/border below instead
+  // of contradicting it (green text next to a red badge).
+  if (row.budgeted_amount <= 0) return row.actual_spend > 0 ? 100 : 0;
   return (row.actual_spend / row.budgeted_amount) * 100;
 }
 

@@ -23,10 +23,15 @@ const categoryRepository = {
   },
 
   update(id: number | string, { name, budgeted_amount, start_on }: CreateCategoryDto): Category {
+    // Unlike create(), an omitted start_on here must mean "leave it as-is",
+    // not "reset to today" — otherwise a caller that only means to change
+    // name/budgeted_amount would silently move the category's effective
+    // start date to now, dropping it off past months' dashboards.
+    const existing = categoryRepository.findById(id);
     db.prepare('UPDATE categories SET name = ?, budgeted_amount = ?, start_on = ? WHERE id = ?').run(
       name,
       budgeted_amount,
-      start_on || todayISO(),
+      start_on || existing?.start_on || todayISO(),
       id
     );
     return categoryRepository.findById(id) as Category;

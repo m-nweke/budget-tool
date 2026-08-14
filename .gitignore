@@ -3,6 +3,8 @@ client/dist/
 server/dist/
 *.tsbuildinfo
 server/db/*.sqlite
+server/*.db
+server/coverage/
 .DS_Store
 docs/*
 !docs/screenshots
