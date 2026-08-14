@@ -2,11 +2,12 @@
 import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import TransactionForm from '../components/TransactionForm.vue';
-import { formatCurrency } from '../format';
-import type { Category, Transaction, NewTransaction } from '../types';
+import { formatCurrency } from '../utils/format';
+import type { Category, Transaction, CreateTransactionDto, RecurringTransaction } from '../types';
 
 const transactions = ref<Transaction[]>([]);
 const categories = ref<Category[]>([]);
+const recurringTransactions = ref<RecurringTransaction[]>([]);
 const showForm = ref(false);
 const editingTransaction = ref<Transaction | null>(null);
 const error = ref('');
@@ -21,9 +22,10 @@ const categoryNameById = computed(() => {
 });
 
 async function loadData() {
-  [transactions.value, categories.value] = await Promise.all([
+  [transactions.value, categories.value, recurringTransactions.value] = await Promise.all([
     api.getTransactions(),
     api.getCategories(),
+    api.getRecurringTransactions(),
   ]);
   loaded.value = true;
 }
@@ -43,11 +45,18 @@ function closeForm() {
   editingTransaction.value = null;
 }
 
-async function handleSubmit(data: NewTransaction) {
+async function handleSubmit(data: CreateTransactionDto, recurring: boolean) {
   error.value = '';
   try {
     if (editingTransaction.value) {
       await api.updateTransaction(editingTransaction.value.id, data);
+    } else if (recurring) {
+      await api.createRecurringTransaction({
+        amount: data.amount,
+        description: data.description,
+        category_id: data.category_id,
+        start_date: data.date,
+      });
     } else {
       await api.createTransaction(data);
     }
@@ -62,6 +71,16 @@ async function handleDelete(transaction: Transaction) {
   error.value = '';
   try {
     await api.deleteTransaction(transaction.id);
+    await loadData();
+  } catch (e) {
+    error.value = (e as Error).message;
+  }
+}
+
+async function handleCancelRecurring(recurringTransaction: RecurringTransaction) {
+  error.value = '';
+  try {
+    await api.deleteRecurringTransaction(recurringTransaction.id);
     await loadData();
   } catch (e) {
     error.value = (e as Error).message;
@@ -136,6 +155,21 @@ onMounted(loadData);
         </tbody>
       </table>
     </div>
+
+    <div v-if="recurringTransactions.length" class="recurring-section">
+      <h2>Recurring</h2>
+      <ul class="recurring-list">
+        <li v-for="rt in recurringTransactions" :key="rt.id" class="card recurring-row">
+          <div>
+            <div class="recurring-description">{{ rt.description || categoryNameById[rt.category_id] }}</div>
+            <div class="recurring-meta">
+              {{ formatCurrency(rt.amount) }} monthly · next on {{ rt.next_run_date }}
+            </div>
+          </div>
+          <button class="btn btn-secondary btn-sm" @click="handleCancelRecurring(rt)">Cancel</button>
+        </li>
+      </ul>
+    </div>
   </template>
 </template>
 
@@ -202,5 +236,40 @@ onMounted(loadData);
   display: flex;
   gap: var(--space-2);
   justify-content: flex-end;
+}
+
+.recurring-section {
+  margin-top: var(--space-6);
+}
+
+.recurring-section h2 {
+  margin-bottom: var(--space-3);
+}
+
+.recurring-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.recurring-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4);
+}
+
+.recurring-description {
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.recurring-meta {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
 }
 </style>

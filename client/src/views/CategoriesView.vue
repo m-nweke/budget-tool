@@ -2,8 +2,8 @@
 import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import CategoryForm from '../components/CategoryForm.vue';
-import { formatCurrency } from '../format';
-import type { Category, NewCategory } from '../types';
+import { formatCurrency } from '../utils/format';
+import type { Category, CreateCategoryDto } from '../types';
 
 const categories = ref<Category[]>([]);
 const showForm = ref(false);
@@ -31,7 +31,7 @@ function closeForm() {
   editingCategory.value = null;
 }
 
-async function handleSubmit(data: NewCategory) {
+async function handleSubmit(data: CreateCategoryDto) {
   error.value = '';
   try {
     if (editingCategory.value) {

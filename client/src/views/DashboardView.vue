@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { api } from '../api';
-import { formatCurrency } from '../format';
+import { formatCurrency } from '../utils/format';
 import type { DashboardRow } from '../types';
 
 const rows = ref<DashboardRow[]>([]);

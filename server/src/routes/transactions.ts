@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import transactionRepository from '../repositories/transactionRepository';
 import categoryRepository from '../repositories/categoryRepository';
-import type { NewTransaction } from '../types';
+import type { CreateTransactionDto } from '../types';
 
 const router = express.Router();
 
@@ -9,7 +9,7 @@ router.get('/', (req: Request, res: Response) => {
   res.json(transactionRepository.findAll());
 });
 
-router.post('/', (req: Request<{}, {}, NewTransaction>, res: Response) => {
+router.post('/', (req: Request<{}, {}, CreateTransactionDto>, res: Response) => {
   const { amount, date, description, category_id } = req.body;
   if (amount === undefined || amount === null || !date || !category_id) {
     return res.status(400).json({ error: 'amount, date, and category_id are required' });
@@ -21,7 +21,7 @@ router.post('/', (req: Request<{}, {}, NewTransaction>, res: Response) => {
   res.status(201).json(transaction);
 });
 
-router.put('/:id', (req: Request<{ id: string }, {}, NewTransaction>, res: Response) => {
+router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res: Response) => {
   const { amount, date, description, category_id } = req.body;
   if (amount === undefined || amount === null || !date || !category_id) {
     return res.status(400).json({ error: 'amount, date, and category_id are required' });

@@ -1,5 +1,5 @@
 import db from '../db';
-import type { Transaction, NewTransaction } from '../types';
+import type { Transaction, CreateTransactionDto } from '../types';
 
 const COLUMNS = 'id, amount, date, description, category_id';
 
@@ -14,7 +14,7 @@ const transactionRepository = {
       | undefined;
   },
 
-  create({ amount, date, description, category_id }: NewTransaction): Transaction {
+  create({ amount, date, description, category_id }: CreateTransactionDto): Transaction {
     const result = db
       .prepare(
         'INSERT INTO transactions (amount, date, description, category_id, needs_approval, approved) VALUES (?, ?, ?, ?, 0, 0)'
@@ -23,7 +23,19 @@ const transactionRepository = {
     return transactionRepository.findById(result.lastInsertRowid as number) as Transaction;
   },
 
-  update(id: number | string, { amount, date, description, category_id }: NewTransaction): Transaction {
+  createGenerated(
+    { amount, date, description, category_id }: CreateTransactionDto,
+    recurringTransactionId: number
+  ): Transaction {
+    const result = db
+      .prepare(
+        'INSERT INTO transactions (amount, date, description, category_id, needs_approval, approved, recurring_transaction_id) VALUES (?, ?, ?, ?, 0, 0, ?)'
+      )
+      .run(amount, date, description || null, category_id, recurringTransactionId);
+    return transactionRepository.findById(result.lastInsertRowid as number) as Transaction;
+  },
+
+  update(id: number | string, { amount, date, description, category_id }: CreateTransactionDto): Transaction {
     db.prepare(
       'UPDATE transactions SET amount = ?, date = ?, description = ?, category_id = ? WHERE id = ?'
     ).run(amount, date, description || null, category_id, id);

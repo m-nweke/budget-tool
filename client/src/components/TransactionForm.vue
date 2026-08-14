@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { Category, Transaction, NewTransaction } from '../types';
+import type { Category, Transaction, CreateTransactionDto } from '../types';
 
 const props = defineProps<{
   transaction: Transaction | null;
   categories: Category[];
 }>();
 const emit = defineEmits<{
-  submit: [data: NewTransaction];
+  submit: [data: CreateTransactionDto, recurring: boolean];
   cancel: [];
 }>();
 
@@ -15,6 +15,7 @@ const amount = ref<number | string>('');
 const date = ref('');
 const description = ref('');
 const categoryId = ref<number | string>('');
+const recurring = ref(false);
 
 watch(
   () => props.transaction,
@@ -28,12 +29,16 @@ watch(
 );
 
 function handleSubmit() {
-  emit('submit', {
-    amount: Number(amount.value),
-    date: date.value,
-    description: description.value,
-    category_id: Number(categoryId.value),
-  });
+  emit(
+    'submit',
+    {
+      amount: Number(amount.value),
+      date: date.value,
+      description: description.value,
+      category_id: Number(categoryId.value),
+    },
+    recurring.value
+  );
 }
 </script>
 
@@ -62,6 +67,10 @@ function handleSubmit() {
         </option>
       </select>
     </label>
+    <label v-if="!transaction" class="checkbox-field">
+      <input v-model="recurring" type="checkbox" />
+      Repeat monthly (e.g. a subscription)
+    </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary">{{ transaction ? 'Save Changes' : 'Create Transaction' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
@@ -84,6 +93,14 @@ function handleSubmit() {
 
 .form-row .field {
   flex: 1;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text);
 }
 
 .actions {

@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { Category, NewCategory } from '../types';
+import type { Category, CreateCategoryDto } from '../types';
 
 const props = defineProps<{
   category: Category | null;
 }>();
 const emit = defineEmits<{
-  submit: [data: NewCategory];
+  submit: [data: CreateCategoryDto];
   cancel: [];
 }>();
 

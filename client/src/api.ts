@@ -1,4 +1,12 @@
-import type { Category, NewCategory, Transaction, NewTransaction, DashboardRow } from './types';
+import type {
+  Category,
+  CreateCategoryDto,
+  Transaction,
+  CreateTransactionDto,
+  DashboardRow,
+  RecurringTransaction,
+  CreateRecurringTransactionDto,
+} from './types';
 
 const BASE = '/api';
 
@@ -17,18 +25,27 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   getCategories: () => request<Category[]>('/categories'),
-  createCategory: (data: NewCategory) =>
+  createCategory: (data: CreateCategoryDto) =>
     request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),
-  updateCategory: (id: number, data: NewCategory) =>
+  updateCategory: (id: number, data: CreateCategoryDto) =>
     request<Category>(`/categories/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteCategory: (id: number) => request<null>(`/categories/${id}`, { method: 'DELETE' }),
 
   getTransactions: () => request<Transaction[]>('/transactions'),
-  createTransaction: (data: NewTransaction) =>
+  createTransaction: (data: CreateTransactionDto) =>
     request<Transaction>('/transactions', { method: 'POST', body: JSON.stringify(data) }),
-  updateTransaction: (id: number, data: NewTransaction) =>
+  updateTransaction: (id: number, data: CreateTransactionDto) =>
     request<Transaction>(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTransaction: (id: number) => request<null>(`/transactions/${id}`, { method: 'DELETE' }),
 
   getDashboard: () => request<DashboardRow[]>('/dashboard'),
+
+  getRecurringTransactions: () => request<RecurringTransaction[]>('/recurring-transactions'),
+  createRecurringTransaction: (data: CreateRecurringTransactionDto) =>
+    request<RecurringTransaction>('/recurring-transactions', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  deleteRecurringTransaction: (id: number) =>
+    request<null>(`/recurring-transactions/${id}`, { method: 'DELETE' }),
 };

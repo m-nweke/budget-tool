@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import categoryRepository from '../repositories/categoryRepository';
-import type { NewCategory } from '../types';
+import type { CreateCategoryDto } from '../types';
 
 const router = express.Router();
 
@@ -8,7 +8,7 @@ router.get('/', (req: Request, res: Response) => {
   res.json(categoryRepository.findAll());
 });
 
-router.post('/', (req: Request<{}, {}, NewCategory>, res: Response) => {
+router.post('/', (req: Request<{}, {}, CreateCategoryDto>, res: Response) => {
   const { name, budgeted_amount } = req.body;
   if (!name || budgeted_amount === undefined || budgeted_amount === null) {
     return res.status(400).json({ error: 'name and budgeted_amount are required' });
@@ -17,7 +17,7 @@ router.post('/', (req: Request<{}, {}, NewCategory>, res: Response) => {
   res.status(201).json(category);
 });
 
-router.put('/:id', (req: Request<{ id: string }, {}, NewCategory>, res: Response) => {
+router.put('/:id', (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Response) => {
   const { name, budgeted_amount } = req.body;
   if (!name || budgeted_amount === undefined || budgeted_amount === null) {
     return res.status(400).json({ error: 'name and budgeted_amount are required' });
