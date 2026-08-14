@@ -8,11 +8,6 @@ server/coverage/
 .DS_Store
 docs/*
 !docs/screenshots
-!docs/decisions
-!docs/stories
 *.md
 !/README.md
-!docs/decisions/*.md
-!docs/stories/*.md
-!DECISIONS.md
 .idea/
