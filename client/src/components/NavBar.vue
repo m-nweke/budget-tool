@@ -1,14 +1,29 @@
-<script setup lang="ts"></script>
+<script setup lang="ts">
+import { useRouter } from 'vue-router';
+import { useAuth } from '../composables/useAuth';
+
+const { user, logout } = useAuth();
+const router = useRouter();
+
+async function handleLogout() {
+  await logout();
+  router.push('/login');
+}
+</script>
 
 <template>
   <header class="nav-bar">
     <div class="nav-inner">
       <span class="brand">Budget Tool</span>
-      <nav class="nav-links">
+      <nav v-if="user" class="nav-links">
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/transactions">Transactions</RouterLink>
         <RouterLink to="/categories">Categories</RouterLink>
       </nav>
+      <div v-if="user" class="nav-user">
+        <span class="user-name">{{ user.name }}</span>
+        <button type="button" class="btn btn-secondary btn-sm" @click="handleLogout">Log Out</button>
+      </div>
     </div>
   </header>
 </template>
@@ -61,5 +76,16 @@
 .nav-links a.router-link-exact-active {
   background: var(--color-primary-bg);
   color: var(--color-primary);
+}
+
+.nav-user {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.user-name {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 </style>

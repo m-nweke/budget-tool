@@ -7,6 +7,7 @@ import type {
   RecurringTransaction,
   CreateRecurringTransactionDto,
   UpdateRecurringTransactionDto,
+  AuthUser,
 } from './types';
 
 const BASE = '/api';
@@ -14,6 +15,11 @@ const BASE = '/api';
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    // fetch's default is 'same-origin', which already sends the httpOnly
+    // auth cookie for this app's normal same-origin deployment — 'include'
+    // is set explicitly so cookies still go out if the API is ever served
+    // from a different origin/port than the client.
+    credentials: 'include',
     ...options,
   });
   if (!res.ok) {
@@ -25,6 +31,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  login: (email: string, password: string) =>
+    request<{ user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  logout: () => request<null>('/auth/logout', { method: 'POST' }),
+  getMe: () => request<{ user: AuthUser }>('/auth/me'),
+
   getCategories: () => request<Category[]>('/categories'),
   createCategory: (data: CreateCategoryDto) =>
     request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),
