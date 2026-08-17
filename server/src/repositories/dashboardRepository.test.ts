@@ -5,25 +5,33 @@ import transactionRepository from './transactionRepository';
 import dashboardRepository from './dashboardRepository';
 
 let categoryId: number;
+let deptA: number;
+let deptB: number;
 
 beforeEach(() => {
-  db.exec('DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories;');
-  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500 }).id;
+  db.exec(
+    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments;'
+  );
+  deptA = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
+  deptB = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing').lastInsertRowid as number;
+  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }).id;
 });
 
+// Every transaction below is created pre-approved (approved: true) — a
+// dedicated test covers the approved-only aggregation behavior itself.
 describe('findSummary month scoping', () => {
   it('only counts transactions within the requested month', () => {
-    transactionRepository.create({ amount: 50, date: '2026-07-31', description: 'July', category_id: categoryId });
-    transactionRepository.create({ amount: 100, date: '2026-08-01', description: 'August', category_id: categoryId });
-    transactionRepository.create({ amount: 200, date: '2026-08-31', description: 'August', category_id: categoryId });
-    transactionRepository.create({ amount: 400, date: '2026-09-01', description: 'September', category_id: categoryId });
+    transactionRepository.create({ amount: 50, date: '2026-07-31', description: 'July', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 100, date: '2026-08-01', description: 'August', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 200, date: '2026-08-31', description: 'August', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 400, date: '2026-09-01', description: 'September', category_id: categoryId }, null, false, true);
 
     const [row] = dashboardRepository.findSummary('2026-08');
     expect(row.actual_spend).toBe(300);
   });
 
   it('still shows a category with zero spend in the requested month', () => {
-    transactionRepository.create({ amount: 999, date: '2026-01-01', description: 'January', category_id: categoryId });
+    transactionRepository.create({ amount: 999, date: '2026-01-01', description: 'January', category_id: categoryId }, null, false, true);
 
     const [row] = dashboardRepository.findSummary('2026-08');
     expect(row.actual_spend).toBe(0);
@@ -31,14 +39,14 @@ describe('findSummary month scoping', () => {
   });
 
   it('excludes a category whose start_on is after the requested month', () => {
-    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, start_on: '2026-09-01' });
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, department_id: deptA, start_on: '2026-09-01' });
 
     const rows = dashboardRepository.findSummary('2026-08');
     expect(rows).toHaveLength(0);
   });
 
   it('includes a category whose start_on falls within the requested month', () => {
-    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, start_on: '2026-08-15' });
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, department_id: deptA, start_on: '2026-08-15' });
 
     const rows = dashboardRepository.findSummary('2026-08');
     expect(rows).toHaveLength(1);
@@ -48,8 +56,8 @@ describe('findSummary month scoping', () => {
     // The exact scenario this field exists for: create a category today to
     // track something that's been going on since January, backdate
     // start_on, and January's dashboard should show it with real spend.
-    categoryRepository.update(categoryId, { name: 'Salaries', budgeted_amount: 10000, start_on: '2026-01-01' });
-    transactionRepository.create({ amount: 5000, date: '2026-01-15', description: 'Payroll', category_id: categoryId });
+    categoryRepository.update(categoryId, { name: 'Salaries', budgeted_amount: 10000, department_id: deptA, start_on: '2026-01-01' });
+    transactionRepository.create({ amount: 5000, date: '2026-01-15', description: 'Payroll', category_id: categoryId }, null, false, true);
 
     const [row] = dashboardRepository.findSummary('2026-01');
     expect(row.actual_spend).toBe(5000);
@@ -58,10 +66,10 @@ describe('findSummary month scoping', () => {
 
 describe('findSummary with a month range', () => {
   it('sums spend across every month in the range', () => {
-    transactionRepository.create({ amount: 100, date: '2026-06-15', description: 'June', category_id: categoryId });
-    transactionRepository.create({ amount: 200, date: '2026-07-15', description: 'July', category_id: categoryId });
-    transactionRepository.create({ amount: 300, date: '2026-08-15', description: 'August', category_id: categoryId });
-    transactionRepository.create({ amount: 999, date: '2026-09-01', description: 'September', category_id: categoryId });
+    transactionRepository.create({ amount: 100, date: '2026-06-15', description: 'June', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 200, date: '2026-07-15', description: 'July', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 300, date: '2026-08-15', description: 'August', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 999, date: '2026-09-01', description: 'September', category_id: categoryId }, null, false, true);
 
     const [row] = dashboardRepository.findSummary('2026-06', '2026-08');
     expect(row.actual_spend).toBe(600);
@@ -78,8 +86,47 @@ describe('findSummary with a month range', () => {
   });
 
   it('excludes a category whose start_on is after the entire range', () => {
-    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, start_on: '2026-09-01' });
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, department_id: deptA, start_on: '2026-09-01' });
     const rows = dashboardRepository.findSummary('2026-06', '2026-08');
+    expect(rows).toHaveLength(0);
+  });
+});
+
+describe('findSummary approval gating', () => {
+  it('excludes a pending (unapproved) transaction from actual_spend', () => {
+    transactionRepository.create({ amount: 999, date: '2026-08-01', description: 'Pending', category_id: categoryId }, null, true, false);
+
+    const [row] = dashboardRepository.findSummary('2026-08');
+    expect(row.actual_spend).toBe(0);
+  });
+
+  it('counts a transaction once it is approved', () => {
+    const created = transactionRepository.create(
+      { amount: 999, date: '2026-08-01', description: 'Was pending', category_id: categoryId },
+      null,
+      true,
+      false
+    );
+    transactionRepository.approve(created.id, true);
+
+    const [row] = dashboardRepository.findSummary('2026-08');
+    expect(row.actual_spend).toBe(999);
+  });
+});
+
+describe('findSummary department scoping', () => {
+  it('scopes to the given departments', () => {
+    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200, department_id: deptB }).id;
+    transactionRepository.create({ amount: 100, date: '2026-08-01', description: 'A', category_id: categoryId }, null, false, true);
+    transactionRepository.create({ amount: 50, date: '2026-08-01', description: 'B', category_id: otherCategoryId }, null, false, true);
+
+    const rows = dashboardRepository.findSummary('2026-08', '2026-08', [deptA]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].category_id).toBe(categoryId);
+  });
+
+  it('returns no rows for an empty departmentIds array', () => {
+    const rows = dashboardRepository.findSummary('2026-08', '2026-08', []);
     expect(rows).toHaveLength(0);
   });
 });

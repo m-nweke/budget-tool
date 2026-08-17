@@ -7,8 +7,11 @@ import recurringTransactionRepository from './recurringTransactionRepository';
 let categoryId: number;
 
 beforeEach(() => {
-  db.exec('DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories;');
-  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500 }).id;
+  db.exec(
+    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments;'
+  );
+  const deptId = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
+  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptId }).id;
   // Fix "today" so generateDue()'s <= today comparisons are deterministic.
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-13T00:00:00Z'));
@@ -99,6 +102,38 @@ describe('generateDue', () => {
 
     expect(transactionRepository.findAll()).toHaveLength(2);
   });
+
+  it('marks a generated occurrence needs_approval when it exceeds the category threshold', () => {
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, department_id: null, approval_threshold: 100 });
+    recurringTransactionRepository.create({
+      amount: 250,
+      description: 'Big license',
+      category_id: categoryId,
+      start_date: '2026-08-01',
+      interval: 'monthly',
+    });
+
+    recurringTransactionRepository.generateDue();
+
+    const [transaction] = transactionRepository.findAll();
+    expect(transaction).toMatchObject({ needs_approval: true, approved: false });
+  });
+
+  it('auto-approves a generated occurrence at or under the category threshold', () => {
+    categoryRepository.update(categoryId, { name: 'Software', budgeted_amount: 500, department_id: null, approval_threshold: 100 });
+    recurringTransactionRepository.create({
+      amount: 50,
+      description: 'Small subscription',
+      category_id: categoryId,
+      start_date: '2026-08-01',
+      interval: 'monthly',
+    });
+
+    recurringTransactionRepository.generateDue();
+
+    const [transaction] = transactionRepository.findAll();
+    expect(transaction).toMatchObject({ needs_approval: false, approved: true });
+  });
 });
 
 describe('update', () => {
@@ -164,7 +199,7 @@ describe('update', () => {
   });
 
   it('apply_to_existing deletes old occurrences and regenerates from the original start date under the new config', () => {
-    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200 }).id;
+    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200, department_id: null }).id;
     const created = recurringTransactionRepository.create({
       amount: 25,
       description: 'Parking',

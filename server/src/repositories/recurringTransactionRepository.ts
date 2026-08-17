@@ -1,5 +1,6 @@
 import db from '../db';
 import transactionRepository from './transactionRepository';
+import categoryRepository from './categoryRepository';
 import { addByInterval, todayISO } from '../utils/dateUtils';
 import type { RecurringTransaction, CreateRecurringTransactionDto, UpdateRecurringTransactionDto } from '../types';
 
@@ -14,11 +15,18 @@ function generateDueForTemplate(template: RecurringTransaction): void {
   let nextRun = template.next_run_date;
   let pastEnd = false;
 
+  // Loaded once per template, not per occurrence — a category's threshold
+  // can't change mid-loop, and generateDue() may run this for many
+  // templates in one pass.
+  const category = categoryRepository.findById(template.category_id);
+  const threshold = category?.approval_threshold ?? null;
+
   while (nextRun <= today) {
     if (template.end_date && nextRun > template.end_date) {
       pastEnd = true;
       break;
     }
+    const needsApproval = threshold !== null && template.amount > threshold;
     transactionRepository.createGenerated(
       {
         amount: template.amount,
@@ -26,7 +34,9 @@ function generateDueForTemplate(template: RecurringTransaction): void {
         description: template.description,
         category_id: template.category_id,
       },
-      template.id
+      template.id,
+      needsApproval,
+      !needsApproval
     );
     nextRun = addByInterval(nextRun, template.interval);
   }
@@ -43,10 +53,24 @@ function generateDueForTemplate(template: RecurringTransaction): void {
 }
 
 const recurringTransactionRepository = {
-  findAllActive(): RecurringTransaction[] {
+  // Omitting departmentIds returns every active template, unscoped — used
+  // internally by generateDue() (materializes for the whole app, not one
+  // user's view). Route handlers always pass the caller's accessible ids.
+  findAllActive(departmentIds?: number[]): RecurringTransaction[] {
+    if (!departmentIds) {
+      return db
+        .prepare(`SELECT ${COLUMNS} FROM recurring_transactions WHERE active = 1`)
+        .all() as RecurringTransaction[];
+    }
+    if (departmentIds.length === 0) return [];
+    const placeholders = departmentIds.map(() => '?').join(', ');
     return db
-      .prepare(`SELECT ${COLUMNS} FROM recurring_transactions WHERE active = 1`)
-      .all() as RecurringTransaction[];
+      .prepare(
+        `SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
+         JOIN categories c ON c.id = rt.category_id
+         WHERE rt.active = 1 AND c.department_id IN (${placeholders})`
+      )
+      .all(...departmentIds) as RecurringTransaction[];
   },
 
   findById(id: number | string): RecurringTransaction | undefined {

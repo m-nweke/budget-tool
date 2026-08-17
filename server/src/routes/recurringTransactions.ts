@@ -1,7 +1,13 @@
 import express, { Request, Response } from 'express';
 import recurringTransactionRepository from '../repositories/recurringTransactionRepository';
 import categoryRepository from '../repositories/categoryRepository';
-import type { CreateRecurringTransactionDto, UpdateRecurringTransactionDto, RecurrenceInterval } from '../types';
+import { resolveAccessibleDepartmentIds, userHasDepartmentAccess } from '../middleware/scoping';
+import type {
+  CreateRecurringTransactionDto,
+  UpdateRecurringTransactionDto,
+  RecurrenceInterval,
+  AuthUser,
+} from '../types';
 
 const router = express.Router();
 
@@ -28,7 +34,8 @@ function validate(
 }
 
 router.get('/', (req: Request, res: Response) => {
-  res.json(recurringTransactionRepository.findAllActive());
+  const accessibleIds = resolveAccessibleDepartmentIds(req.user as AuthUser);
+  res.json(recurringTransactionRepository.findAllActive(accessibleIds));
 });
 
 router.post('/', (req: Request<{}, {}, CreateRecurringTransactionDto>, res: Response) => {
@@ -36,8 +43,12 @@ router.post('/', (req: Request<{}, {}, CreateRecurringTransactionDto>, res: Resp
   if (error) {
     return res.status(400).json({ error });
   }
-  if (!categoryRepository.findById(req.body.category_id)) {
+  const category = categoryRepository.findById(req.body.category_id);
+  if (!category) {
     return res.status(400).json({ error: 'category_id does not reference an existing category' });
+  }
+  if (!userHasDepartmentAccess(req.user as AuthUser, category.department_id)) {
+    return res.status(403).json({ error: 'Not authorized for this department' });
   }
   const recurringTransaction = recurringTransactionRepository.create(req.body);
   recurringTransactionRepository.generateDue();
@@ -53,8 +64,17 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateRecurringTransactionD
   if (!existing) {
     return res.status(404).json({ error: 'recurring transaction not found' });
   }
-  if (!categoryRepository.findById(req.body.category_id)) {
+  const category = categoryRepository.findById(req.body.category_id);
+  if (!category) {
     return res.status(400).json({ error: 'category_id does not reference an existing category' });
+  }
+  const user = req.user as AuthUser;
+  const existingCategory = categoryRepository.findById(existing.category_id);
+  if (
+    !userHasDepartmentAccess(user, existingCategory?.department_id ?? null) ||
+    !userHasDepartmentAccess(user, category.department_id)
+  ) {
+    return res.status(403).json({ error: 'Not authorized for this department' });
   }
   const recurringTransaction = recurringTransactionRepository.update(req.params.id, req.body);
   res.json(recurringTransaction);
@@ -64,6 +84,10 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
   const existing = recurringTransactionRepository.findById(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'recurring transaction not found' });
+  }
+  const category = categoryRepository.findById(existing.category_id);
+  if (!userHasDepartmentAccess(req.user as AuthUser, category?.department_id ?? null)) {
+    return res.status(403).json({ error: 'Not authorized for this department' });
   }
   recurringTransactionRepository.deactivate(req.params.id);
   res.status(204).end();
