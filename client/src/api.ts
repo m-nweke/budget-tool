@@ -7,24 +7,44 @@ import type {
   RecurringTransaction,
   CreateRecurringTransactionDto,
   UpdateRecurringTransactionDto,
+  AuthUser,
 } from './types';
 
 const BASE = '/api';
 
+// Carries the HTTP status alongside the message so callers that need to
+// distinguish failure modes (e.g. useAuth's fetchMe telling a real 401
+// apart from a network/server error) don't have to re-parse the message.
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    // fetch's default is 'same-origin', which already sends the httpOnly
+    // auth cookie for this app's normal same-origin deployment — 'include'
+    // is set explicitly so cookies still go out if the API is ever served
+    // from a different origin/port than the client.
+    credentials: 'include',
     ...options,
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed with status ${res.status}`);
+    throw new ApiError(body.error || `Request failed with status ${res.status}`, res.status);
   }
   if (res.status === 204) return null as T;
   return res.json();
 }
 
 export const api = {
+  login: (email: string, password: string) =>
+    request<{ user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  logout: () => request<null>('/auth/logout', { method: 'POST' }),
+  getMe: () => request<{ user: AuthUser }>('/auth/me'),
+
   getCategories: () => request<Category[]>('/categories'),
   createCategory: (data: CreateCategoryDto) =>
     request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),

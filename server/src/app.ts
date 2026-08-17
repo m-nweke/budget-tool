@@ -1,6 +1,8 @@
 import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
+import cookieParser from 'cookie-parser';
 
+import authRouter from './routes/auth';
 import categoriesRouter from './routes/categories';
 import transactionsRouter from './routes/transactions';
 import dashboardRouter from './routes/dashboard';
@@ -14,6 +16,13 @@ import { errorHandler } from './middleware/errorHandler';
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
+
+// Not yet a gate on the routers below — /login and /logout are public by
+// design, and /me guards itself inline via the authenticate middleware.
+// Applying authenticate in front of the other routers is department-scoping
+// work (a later phase), not part of auth core.
+app.use('/api/auth', authRouter);
 
 // Materialize any due recurring transactions before serving reads. There's
 // no background job runner in this deployment, so generation happens lazily

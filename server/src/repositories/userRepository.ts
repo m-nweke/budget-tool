@@ -1,7 +1,16 @@
 import db from '../db';
-import type { User, CreateUserDto } from '../types';
+import type { User, CreateUserDto, AuthUser } from '../types';
 
 const COLUMNS = 'id, name, email, role, department_id, password_hash';
+
+// The User -> AuthUser mapping (strip password_hash) is needed anywhere a
+// route or middleware sets req.user or a response body from a User row —
+// centralized here so both call sites can't drift if AuthUser's shape
+// changes later.
+export function toAuthUser(user: User): AuthUser {
+  const { password_hash, ...authUser } = user;
+  return authUser;
+}
 
 const userRepository = {
   findById(id: number | string): User | undefined {
