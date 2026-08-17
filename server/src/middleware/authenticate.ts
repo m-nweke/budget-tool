@@ -1,8 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { COOKIE_NAME } from '../config';
 import { verifyToken } from '../utils/jwt';
-import userRepository from '../repositories/userRepository';
-import type { AuthUser } from '../types';
+import userRepository, { toAuthUser } from '../repositories/userRepository';
 
 // Not wired into any router yet — that happens in the department-scoping
 // phase, once req.user is actually needed to compute access. Built now so
@@ -22,7 +21,6 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  const { password_hash, ...authUser } = user;
-  req.user = authUser as AuthUser;
+  req.user = toAuthUser(user);
   next();
 }
