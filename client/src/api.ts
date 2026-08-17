@@ -12,6 +12,15 @@ import type {
 
 const BASE = '/api';
 
+// Carries the HTTP status alongside the message so callers that need to
+// distinguish failure modes (e.g. useAuth's fetchMe telling a real 401
+// apart from a network/server error) don't have to re-parse the message.
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
@@ -24,7 +33,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || `Request failed with status ${res.status}`);
+    throw new ApiError(body.error || `Request failed with status ${res.status}`, res.status);
   }
   if (res.status === 204) return null as T;
   return res.json();

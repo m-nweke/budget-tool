@@ -12,6 +12,10 @@ const router = createRouter({
     { path: '/transactions', name: 'transactions', component: TransactionsView },
     { path: '/categories', name: 'categories', component: CategoriesView },
     { path: '/login', name: 'login', component: LoginView },
+    // Catches any unmatched path, including a hand-edited or stale
+    // `?redirect=` value from the login flow that no longer resolves to a
+    // real route — sends it to the dashboard instead of rendering blank.
+    { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
 });
 

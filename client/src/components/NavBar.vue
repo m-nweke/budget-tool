@@ -6,6 +6,8 @@ const { user, logout } = useAuth();
 const router = useRouter();
 
 async function handleLogout() {
+  // logout() itself never throws (it swallows its own request failure so
+  // the client-side session always clears) — always navigate away after.
   await logout();
   router.push('/login');
 }

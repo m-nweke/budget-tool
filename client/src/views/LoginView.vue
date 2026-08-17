@@ -17,8 +17,18 @@ async function handleSubmit() {
   submitting.value = true;
   try {
     await login(email.value, password.value);
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
-    router.push(redirect);
+    // Only trust `redirect` if it actually resolves to a route in this app
+    // (not the catch-all) — a stale bookmark or hand-edited query value
+    // otherwise resolves to nothing meaningful and would leave the UI
+    // stranded after navigating.
+    let target = '/';
+    if (typeof route.query.redirect === 'string') {
+      const redirectPath = route.query.redirect;
+      if (router.resolve(redirectPath).name !== undefined) {
+        target = redirectPath;
+      }
+    }
+    router.push(target);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
