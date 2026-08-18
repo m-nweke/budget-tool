@@ -27,7 +27,7 @@ router.post(
     if (!name || budgeted_amount === undefined || budgeted_amount === null) {
       return res.status(400).json({ error: 'name and budgeted_amount are required' });
     }
-    if (department_id === undefined) {
+    if (department_id === undefined || department_id === null) {
       return res.status(400).json({ error: 'department_id is required' });
     }
     if (!userHasDepartmentAccess(req.user as AuthUser, department_id)) {
@@ -52,7 +52,7 @@ router.put(
     if (!name || budgeted_amount === undefined || budgeted_amount === null) {
       return res.status(400).json({ error: 'name and budgeted_amount are required' });
     }
-    if (department_id === undefined) {
+    if (department_id === undefined || department_id === null) {
       return res.status(400).json({ error: 'department_id is required' });
     }
     const existing = categoryRepository.findById(req.params.id);

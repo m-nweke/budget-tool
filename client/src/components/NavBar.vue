@@ -11,9 +11,13 @@ const router = useRouter();
 // Refreshes once a head is known to be logged in (not on every mount —
 // NavBar mounts once for the app's lifetime) and again whenever isHead
 // flips true (e.g. right after login), so the badge is populated without
-// ApprovalsView needing to have been visited yet.
+// ApprovalsView needing to have been visited yet. refresh() is async and
+// the watcher callback isn't awaited, so a rejection (e.g. a transient
+// network failure) must be caught here — otherwise it surfaces as an
+// unhandled promise rejection. Best-effort: the badge just stays at
+// whatever it last showed until the next successful refresh.
 watch(isHead, (value) => {
-  if (value) refresh();
+  if (value) refresh().catch(() => {});
 }, { immediate: true });
 
 async function handleLogout() {

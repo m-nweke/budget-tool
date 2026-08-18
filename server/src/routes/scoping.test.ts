@@ -128,6 +128,17 @@ describe('category management is head-only', () => {
     expect(res.status).toBe(400);
     expect(res.body.error).toMatch(/department_id/);
   });
+
+  it('rejects an explicit null department_id with 400, not a misleading 403', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent
+      .post('/api/categories')
+      .send({ name: 'Software', budgeted_amount: 500, department_id: null });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/department_id/);
+  });
 });
 
 describe('transactions: employees can transact within their own department', () => {
@@ -241,6 +252,36 @@ describe('transactions: employees can transact within their own department', () 
       amount: 250,
       date: '2026-08-01',
       description: 'Small purchase',
+      category_id: category.id,
+    });
+    expect(edited.body).toMatchObject({ approved: false, needs_approval: true });
+  });
+
+  it('editing a rejected transaction to a lower amount goes back to pending, not straight to approved', async () => {
+    const category = categoryRepository.create({
+      name: 'Software',
+      budgeted_amount: 500,
+      department_id: deptA,
+      approval_threshold: 100,
+    });
+    await createEmployee('Evan', 'evan@example.com', deptA);
+    const employeeAgent = await loginAs('evan@example.com');
+    const created = await employeeAgent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', description: 'Big license', category_id: category.id });
+
+    await createHead('Dana', 'dana@example.com', deptA);
+    const headAgent = await loginAs('dana@example.com');
+    const rejected = await headAgent.post(`/api/transactions/${created.body.id}/reject`);
+    expect(rejected.body).toMatchObject({ approved: false, needs_approval: false });
+
+    // Amount lowered back under the threshold — computeApproval alone
+    // would auto-approve this, silently overturning the head's rejection
+    // with no re-review. It must land back in pending instead.
+    const edited = await employeeAgent.put(`/api/transactions/${created.body.id}`).send({
+      amount: 50,
+      date: '2026-08-01',
+      description: 'Big license',
       category_id: category.id,
     });
     expect(edited.body).toMatchObject({ approved: false, needs_approval: true });

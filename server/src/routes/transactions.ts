@@ -70,9 +70,26 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
   // the pending queue with no material change and no audit trail of the
   // fact that a decision got undone.
   const approvalChanged = amount !== existing.amount || category_id !== existing.category_id;
-  const { needsApproval, approved } = approvalChanged
-    ? computeApproval(amount, category)
-    : { needsApproval: existing.needs_approval, approved: existing.approved };
+  let needsApproval = existing.needs_approval;
+  let approved = existing.approved;
+  if (approvalChanged) {
+    const computed = computeApproval(amount, category);
+    // A transaction that was explicitly rejected (needs_approval=false,
+    // approved=false — the one state that can only be reached via
+    // POST /:id/reject) never gets to flip straight to approved just
+    // because the edited amount happens to fall back under threshold.
+    // That would let anyone with edit access silently overturn a head's
+    // rejection with no re-review. It goes back to pending instead, so a
+    // head has to make a fresh decision on the changed amount.
+    const wasRejected = !existing.needs_approval && !existing.approved;
+    if (wasRejected && !computed.needsApproval) {
+      needsApproval = true;
+      approved = false;
+    } else {
+      needsApproval = computed.needsApproval;
+      approved = computed.approved;
+    }
+  }
   const transaction = transactionRepository.update(
     req.params.id,
     { amount, date, description, category_id },
