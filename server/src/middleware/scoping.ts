@@ -56,6 +56,23 @@ export function userHasAccessToAll(user: AuthUser, departmentIds: (number | null
   return departmentIds.every((id) => id !== null && accessibleIds.includes(id));
 }
 
+// Unifies the "can this user touch this category/transaction" check across
+// both tenant types: an owner is authorized for anything in their own
+// tenant (there's no department indirection to lean on, unlike enterprise,
+// where department_access/employee assignment already keeps a user's
+// writes inside their own tenant by construction — an owner has no such
+// natural boundary, so tenant_id has to be checked explicitly). Enterprise
+// roles fall back to the existing department check.
+export function userCanAccessResource(
+  user: AuthUser,
+  resource: { tenant_id: number; department_id: number | null }
+): boolean {
+  if (user.role === 'owner') {
+    return resource.tenant_id === user.tenant_id;
+  }
+  return userHasDepartmentAccess(user, resource.department_id);
+}
+
 // Express middleware factory for head-only routes (category management,
 // approve/reject). Must run after `authenticate`, which sets req.user.
 export function requireRole(...roles: AuthUser['role'][]) {
