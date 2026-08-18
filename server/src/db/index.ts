@@ -88,6 +88,15 @@ db.exec(`
   -- existing one via IF NOT EXISTS, matching every other index below.
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_categories_department_id ON categories(department_id);
+
+  -- Tracks one-time data migrations (see runOnce below) — distinct from
+  -- migrateColumn, which is safe to re-run every boot. A backfill here
+  -- must run exactly once ever, since re-running it after real data has
+  -- been created under the new rules would corrupt that data.
+  CREATE TABLE IF NOT EXISTS schema_migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Lightweight migration for columns added after a database already existed.
@@ -113,5 +122,30 @@ db.exec("UPDATE categories SET start_on = date('now') WHERE start_on IS NULL");
 
 migrateColumn('ALTER TABLE users ADD COLUMN password_hash TEXT');
 migrateColumn('ALTER TABLE categories ADD COLUMN approval_threshold REAL');
+
+// Runs `fn` at most once ever, tracked in schema_migrations — unlike
+// migrateColumn (idempotent, safe every boot), a data backfill must not
+// repeat once real data exists that the backfill's assumption no longer
+// holds for.
+function runOnce(name: string, fn: () => void): void {
+  const already = db.prepare('SELECT 1 FROM schema_migrations WHERE name = ?').get(name);
+  if (already) return;
+  fn();
+  db.prepare('INSERT INTO schema_migrations (name) VALUES (?)').run(name);
+}
+
+// Before the approval workflow existed, transactionRepository.create
+// hardcoded every row to needs_approval=0, approved=0 — the columns were
+// forward-compat placeholders with no meaning yet, not "auto-approved."
+// The dashboard now sums only approved=1 transactions, so without this
+// backfill every pre-existing transaction's spend would vanish from the
+// dashboard the moment this deploy goes out. Safe to run exactly once:
+// at the moment this migration first runs, no transaction can yet be
+// genuinely rejected by a real head decision (POST /:id/reject ships in
+// this same deploy) — every row shaped (approved=0, needs_approval=0)
+// at that instant is definitionally legacy, not a rejection to preserve.
+runOnce('backfill_approved_pre_approval_workflow', () => {
+  db.exec('UPDATE transactions SET approved = 1 WHERE approved = 0 AND needs_approval = 0');
+});
 
 export default db;

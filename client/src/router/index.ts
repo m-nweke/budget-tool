@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
 import TransactionsView from '../views/TransactionsView.vue';
 import CategoriesView from '../views/CategoriesView.vue';
+import ApprovalsView from '../views/ApprovalsView.vue';
 import LoginView from '../views/LoginView.vue';
 import { useAuth } from '../composables/useAuth';
 
@@ -11,6 +12,10 @@ const router = createRouter({
     { path: '/', name: 'dashboard', component: DashboardView },
     { path: '/transactions', name: 'transactions', component: TransactionsView },
     { path: '/categories', name: 'categories', component: CategoriesView },
+    // meta.headOnly is checked generically in the guard below, not
+    // special-cased by route name — any future head-only route just needs
+    // the same flag, not a new branch in beforeEach.
+    { path: '/approvals', name: 'approvals', component: ApprovalsView, meta: { headOnly: true } },
     { path: '/login', name: 'login', component: LoginView },
     // Catches any unmatched path, including a hand-edited or stale
     // `?redirect=` value from the login flow that no longer resolves to a
@@ -25,7 +30,7 @@ const router = createRouter({
 // subsequent navigation reuses the already-resolved user instead of
 // re-fetching.
 router.beforeEach(async (to) => {
-  const { user, initialized, fetchMe } = useAuth();
+  const { user, isHead, initialized, fetchMe } = useAuth();
   if (!initialized.value) {
     await fetchMe();
   }
@@ -34,6 +39,12 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } };
   }
   if (user.value && to.name === 'login') {
+    return { path: '/' };
+  }
+  // The API already enforces this (approve/reject and GET /api/approvals
+  // are head-only), but redirecting here avoids rendering a view that
+  // would just show an empty/error state for an employee.
+  if (to.meta.headOnly && !isHead.value) {
     return { path: '/' };
   }
 });

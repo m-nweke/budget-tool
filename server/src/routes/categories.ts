@@ -1,40 +1,90 @@
 import express, { Request, Response } from 'express';
 import categoryRepository from '../repositories/categoryRepository';
 import recurringTransactionRepository from '../repositories/recurringTransactionRepository';
-import type { CreateCategoryDto } from '../types';
+import {
+  requireRole,
+  resolveAccessibleDepartmentIds,
+  userHasDepartmentAccess,
+  userHasAccessToAll,
+} from '../middleware/scoping';
+import type { CreateCategoryDto, AuthUser } from '../types';
 
 const router = express.Router();
 
 router.get('/', (req: Request, res: Response) => {
-  res.json(categoryRepository.findAll());
+  const accessibleIds = resolveAccessibleDepartmentIds(req.user as AuthUser);
+  res.json(categoryRepository.findAll(accessibleIds));
 });
 
-router.post('/', (req: Request<{}, {}, CreateCategoryDto>, res: Response) => {
-  const { name, budgeted_amount, start_on } = req.body;
-  if (!name || budgeted_amount === undefined || budgeted_amount === null) {
-    return res.status(400).json({ error: 'name and budgeted_amount are required' });
+// Category management is head-only — employees can't create categories at
+// all, matching the plan's split of "heads own budget structure, employees
+// log spend against it."
+router.post(
+  '/',
+  requireRole('department_head'),
+  (req: Request<{}, {}, CreateCategoryDto>, res: Response) => {
+    const { name, budgeted_amount, start_on, department_id, approval_threshold } = req.body;
+    if (!name || budgeted_amount === undefined || budgeted_amount === null) {
+      return res.status(400).json({ error: 'name and budgeted_amount are required' });
+    }
+    if (department_id === undefined || department_id === null) {
+      return res.status(400).json({ error: 'department_id is required' });
+    }
+    if (!userHasDepartmentAccess(req.user as AuthUser, department_id)) {
+      return res.status(403).json({ error: 'Not authorized for this department' });
+    }
+    const category = categoryRepository.create({
+      name,
+      budgeted_amount,
+      start_on,
+      department_id,
+      approval_threshold,
+    });
+    res.status(201).json(category);
   }
-  const category = categoryRepository.create({ name, budgeted_amount, start_on });
-  res.status(201).json(category);
-});
+);
 
-router.put('/:id', (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Response) => {
-  const { name, budgeted_amount, start_on } = req.body;
-  if (!name || budgeted_amount === undefined || budgeted_amount === null) {
-    return res.status(400).json({ error: 'name and budgeted_amount are required' });
+router.put(
+  '/:id',
+  requireRole('department_head'),
+  (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Response) => {
+    const { name, budgeted_amount, start_on, department_id, approval_threshold } = req.body;
+    if (!name || budgeted_amount === undefined || budgeted_amount === null) {
+      return res.status(400).json({ error: 'name and budgeted_amount are required' });
+    }
+    if (department_id === undefined || department_id === null) {
+      return res.status(400).json({ error: 'department_id is required' });
+    }
+    const existing = categoryRepository.findById(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: 'category not found' });
+    }
+    // Checked against both the category's current department and the
+    // target one — a head can't use an edit to move a category into a
+    // department they don't have access to, nor edit one they've lost
+    // access to since it was created.
+    const user = req.user as AuthUser;
+    if (!userHasAccessToAll(user, [existing.department_id, department_id])) {
+      return res.status(403).json({ error: 'Not authorized for this department' });
+    }
+    const category = categoryRepository.update(req.params.id, {
+      name,
+      budgeted_amount,
+      start_on,
+      department_id,
+      approval_threshold,
+    });
+    res.json(category);
   }
+);
+
+router.delete('/:id', requireRole('department_head'), (req: Request<{ id: string }>, res: Response) => {
   const existing = categoryRepository.findById(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'category not found' });
   }
-  const category = categoryRepository.update(req.params.id, { name, budgeted_amount, start_on });
-  res.json(category);
-});
-
-router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
-  const existing = categoryRepository.findById(req.params.id);
-  if (!existing) {
-    return res.status(404).json({ error: 'category not found' });
+  if (!userHasDepartmentAccess(req.user as AuthUser, existing.department_id)) {
+    return res.status(403).json({ error: 'Not authorized for this department' });
   }
   if (categoryRepository.countTransactionsFor(req.params.id) > 0) {
     return res.status(400).json({ error: 'cannot delete a category that has transactions' });

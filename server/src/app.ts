@@ -3,12 +3,15 @@ import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 
 import authRouter from './routes/auth';
+import departmentsRouter from './routes/departments';
 import categoriesRouter from './routes/categories';
 import transactionsRouter from './routes/transactions';
 import dashboardRouter from './routes/dashboard';
 import recurringTransactionsRouter from './routes/recurringTransactions';
+import approvalsRouter from './routes/approvals';
 import recurringTransactionRepository from './repositories/recurringTransactionRepository';
 import { errorHandler } from './middleware/errorHandler';
+import { authenticate } from './middleware/authenticate';
 
 // Builds and exports the Express app without binding a port, so tests can
 // exercise routes directly via supertest instead of over a real socket.
@@ -18,10 +21,9 @@ const app = express();
 app.use(express.json());
 app.use(cookieParser());
 
-// Not yet a gate on the routers below — /login and /logout are public by
-// design, and /me guards itself inline via the authenticate middleware.
-// Applying authenticate in front of the other routers is department-scoping
-// work (a later phase), not part of auth core.
+// /login and /logout are public by design; /me guards itself inline via
+// authenticate. Every other router below now requires a valid session —
+// this is the point department scoping actually needs req.user for.
 app.use('/api/auth', authRouter);
 
 // Materialize any due recurring transactions before serving reads. There's
@@ -36,10 +38,17 @@ function materializeDueTransactions(req: Request, res: Response, next: NextFunct
   next();
 }
 
-app.use('/api/categories', categoriesRouter);
-app.use('/api/transactions', materializeDueTransactions, transactionsRouter);
-app.use('/api/dashboard', materializeDueTransactions, dashboardRouter);
-app.use('/api/recurring-transactions', materializeDueTransactions, recurringTransactionsRouter);
+app.use('/api/departments', authenticate, departmentsRouter);
+app.use('/api/categories', authenticate, categoriesRouter);
+app.use('/api/transactions', authenticate, materializeDueTransactions, transactionsRouter);
+app.use('/api/dashboard', authenticate, materializeDueTransactions, dashboardRouter);
+app.use(
+  '/api/recurring-transactions',
+  authenticate,
+  materializeDueTransactions,
+  recurringTransactionsRouter
+);
+app.use('/api/approvals', authenticate, approvalsRouter);
 
 // Any /api/* path that didn't match a router above is a real 404, not a
 // SPA route — return JSON instead of falling through to index.html.
