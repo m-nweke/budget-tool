@@ -13,7 +13,24 @@ import type {
   SelectTenantRequest,
   AuthUser,
   MembershipRole,
+  MembershipSummary,
 } from '../types';
+
+// Shared by /login's multi-membership branch and GET /memberships (used by
+// the client's "switch workspace" UI for an already-authenticated user) —
+// one place building the picker shape from a user's membership rows.
+// A missing tenant here means a data-integrity issue (a membership
+// pointing at a tenant that no longer exists — tenants are never deleted
+// today, so this shouldn't happen) — skip that membership from the picker
+// rather than crash building it, so one bad row doesn't 500 out every
+// other, valid membership this identity has.
+function buildMembershipSummaries(userId: number): MembershipSummary[] {
+  return tenantMembershipRepository.listForUser(userId).flatMap((membership) => {
+    const tenant = tenantRepository.findById(membership.tenant_id);
+    if (!tenant) return [];
+    return [{ tenant_id: tenant.id, tenant_name: tenant.name, tenant_type: tenant.type, role: membership.role }];
+  });
+}
 
 // A hash of an unguessable, never-issued password, used to give a
 // nonexistent-user login attempt the same bcrypt.compare cost as a real one
@@ -73,18 +90,9 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response) 
   // created with one — see /register), but is handled the same way as
   // multiple rather than crashing: the client gets an (empty) picker
   // instead of a 500.
-  // A missing tenant here means the same data-integrity issue handled
-  // above for the single-membership case — skip that membership from the
-  // picker rather than crash building it (better an incomplete picker
-  // than a 500 for every other, valid membership this login has).
-  const membershipSummaries = memberships.flatMap((membership) => {
-    const tenant = tenantRepository.findById(membership.tenant_id);
-    if (!tenant) return [];
-    return [{ tenant_id: tenant.id, tenant_name: tenant.name, tenant_type: tenant.type, role: membership.role }];
-  });
   const preToken = signPreTenantToken(user.id);
   res.cookie(COOKIE_NAME, preToken, PRE_TENANT_COOKIE_OPTIONS);
-  const body: LoginResponse = { memberships: membershipSummaries };
+  const body: LoginResponse = { memberships: buildMembershipSummaries(user.id) };
   res.json(body);
 });
 
@@ -207,6 +215,16 @@ router.post('/logout', (req: Request, res: Response) => {
 router.get('/me', authenticate, (req: Request, res: Response) => {
   const body: LoginResponse = { user: req.user as AuthUser };
   res.json(body);
+});
+
+// For an already-authenticated user's "switch workspace" UI — distinct
+// from the picker /login returns for a multi-membership login, which only
+// exists before a session is established. Always includes the tenant the
+// caller is currently in, so the client doesn't need to merge it in
+// separately with req.user.
+router.get('/memberships', authenticate, (req: Request, res: Response) => {
+  const user = req.user as AuthUser;
+  res.json({ memberships: buildMembershipSummaries(user.id) });
 });
 
 export default router;
