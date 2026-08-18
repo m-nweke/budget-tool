@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import recurringTransactionRepository from '../repositories/recurringTransactionRepository';
 import categoryRepository from '../repositories/categoryRepository';
-import { resolveAccessibleDepartmentIds, userHasDepartmentAccess } from '../middleware/scoping';
+import { resolveAccessibleDepartmentIds, userHasDepartmentAccess, userHasAccessToAll } from '../middleware/scoping';
 import type {
   CreateRecurringTransactionDto,
   UpdateRecurringTransactionDto,
@@ -70,10 +70,7 @@ router.put('/:id', (req: Request<{ id: string }, {}, UpdateRecurringTransactionD
   }
   const user = req.user as AuthUser;
   const existingCategory = categoryRepository.findById(existing.category_id);
-  if (
-    !userHasDepartmentAccess(user, existingCategory?.department_id ?? null) ||
-    !userHasDepartmentAccess(user, category.department_id)
-  ) {
+  if (!userHasAccessToAll(user, [existingCategory?.department_id ?? null, category.department_id])) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
   const recurringTransaction = recurringTransactionRepository.update(req.params.id, req.body);

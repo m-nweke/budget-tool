@@ -1,7 +1,12 @@
 import express, { Request, Response } from 'express';
 import categoryRepository from '../repositories/categoryRepository';
 import recurringTransactionRepository from '../repositories/recurringTransactionRepository';
-import { requireRole, resolveAccessibleDepartmentIds, userHasDepartmentAccess } from '../middleware/scoping';
+import {
+  requireRole,
+  resolveAccessibleDepartmentIds,
+  userHasDepartmentAccess,
+  userHasAccessToAll,
+} from '../middleware/scoping';
 import type { CreateCategoryDto, AuthUser } from '../types';
 
 const router = express.Router();
@@ -59,10 +64,7 @@ router.put(
     // department they don't have access to, nor edit one they've lost
     // access to since it was created.
     const user = req.user as AuthUser;
-    if (
-      !userHasDepartmentAccess(user, existing.department_id) ||
-      !userHasDepartmentAccess(user, department_id)
-    ) {
+    if (!userHasAccessToAll(user, [existing.department_id, department_id])) {
       return res.status(403).json({ error: 'Not authorized for this department' });
     }
     const category = categoryRepository.update(req.params.id, {

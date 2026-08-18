@@ -1,7 +1,12 @@
 import express, { Request, Response } from 'express';
 import transactionRepository from '../repositories/transactionRepository';
 import categoryRepository from '../repositories/categoryRepository';
-import { requireRole, resolveAccessibleDepartmentIds, userHasDepartmentAccess } from '../middleware/scoping';
+import {
+  requireRole,
+  resolveAccessibleDepartmentIds,
+  userHasDepartmentAccess,
+  userHasAccessToAll,
+} from '../middleware/scoping';
 import type { CreateTransactionDto, AuthUser, Category } from '../types';
 
 const router = express.Router();
@@ -54,13 +59,20 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
   }
   const user = req.user as AuthUser;
   const existingCategory = categoryRepository.findById(existing.category_id);
-  if (
-    !userHasDepartmentAccess(user, existingCategory?.department_id ?? null) ||
-    !userHasDepartmentAccess(user, category.department_id)
-  ) {
+  if (!userHasAccessToAll(user, [existingCategory?.department_id ?? null, category.department_id])) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
-  const { needsApproval, approved } = computeApproval(amount, category);
+  // Only re-run the threshold check when amount or category actually
+  // changed — those are the only inputs computeApproval depends on. A
+  // no-op edit (e.g. fixing the description) must not touch
+  // needs_approval/approved: recomputing unconditionally would silently
+  // discard a head's approval or revive a rejected transaction back onto
+  // the pending queue with no material change and no audit trail of the
+  // fact that a decision got undone.
+  const approvalChanged = amount !== existing.amount || category_id !== existing.category_id;
+  const { needsApproval, approved } = approvalChanged
+    ? computeApproval(amount, category)
+    : { needsApproval: existing.needs_approval, approved: existing.approved };
   const transaction = transactionRepository.update(
     req.params.id,
     { amount, date, description, category_id },

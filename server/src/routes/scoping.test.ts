@@ -189,6 +189,62 @@ describe('transactions: employees can transact within their own department', () 
     const res = await agent.get('/api/transactions');
     expect(res.body).toHaveLength(1);
   });
+
+  it('editing only the description of an approved transaction does not revert its approval', async () => {
+    const category = categoryRepository.create({
+      name: 'Software',
+      budgeted_amount: 500,
+      department_id: deptA,
+      approval_threshold: 100,
+    });
+    await createEmployee('Evan', 'evan@example.com', deptA);
+    const employeeAgent = await loginAs('evan@example.com');
+    const created = await employeeAgent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', description: 'Big license', category_id: category.id });
+
+    await createHead('Dana', 'dana@example.com', deptA);
+    const headAgent = await loginAs('dana@example.com');
+    await headAgent.post(`/api/transactions/${created.body.id}/approve`);
+
+    // Same amount, same category — only the description changes.
+    const edited = await employeeAgent.put(`/api/transactions/${created.body.id}`).send({
+      amount: 250,
+      date: '2026-08-01',
+      description: 'Big license (renewed)',
+      category_id: category.id,
+    });
+    expect(edited.body).toMatchObject({ approved: true, needs_approval: false });
+
+    const stillApproved = await employeeAgent.get('/api/transactions');
+    const found = stillApproved.body.find((t: { id: number }) => t.id === created.body.id);
+    expect(found).toMatchObject({ approved: true, needs_approval: false });
+  });
+
+  it('changing the amount of an approved transaction does re-evaluate against the threshold', async () => {
+    const category = categoryRepository.create({
+      name: 'Software',
+      budgeted_amount: 500,
+      department_id: deptA,
+      approval_threshold: 100,
+    });
+    await createEmployee('Evan', 'evan@example.com', deptA);
+    const employeeAgent = await loginAs('evan@example.com');
+    const created = await employeeAgent
+      .post('/api/transactions')
+      .send({ amount: 50, date: '2026-08-01', description: 'Small purchase', category_id: category.id });
+    expect(created.body).toMatchObject({ approved: true, needs_approval: false });
+
+    // Amount increased past the threshold — this is a real change, so it
+    // should re-trigger approval, unlike the no-op-edit case above.
+    const edited = await employeeAgent.put(`/api/transactions/${created.body.id}`).send({
+      amount: 250,
+      date: '2026-08-01',
+      description: 'Small purchase',
+      category_id: category.id,
+    });
+    expect(edited.body).toMatchObject({ approved: false, needs_approval: true });
+  });
 });
 
 describe('approve/reject workflow', () => {

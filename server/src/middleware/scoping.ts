@@ -25,6 +25,17 @@ export function userHasDepartmentAccess(user: AuthUser, departmentId: number | n
   return resolveAccessibleDepartmentIds(user).includes(departmentId);
 }
 
+// For the "check access against both the existing and target department"
+// pattern every PUT handler needs (categories/transactions/recurringTransactions):
+// resolves the accessible-ids list once instead of once per department,
+// since resolveAccessibleDepartmentIds does a real department_access query
+// for a head. Also the single place that check gets fixed if its logic
+// needs to change, instead of three near-identical inline copies drifting.
+export function userHasAccessToAll(user: AuthUser, departmentIds: (number | null)[]): boolean {
+  const accessibleIds = resolveAccessibleDepartmentIds(user);
+  return departmentIds.every((id) => id !== null && accessibleIds.includes(id));
+}
+
 // Express middleware factory for head-only routes (category management,
 // approve/reject). Must run after `authenticate`, which sets req.user.
 export function requireRole(...roles: AuthUser['role'][]) {
