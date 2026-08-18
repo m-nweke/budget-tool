@@ -128,8 +128,8 @@ db.exec(`
   -- No index on tenant_memberships.user_id: the composite UNIQUE
   -- (user_id, tenant_id) already gives SQLite an implicit index usable for
   -- user_id-only lookups via its leftmost column, same reasoning as
-  -- department_access above.
-  CREATE INDEX IF NOT EXISTS idx_tenant_memberships_department_id ON tenant_memberships(department_id);
+  -- department_access above. No index on department_id either — nothing
+  -- queries tenant_memberships by department_id, only by user_id/tenant_id.
 
   -- Tracks one-time data migrations (see runOnce below) — distinct from
   -- migrateColumn, which is safe to re-run every boot. A backfill here

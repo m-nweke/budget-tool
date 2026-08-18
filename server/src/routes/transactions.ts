@@ -54,10 +54,7 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
   }
   const user = req.user as AuthUser;
   const existingCategory = categoryRepository.findById(existing.category_id);
-  if (
-    (existingCategory && !userCanAccessResource(user, existingCategory)) ||
-    !userCanAccessResource(user, category)
-  ) {
+  if (!existingCategory || !userCanAccessResource(user, existingCategory) || !userCanAccessResource(user, category)) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
   // Only re-run the threshold check when amount or category actually

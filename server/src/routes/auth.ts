@@ -151,6 +151,20 @@ router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Resp
     user = userRepository.create({ name, email, password_hash });
   }
 
+  // A personal budget is meant to be singular per person — unlike 'join'
+  // (checked below, against a specific existing tenant) and 'company'
+  // (each call is an unambiguous "start a new company," plausibly
+  // intentional more than once), there's no tenant to check "already a
+  // member of" yet for 'personal' at this point, since none has been
+  // created. Checked by role instead: 'owner' only ever comes from this
+  // path, so having one anywhere means a personal tenant already exists
+  // for this identity. Without this, a retried/double-submitted request
+  // would silently create a second personal tenant every time (no tenant
+  // exists yet for the "already a member" check below to catch).
+  if (accountType === 'personal' && tenantMembershipRepository.listForUser(user.id).some((m) => m.role === 'owner')) {
+    return res.status(400).json({ error: 'You already have a personal budget' });
+  }
+
   if (accountType === 'personal') {
     tenant = tenantRepository.create(`${name}'s Budget`, 'personal');
   } else if (accountType === 'company') {
