@@ -4,17 +4,22 @@ import categoryRepository from './categoryRepository';
 import transactionRepository from './transactionRepository';
 import dashboardRepository from './dashboardRepository';
 
+let tenantId: number;
 let categoryId: number;
 let deptA: number;
 let deptB: number;
 
 beforeEach(() => {
   db.exec(
-    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments;'
+    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments; DELETE FROM tenants;'
   );
-  deptA = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing').lastInsertRowid as number;
-  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }).id;
+  tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')").run()
+    .lastInsertRowid as number;
+  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+    .lastInsertRowid as number;
+  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+    .lastInsertRowid as number;
+  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId).id;
 });
 
 // Every transaction below is created pre-approved (approved: true) — a
@@ -116,7 +121,7 @@ describe('findSummary approval gating', () => {
 
 describe('findSummary department scoping', () => {
   it('scopes to the given departments', () => {
-    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200, department_id: deptB }).id;
+    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200, department_id: deptB }, tenantId).id;
     transactionRepository.create({ amount: 100, date: '2026-08-01', description: 'A', category_id: categoryId }, null, false, true);
     transactionRepository.create({ amount: 50, date: '2026-08-01', description: 'B', category_id: otherCategoryId }, null, false, true);
 

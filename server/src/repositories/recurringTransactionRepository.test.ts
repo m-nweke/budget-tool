@@ -4,14 +4,18 @@ import categoryRepository from './categoryRepository';
 import transactionRepository from './transactionRepository';
 import recurringTransactionRepository from './recurringTransactionRepository';
 
+let tenantId: number;
 let categoryId: number;
 
 beforeEach(() => {
   db.exec(
-    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments;'
+    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments; DELETE FROM tenants;'
   );
-  const deptId = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
-  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptId }).id;
+  tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')").run()
+    .lastInsertRowid as number;
+  const deptId = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+    .lastInsertRowid as number;
+  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptId }, tenantId).id;
   // Fix "today" so generateDue()'s <= today comparisons are deterministic.
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-13T00:00:00Z'));
@@ -199,7 +203,7 @@ describe('update', () => {
   });
 
   it('apply_to_existing deletes old occurrences and regenerates from the original start date under the new config', () => {
-    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200, department_id: null }).id;
+    const otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 200, department_id: null }, tenantId).id;
     const created = recurringTransactionRepository.create({
       amount: 25,
       description: 'Parking',

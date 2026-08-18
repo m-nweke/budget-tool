@@ -16,11 +16,9 @@ const tenantMembershipRepository = {
   },
 
   create({ user_id, tenant_id, role, department_id }: CreateTenantMembershipDto): TenantMembership {
-    const result = db
-      .prepare(
-        'INSERT INTO tenant_memberships (user_id, tenant_id, role, department_id) VALUES (?, ?, ?, ?)'
-      )
-      .run(user_id, tenant_id, role, department_id);
+    db.prepare(
+      'INSERT INTO tenant_memberships (user_id, tenant_id, role, department_id) VALUES (?, ?, ?, ?)'
+    ).run(user_id, tenant_id, role, department_id);
     return tenantMembershipRepository.findByUserAndTenant(user_id, tenant_id) as TenantMembership;
   },
 

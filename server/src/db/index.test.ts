@@ -35,9 +35,12 @@ describe('backfill_approved_pre_approval_workflow', () => {
     // next boot re-runs the backfill — simulating "this legacy data
     // predates the migration ever having run."
     const raw = new Database(dbPath);
+    const tenantId = raw
+      .prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')")
+      .run().lastInsertRowid as number;
     const categoryId = raw
-      .prepare('INSERT INTO categories (name, budgeted_amount) VALUES (?, ?)')
-      .run('Software', 500).lastInsertRowid as number;
+      .prepare('INSERT INTO categories (name, budgeted_amount, tenant_id) VALUES (?, ?, ?)')
+      .run('Software', 500, tenantId).lastInsertRowid as number;
     const txId = raw
       .prepare(
         'INSERT INTO transactions (amount, date, category_id, needs_approval, approved) VALUES (?, ?, ?, 0, 0)'
@@ -58,9 +61,12 @@ describe('backfill_approved_pre_approval_workflow', () => {
   it('does not touch a genuinely rejected transaction on a later restart', async () => {
     // Boot 1: schema created, marker set (nothing to backfill).
     const first = await import('./index');
+    const tenantId = first.default
+      .prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')")
+      .run().lastInsertRowid as number;
     const categoryId = first.default
-      .prepare('INSERT INTO categories (name, budgeted_amount) VALUES (?, ?)')
-      .run('Software', 500).lastInsertRowid as number;
+      .prepare('INSERT INTO categories (name, budgeted_amount, tenant_id) VALUES (?, ?, ?)')
+      .run('Software', 500, tenantId).lastInsertRowid as number;
     const txId = first.default
       .prepare(
         'INSERT INTO transactions (amount, date, category_id, needs_approval, approved) VALUES (?, ?, ?, 1, 0)'

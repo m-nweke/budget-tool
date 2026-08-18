@@ -3,6 +3,7 @@ import db from '../db';
 import categoryRepository from './categoryRepository';
 import transactionRepository from './transactionRepository';
 
+let tenantId: number;
 let categoryId: number;
 let otherCategoryId: number;
 let deptA: number;
@@ -11,15 +12,18 @@ let userId: number;
 
 beforeEach(() => {
   db.exec(
-    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments; DELETE FROM users;'
+    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM departments; DELETE FROM tenants; DELETE FROM users;'
   );
-  deptA = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing').lastInsertRowid as number;
-  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }).id;
-  otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 500, department_id: deptB }).id;
-  userId = db
-    .prepare('INSERT INTO users (name, email, role, department_id) VALUES (?, ?, ?, ?)')
-    .run('Test User', 'test@example.com', 'department_head', null).lastInsertRowid as number;
+  tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')").run()
+    .lastInsertRowid as number;
+  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+    .lastInsertRowid as number;
+  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+    .lastInsertRowid as number;
+  categoryId = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId).id;
+  otherCategoryId = categoryRepository.create({ name: 'Travel', budgeted_amount: 500, department_id: deptB }, tenantId).id;
+  userId = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)').run('Test User', 'test@example.com')
+    .lastInsertRowid as number;
 });
 
 describe('transactionRepository', () => {
