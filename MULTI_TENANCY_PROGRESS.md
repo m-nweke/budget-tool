@@ -2,7 +2,7 @@
 
 **Backend PR (done, open):** https://github.com/m-nweke/budget-tool/pull/7 — branch `feat/multi-tenancy-foundation`, off `main` (after merging PR #6, the department-roles/approval-workflow PR).
 
-**Frontend branch (in progress — this is what you're working on):** `feat/multi-tenancy-frontend`, off `feat/multi-tenancy-foundation`.
+**Frontend PR (done, open):** https://github.com/m-nweke/budget-tool/pull/8 — branch `feat/multi-tenancy-frontend`, stacked on #7 (`feat/multi-tenancy-foundation`) — #7 must merge first.
 
 **Read this whole file before touching code.** It's written so a fresh agent/session with zero prior context can resume exactly where this left off — no assumptions, no "as discussed earlier."
 
