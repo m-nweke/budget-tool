@@ -73,11 +73,14 @@ router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response) 
   // created with one — see /register), but is handled the same way as
   // multiple rather than crashing: the client gets an (empty) picker
   // instead of a 500.
-  const membershipSummaries = memberships.map((membership) => {
-    const tenant = tenantRepository.findById(membership.tenant_id) as NonNullable<
-      ReturnType<typeof tenantRepository.findById>
-    >;
-    return { tenant_id: tenant.id, tenant_name: tenant.name, tenant_type: tenant.type, role: membership.role };
+  // A missing tenant here means the same data-integrity issue handled
+  // above for the single-membership case — skip that membership from the
+  // picker rather than crash building it (better an incomplete picker
+  // than a 500 for every other, valid membership this login has).
+  const membershipSummaries = memberships.flatMap((membership) => {
+    const tenant = tenantRepository.findById(membership.tenant_id);
+    if (!tenant) return [];
+    return [{ tenant_id: tenant.id, tenant_name: tenant.name, tenant_type: tenant.type, role: membership.role }];
   });
   const preToken = signPreTenantToken(user.id);
   res.cookie(COOKIE_NAME, preToken, PRE_TENANT_COOKIE_OPTIONS);
@@ -99,8 +102,8 @@ router.post('/select-tenant', (req: Request<{}, {}, SelectTenantRequest>, res: R
   }
 
   const { tenant_id } = req.body;
-  if (tenant_id === undefined) {
-    return res.status(400).json({ error: 'tenant_id is required' });
+  if (typeof tenant_id !== 'number') {
+    return res.status(400).json({ error: 'tenant_id must be a number' });
   }
 
   const user = userRepository.findById(Number(payload.sub));
@@ -122,13 +125,17 @@ router.post('/select-tenant', (req: Request<{}, {}, SelectTenantRequest>, res: R
 
 router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Response) => {
   const { name, email, password, accountType, joinCode } = req.body;
-  if (!name || typeof email !== 'string' || !email || typeof password !== 'string' || !password) {
+  if (
+    typeof name !== 'string' || !name ||
+    typeof email !== 'string' || !email ||
+    typeof password !== 'string' || !password
+  ) {
     return res.status(400).json({ error: 'name, email, and password are required' });
   }
   if (accountType !== 'personal' && accountType !== 'company' && accountType !== 'join') {
     return res.status(400).json({ error: "accountType must be 'personal', 'company', or 'join'" });
   }
-  if (accountType === 'join' && !joinCode) {
+  if (accountType === 'join' && (typeof joinCode !== 'string' || !joinCode)) {
     return res.status(400).json({ error: 'joinCode is required to join a company' });
   }
 
