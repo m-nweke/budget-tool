@@ -7,8 +7,7 @@ const router = express.Router();
 
 router.get('/', (req: Request, res: Response) => {
   const accessibleIds = resolveAccessibleDepartmentIds(req.user as AuthUser);
-  const departments = departmentRepository.findAll().filter((d) => accessibleIds.includes(d.id));
-  res.json(departments);
+  res.json(departmentRepository.findAll(accessibleIds));
 });
 
 export default router;

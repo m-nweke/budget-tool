@@ -7,10 +7,23 @@ beforeEach(() => {
 });
 
 describe('departmentRepository', () => {
-  it('findAll returns every department', () => {
+  it('findAll with no departmentIds returns every department, unscoped', () => {
     db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering');
     db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing');
     expect(departmentRepository.findAll()).toHaveLength(2);
+  });
+
+  it('findAll(departmentIds) scopes to the given ids', () => {
+    const engId = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
+    db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing');
+    const rows = departmentRepository.findAll([engId]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].name).toBe('Engineering');
+  });
+
+  it('findAll([]) returns no rows', () => {
+    db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering');
+    expect(departmentRepository.findAll([])).toHaveLength(0);
   });
 
   it('findById finds a department', () => {

@@ -70,7 +70,12 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
   res.json(transaction);
 });
 
-router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
+// Head-only: an employee who could freely delete any transaction (including
+// one a head already approved or rejected) would undercut the audit trail
+// reject() is specifically designed to preserve. Confirmed with the user
+// before implementing — the tradeoff is employees can no longer delete
+// their own mistaken entries, only heads can.
+router.delete('/:id', requireRole('department_head'), (req: Request<{ id: string }>, res: Response) => {
   const existing = transactionRepository.findById(req.params.id);
   if (!existing) {
     return res.status(404).json({ error: 'transaction not found' });
@@ -85,7 +90,10 @@ router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
 
 // Head-only, access-checked against the transaction's category's
 // department. Reject clears the pending flag without deleting the row —
-// it stays for audit visibility (see transactionRepository.approve).
+// it stays for audit visibility (see transactionRepository.approve). A
+// head can't approve/reject their own submission — the whole point of
+// requiring approval is a second set of eyes, and heads can create
+// transactions too (see routes/transactions.ts POST).
 router.post(
   '/:id/approve',
   requireRole('department_head'),
@@ -94,8 +102,12 @@ router.post(
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
+    const user = req.user as AuthUser;
+    if (existing.created_by === user.id) {
+      return res.status(403).json({ error: 'Cannot approve your own transaction' });
+    }
     const category = categoryRepository.findById(existing.category_id);
-    if (!userHasDepartmentAccess(req.user as AuthUser, category?.department_id ?? null)) {
+    if (!userHasDepartmentAccess(user, category?.department_id ?? null)) {
       return res.status(403).json({ error: 'Not authorized for this department' });
     }
     res.json(transactionRepository.approve(req.params.id, true));
@@ -110,8 +122,12 @@ router.post(
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
+    const user = req.user as AuthUser;
+    if (existing.created_by === user.id) {
+      return res.status(403).json({ error: 'Cannot reject your own transaction' });
+    }
     const category = categoryRepository.findById(existing.category_id);
-    if (!userHasDepartmentAccess(req.user as AuthUser, category?.department_id ?? null)) {
+    if (!userHasDepartmentAccess(user, category?.department_id ?? null)) {
       return res.status(403).json({ error: 'Not authorized for this department' });
     }
     res.json(transactionRepository.approve(req.params.id, false));

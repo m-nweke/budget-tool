@@ -109,6 +109,25 @@ describe('category management is head-only', () => {
       .send({ name: 'Software', budgeted_amount: 500, department_id: deptA });
     expect(res.status).toBe(201);
   });
+
+  it('rejects an empty name with 400, not a silent create', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent
+      .post('/api/categories')
+      .send({ name: '', budgeted_amount: 500, department_id: deptA });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a missing department_id with 400, not a misleading 403', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.post('/api/categories').send({ name: 'Software', budgeted_amount: 500 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/department_id/);
+  });
 });
 
 describe('transactions: employees can transact within their own department', () => {
@@ -254,6 +273,66 @@ describe('approve/reject workflow', () => {
 
     const stillThere = await headAgent.get('/api/transactions');
     expect(stillThere.body.some((t: { id: number }) => t.id === created.body.id)).toBe(true);
+  });
+
+  it('a head cannot approve their own submitted transaction', async () => {
+    const category = categoryRepository.create({
+      name: 'Software',
+      budgeted_amount: 500,
+      department_id: deptA,
+      approval_threshold: 100,
+    });
+    await createHead('Dana', 'dana@example.com', deptA);
+    const headAgent = await loginAs('dana@example.com');
+    const created = await headAgent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', category_id: category.id });
+
+    const res = await headAgent.post(`/api/transactions/${created.body.id}/approve`);
+    expect(res.status).toBe(403);
+  });
+
+  it('a head cannot reject their own submitted transaction', async () => {
+    const category = categoryRepository.create({
+      name: 'Software',
+      budgeted_amount: 500,
+      department_id: deptA,
+      approval_threshold: 100,
+    });
+    await createHead('Dana', 'dana@example.com', deptA);
+    const headAgent = await loginAs('dana@example.com');
+    const created = await headAgent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', category_id: category.id });
+
+    const res = await headAgent.post(`/api/transactions/${created.body.id}/reject`);
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('DELETE /api/transactions/:id is head-only', () => {
+  it('an employee cannot delete a transaction, even one they created', async () => {
+    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
+    await createEmployee('Evan', 'evan@example.com', deptA);
+    const agent = await loginAs('evan@example.com');
+    const created = await agent
+      .post('/api/transactions')
+      .send({ amount: 50, date: '2026-08-01', category_id: category.id });
+
+    const res = await agent.delete(`/api/transactions/${created.body.id}`);
+    expect(res.status).toBe(403);
+  });
+
+  it('a head can delete a transaction in their department', async () => {
+    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+    const created = await agent
+      .post('/api/transactions')
+      .send({ amount: 50, date: '2026-08-01', category_id: category.id });
+
+    const res = await agent.delete(`/api/transactions/${created.body.id}`);
+    expect(res.status).toBe(204);
   });
 });
 
