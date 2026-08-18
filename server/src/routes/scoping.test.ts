@@ -73,6 +73,24 @@ describe('GET /api/departments', () => {
   });
 });
 
+describe('POST /api/departments', () => {
+  it('grants the creating head access to the new department, so they are not immediately locked out of it', async () => {
+    await createHead('Dana', 'dana@example.com');
+    const agent = await loginAs('dana@example.com');
+
+    const createRes = await agent.post('/api/departments').send({ name: 'Sales' });
+    expect(createRes.status).toBe(201);
+
+    const listRes = await agent.get('/api/departments');
+    expect(listRes.body.map((d: { id: number }) => d.id)).toContain(createRes.body.id);
+
+    const categoryRes = await agent
+      .post('/api/categories')
+      .send({ name: 'Travel', budgeted_amount: 100, department_id: createRes.body.id, start_on: '2026-01-01' });
+    expect(categoryRes.status).toBe(201);
+  });
+});
+
 describe('GET /api/categories scoping', () => {
   it('an employee only sees categories in their own department', async () => {
     categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);

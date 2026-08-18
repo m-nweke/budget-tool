@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import departmentRepository from '../repositories/departmentRepository';
+import departmentAccessRepository from '../repositories/departmentAccessRepository';
 import { requireRole, resolveAccessibleDepartmentIds } from '../middleware/scoping';
 import type { AuthUser } from '../types';
 
@@ -22,6 +23,10 @@ router.post('/', requireRole('department_head'), (req: Request<{}, {}, { name?: 
   }
   const user = req.user as AuthUser;
   const department = departmentRepository.create(name, user.tenant_id);
+  // A head's access is entirely defined by department_access grants (see
+  // resolveAccessibleDepartmentIds) — without this, the head who just
+  // created the department would immediately be locked out of it.
+  departmentAccessRepository.grant(user.id, department.id);
   res.status(201).json(department);
 });
 
