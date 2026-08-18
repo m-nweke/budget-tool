@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue';
 import { api, ApiError } from '../api';
-import type { AuthUser } from '../types';
+import type { AccountType } from '../api';
+import type { AuthUser, MembershipSummary } from '../types';
 
 // Module-level singleton, not a per-component ref: every component that
 // calls useAuth() shares the same user state, so a login/logout in one
@@ -15,6 +16,19 @@ import type { AuthUser } from '../types';
 const user = ref<AuthUser | null>(null);
 const initialized = ref(false);
 const isHead = computed(() => user.value?.role === 'department_head');
+const isOwner = computed(() => user.value?.role === 'owner');
+// Budget-structure management (categories, deleting transactions) is
+// gated the same way for both roles — a head owns it for their
+// department-scoped tenant, an owner owns it for their whole (department-
+// less) personal tenant. Views branch on this instead of `isHead` alone
+// wherever the permission, not the specific role, is what matters.
+const canManageBudget = computed(() => isHead.value || isOwner.value);
+
+// Shared by two different UI moments: the picker after a multi-membership
+// login (nothing else has resolved yet, `user` is still null) and the
+// "switch workspace" list for an already-authenticated user (`user` is
+// set). Same shape either way — see MembershipSummary.
+const memberships = ref<MembershipSummary[]>([]);
 
 // Dedupes concurrent callers (e.g. two router navigations both starting
 // before the first /api/auth/me response lands) onto a single in-flight
@@ -54,10 +68,52 @@ async function fetchMe(): Promise<AuthUser | null> {
   }
 }
 
-async function login(email: string, password: string): Promise<void> {
-  const res = await api.login(email, password);
+// Returns whether the login resolved directly to a session (`true`) or to
+// a tenant picker (`false`, and `memberships` is now populated for the
+// caller — typically LoginView — to render one). Doesn't throw on the
+// picker case; that's a normal outcome, not a failure.
+async function login(email: string, password: string): Promise<boolean> {
+  const result = await api.login(email, password);
+  if ('user' in result) {
+    user.value = result.user;
+    initialized.value = true;
+    memberships.value = [];
+    return true;
+  }
+  memberships.value = result.memberships;
+  return false;
+}
+
+// Unlike login(), registration always resolves to exactly one new
+// membership — never a picker — so this sets the session directly.
+async function register(
+  name: string,
+  email: string,
+  password: string,
+  accountType: AccountType,
+  joinCode?: string
+): Promise<void> {
+  const res = await api.register(name, email, password, accountType, joinCode);
   user.value = res.user;
   initialized.value = true;
+  memberships.value = [];
+}
+
+async function selectTenant(tenantId: number): Promise<void> {
+  const res = await api.selectTenant(tenantId);
+  user.value = res.user;
+  initialized.value = true;
+  memberships.value = [];
+}
+
+// For the "switch workspace" UI — lists every membership the current
+// session's identity holds, including the active one. Distinct from the
+// picker `memberships` gets populated with during a multi-membership
+// login: this is a separate server call (GET /api/auth/memberships),
+// since /login's picker only exists before a session is established.
+async function fetchMemberships(): Promise<void> {
+  const res = await api.getMemberships();
+  memberships.value = res.memberships;
 }
 
 async function logout(): Promise<void> {
@@ -70,9 +126,23 @@ async function logout(): Promise<void> {
     // outlives this, and a later fetchMe() would re-authenticate them.
   } finally {
     user.value = null;
+    memberships.value = [];
   }
 }
 
 export function useAuth() {
-  return { user, isHead, initialized, fetchMe, login, logout };
+  return {
+    user,
+    isHead,
+    isOwner,
+    canManageBudget,
+    memberships,
+    initialized,
+    fetchMe,
+    login,
+    register,
+    selectTenant,
+    fetchMemberships,
+    logout,
+  };
 }

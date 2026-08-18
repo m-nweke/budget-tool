@@ -16,7 +16,7 @@ import type {
   Department,
 } from '../types';
 
-const { isHead } = useAuth();
+const { canManageBudget } = useAuth();
 const transactions = ref<Transaction[]>([]);
 const categories = ref<Category[]>([]);
 const recurringTransactions = ref<RecurringTransaction[]>([]);
@@ -293,7 +293,7 @@ onMounted(loadData);
               <td class="table-row-actions">
                 <KebabMenu v-if="!isLockedToActiveSeries(transaction)">
                   <button type="button" @click="openEditForm(transaction)">Edit</button>
-                  <button v-if="isHead" type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
+                  <button v-if="canManageBudget" type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
                 </KebabMenu>
               </td>
             </tr>
