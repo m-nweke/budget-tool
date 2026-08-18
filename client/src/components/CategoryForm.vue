@@ -61,11 +61,12 @@ onMounted(async () => {
 });
 
 async function handleCreateDepartment() {
-  if (creatingDepartment.value) return;
+  const trimmedName = newDepartmentName.value.trim();
+  if (creatingDepartment.value || !trimmedName) return;
   departmentError.value = '';
   creatingDepartment.value = true;
   try {
-    const department = await api.createDepartment(newDepartmentName.value);
+    const department = await api.createDepartment(trimmedName);
     departments.value.push(department);
     departmentId.value = department.id;
     newDepartmentName.value = '';
@@ -134,7 +135,7 @@ function handleSubmit() {
             type="button"
             class="btn btn-secondary"
             @click="handleCreateDepartment"
-            :disabled="!newDepartmentName || creatingDepartment"
+            :disabled="!newDepartmentName.trim() || creatingDepartment"
           >
             Add department
           </button>

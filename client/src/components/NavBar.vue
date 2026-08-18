@@ -55,7 +55,11 @@ async function handleSwitchTenant(tenantId: number) {
   try {
     await selectTenant(tenantId);
     workspaceMenuOpen.value = false;
-    router.push('/');
+    // A full page load, not router.push — every view only loads its
+    // tenant-scoped data in onMounted, and router.push('/') is a no-op
+    // (no remount) when the user switches tenant while already on '/',
+    // which would leave the previous tenant's data on screen.
+    window.location.href = '/';
   } catch {
     // Best-effort — the dropdown just stays open so the user can retry.
   } finally {
