@@ -12,7 +12,27 @@ export function resolveAccessibleDepartmentIds(user: AuthUser): number[] {
   if (user.role === 'department_head') {
     return departmentAccessRepository.listForUser(user.id);
   }
-  return user.department_id !== null ? [user.department_id] : [];
+  if (user.role === 'department_employee') {
+    return user.department_id !== null ? [user.department_id] : [];
+  }
+  // 'owner' — a personal tenant has no departments at all. See
+  // resolveScope: an owner's data is scoped by tenant_id directly, not by
+  // department, so this returning [] is correct (zero departments exist to
+  // be accessible) rather than a "zero access" bug to work around.
+  return [];
+}
+
+// The listing-query scope for a GET route. Enterprise roles are scoped by
+// accessible department ids (resolveAccessibleDepartmentIds, existing
+// behavior). A personal tenant's 'owner' has no departments to scope by —
+// the only boundary is their own tenant_id. Every scoped repo's findAll
+// accepts both departmentIds and tenantId for this reason: departmentIds
+// wins when present (enterprise), tenantId is the fallback (personal).
+export function resolveScope(user: AuthUser): { departmentIds?: number[]; tenantId?: number } {
+  if (user.role === 'owner') {
+    return { tenantId: user.tenant_id };
+  }
+  return { departmentIds: resolveAccessibleDepartmentIds(user) };
 }
 
 // Used inline in route handlers *after* a resource (and its department) is

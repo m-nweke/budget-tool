@@ -2,23 +2,28 @@ import db from '../db';
 import { todayISO } from '../utils/dateUtils';
 import type { Category, CreateCategoryDto } from '../types';
 
-const COLUMNS = 'id, name, budgeted_amount, start_on, department_id, approval_threshold';
+const COLUMNS = 'id, tenant_id, name, budgeted_amount, start_on, department_id, approval_threshold';
 
 const categoryRepository = {
-  // Omitting departmentIds (undefined) returns every category, unscoped —
-  // used by generateDue()/dashboard internals that already operate
-  // per-user via their own scoping, not directly by a route handler.
-  // Passing an empty array (a user with zero accessible departments)
-  // correctly returns zero rows, not "no filter."
-  findAll(departmentIds?: number[]): Category[] {
-    if (!departmentIds) {
-      return db.prepare(`SELECT ${COLUMNS} FROM categories`).all() as Category[];
+  // departmentIds (enterprise scoping) wins when given — [] correctly
+  // returns zero rows (a user with zero accessible departments), a
+  // non-empty array filters to those departments. tenantId (personal
+  // scoping) is the fallback when departmentIds is omitted — a personal
+  // tenant's categories all have department_id = NULL, so there's nothing
+  // to filter by except the tenant itself. Omitting both returns every
+  // category, unscoped — used only by internal callers, never a route.
+  findAll(departmentIds?: number[], tenantId?: number): Category[] {
+    if (departmentIds) {
+      if (departmentIds.length === 0) return [];
+      const placeholders = departmentIds.map(() => '?').join(', ');
+      return db
+        .prepare(`SELECT ${COLUMNS} FROM categories WHERE department_id IN (${placeholders})`)
+        .all(...departmentIds) as Category[];
     }
-    if (departmentIds.length === 0) return [];
-    const placeholders = departmentIds.map(() => '?').join(', ');
-    return db
-      .prepare(`SELECT ${COLUMNS} FROM categories WHERE department_id IN (${placeholders})`)
-      .all(...departmentIds) as Category[];
+    if (tenantId !== undefined) {
+      return db.prepare(`SELECT ${COLUMNS} FROM categories WHERE tenant_id = ?`).all(tenantId) as Category[];
+    }
+    return db.prepare(`SELECT ${COLUMNS} FROM categories`).all() as Category[];
   },
 
   findById(id: number | string): Category | undefined {
@@ -27,12 +32,19 @@ const categoryRepository = {
       | undefined;
   },
 
-  create({ name, budgeted_amount, start_on, department_id, approval_threshold }: CreateCategoryDto): Category {
+  // tenantId is server-derived (req.user.tenant_id), never client input —
+  // kept out of CreateCategoryDto for the same reason created_by is a
+  // separate transactionRepository.create parameter, not part of
+  // CreateTransactionDto.
+  create(
+    { name, budgeted_amount, start_on, department_id, approval_threshold }: CreateCategoryDto,
+    tenantId: number
+  ): Category {
     const result = db
       .prepare(
-        'INSERT INTO categories (name, budgeted_amount, start_on, department_id, approval_threshold) VALUES (?, ?, ?, ?, ?)'
+        'INSERT INTO categories (tenant_id, name, budgeted_amount, start_on, department_id, approval_threshold) VALUES (?, ?, ?, ?, ?, ?)'
       )
-      .run(name, budgeted_amount, start_on || todayISO(), department_id, approval_threshold ?? null);
+      .run(tenantId, name, budgeted_amount, start_on || todayISO(), department_id, approval_threshold ?? null);
     return categoryRepository.findById(result.lastInsertRowid as number) as Category;
   },
 

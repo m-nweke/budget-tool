@@ -3,17 +3,29 @@ import { monthRangeSpan, monthCount, currentMonth } from '../utils/dateUtils';
 import type { DashboardRow } from '../types';
 
 const dashboardRepository = {
-  // Omitting departmentIds returns every category, unscoped (no internal
-  // caller currently needs this, but kept consistent with the other
-  // repos' scoping convention). A route handler always passes the
-  // caller's accessible ids; an empty array (zero access) returns zero rows.
-  findSummary(from: string = currentMonth(), to: string = from, departmentIds?: number[]): DashboardRow[] {
+  // departmentIds (enterprise) wins when given; tenantId (personal) is the
+  // fallback for a tenant with no departments at all. Omitting both
+  // returns every category, unscoped (no internal caller needs this, kept
+  // consistent with the other repos' scoping convention). An empty
+  // departmentIds array (zero accessible departments) returns zero rows.
+  findSummary(
+    from: string = currentMonth(),
+    to: string = from,
+    departmentIds?: number[],
+    tenantId?: number
+  ): DashboardRow[] {
     if (departmentIds && departmentIds.length === 0) return [];
     const { start, end } = monthRangeSpan(from, to);
     const months = monthCount(from, to);
-    const departmentFilter = departmentIds
-      ? `AND c.department_id IN (${departmentIds.map(() => '?').join(', ')})`
-      : '';
+    let scopeFilter = '';
+    let scopeParams: number[] = [];
+    if (departmentIds) {
+      scopeFilter = `AND c.department_id IN (${departmentIds.map(() => '?').join(', ')})`;
+      scopeParams = departmentIds;
+    } else if (tenantId !== undefined) {
+      scopeFilter = 'AND c.tenant_id = ?';
+      scopeParams = [tenantId];
+    }
     return db
       .prepare(
         `SELECT
@@ -25,10 +37,10 @@ const dashboardRepository = {
          FROM categories c
          LEFT JOIN transactions t
            ON t.category_id = c.id AND t.date >= ? AND t.date < ?
-         WHERE c.start_on < ? ${departmentFilter}
+         WHERE c.start_on < ? ${scopeFilter}
          GROUP BY c.id, c.name, c.budgeted_amount`
       )
-      .all(months, months, start, end, end, ...(departmentIds ?? [])) as DashboardRow[];
+      .all(months, months, start, end, end, ...scopeParams) as DashboardRow[];
   },
 };
 
