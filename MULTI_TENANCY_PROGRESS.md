@@ -22,7 +22,9 @@ Read that file first — it has the complete design (schema, auth flow, why each
 
 ## Phase 1 (Foundation) — what's done so far
 
-**Update:** the server-side implementation described below is now **functionally complete**. It was manually verified end-to-end via `curl` against a running instance (seed → login as head/personal/join-code registration → select-tenant picker for a multi-membership login → pre-tenant token correctly rejected by tenant-scoped routes → department assignment via the new team endpoint → full cross-tenant data isolation confirmed both directions). The remaining work is: automated test coverage (currently ~111 old tests fail on the old fixture shape — mechanical, not a sign anything above is wrong), and all client-side work (nothing started yet). See "Not done yet" below, which has been trimmed to just those two remaining buckets.
+**Update 2:** the server side is now **fully done** — functionally complete (manually verified via `curl`, see below) *and* the automated test suite is green: **171/171 server tests passing**, `npm run build` and `npm run lint` both clean. All the old fixture-shape test failures from Update 1 are fixed; new tests were added for the migration, `tenantRepository`, `tenantMembershipRepository`, `register`/`select-tenant`, and `resolveScope`/`userCanAccessResource`. **Only client-side work remains** for this phase (see "Not done yet" below, item 1 — item 2/3/4 from the original list are now done and removed).
+
+**Update 1 (superseded by Update 2 above, kept for history):** the server-side implementation described below is now **functionally complete**. It was manually verified end-to-end via `curl` against a running instance (seed → login as head/personal/join-code registration → select-tenant picker for a multi-membership login → pre-tenant token correctly rejected by tenant-scoped routes → department assignment via the new team endpoint → full cross-tenant data isolation confirmed both directions).
 
 ### ✅ Done and verified
 
@@ -48,21 +50,18 @@ Read that file first — it has the complete design (schema, auth flow, why each
 
 ### ❌ Not done yet — pick up here
 
-1. **Automated test coverage for what's new**: `server/src/db/index.test.ts` needs tests for the `migrate_users_and_departments_to_tenants` migration (only manually verified so far — see the pattern already in that file, real on-disk file + `vi.resetModules()` to simulate a restart). New `tenantRepository.test.ts` and `tenantMembershipRepository.test.ts` (zero coverage right now). A route-level test file (or extend `scoping.test.ts`) covering: multi-membership login → picker → select-tenant → session correctly scoped; personal-tenant category/transaction CRUD with no department_id; cross-tenant isolation (a head sees none of a personal tenant's data and vice versa — this was manually verified via curl, see the WIP commit message, but has no automated test yet); the join-code flow end to end including `PATCH /api/team/:userId`.
-2. **Fix every existing test** — currently **111 of 139 server tests are failing** (confirmed via `npm test` before the routes/auth work above; re-run to get the current number, it may have shifted). Almost entirely mechanical: test setup code does raw `INSERT INTO users (..., role, department_id, ...)` or calls `userRepository.create({..., role, department_id})`, both of which no longer exist. **This is not a sign anything is broken** — the server was independently verified correct via manual `curl` testing (see the WIP commit messages for the exact commands run). Every test file's `beforeEach`/fixture-creation needs to:
-   - Create a `tenants` row (`tenantRepository.create(name, type)`).
-   - Create the `users` row without `role`/`department_id` (`userRepository.create({ name, email, password_hash })`).
-   - Create a `tenant_memberships` row (`tenantMembershipRepository.create({...})`) with the role/department_id that used to be inline on the user.
-   - Any raw `INSERT INTO categories`/`transactions` in test fixtures needs a `tenant_id` now too.
-   - `server/src/routes/scoping.test.ts` has helper functions `createHead`/`createEmployee`/`loginAs` — fix these first, most other route tests in that file reuse them.
-3. **Client** (none of this started yet):
-   - Registration flow: a new `RegisterView.vue` with account-type choice (personal / start a company / join a company), calling `POST /api/auth/register`.
-   - A tenant-picker UI for the multi-membership login case (`useAuth`'s `login()` needs to handle the `{ memberships: [...] }` response shape instead of always getting a session back).
-   - `useAuth` composable gains `tenant`/`tenants` state, plus a `selectTenant(tenantId)` method calling `select-tenant`.
+Everything server-side is done (schema, auth, routes, seed script, and now the full automated test suite — 171/171 passing, build/lint clean). **Only client-side work remains** for this phase:
+
+1. **Client** (none of this started yet):
+   - Registration flow: a new `RegisterView.vue` with account-type choice (personal / start a company / join a company), calling `POST /api/auth/register`. Look at `client/src/views/LoginView.vue` for the existing form/error-handling pattern to match.
+   - A tenant-picker UI for the multi-membership login case (`useAuth`'s `login()` needs to handle the `{ memberships: [...] }` response shape instead of always getting a `{ user }` session back — see `server/src/types/auth/LoginResponse.ts` for the exact union type, and mirror it in `client/src/types`).
+   - `useAuth` composable (`client/src/composables/useAuth.ts`) gains `tenant`/`tenants` state, plus a `selectTenant(tenantId)` method calling `POST /api/auth/select-tenant`.
    - `NavBar`: a "Switch workspace" affordance, only shown when the user has >1 membership.
-   - A personal-mode `NavBar`/route set (deferred detail — Phase 2 per the plan, but the *routing infrastructure* — picking enterprise vs. personal `NavBar`/routes by `tenant_type` — arguably belongs in this foundation phase since Phase 2 depends on it existing).
-4. **Docs**: once tests are green and client work is done, write the usual `docs/stories/NN-*.md` + `docs/decisions/NN-*.md` pair (check `docs/stories/` for the latest number — story 14 was the last one from PR #6) and update `docs/FILE_STRUCTURE.md`, per `CLAUDE.md`'s documented convention.
-5. **User also asked for**: a separate doc explaining the general *concept* of multi-tenancy and how this specific solution achieves it — call out which parts are standard/textbook multi-tenancy patterns vs. which parts are specific to this stack's choices (SQLite/better-sqlite3, JWT-in-cookie, Express, the pre-tenant-token bridge for multi-membership login). Not started yet — do this once the phase is otherwise done, so it can describe the actual shipped implementation, not the plan.
+   - A personal-mode `NavBar`/route set (deferred detail — Phase 2 per the plan, but the *routing infrastructure* — picking enterprise vs. personal `NavBar`/routes by `tenant_type` — arguably belongs in this foundation phase since Phase 2 depends on it existing). The existing `meta.headOnly` pattern in `client/src/router/index.ts` (from PR #6) is the template for role/type-based route gating — a `meta.tenantType` flag would work the same way.
+   - Client-side `Category`/`CreateCategoryDto`/`Transaction` types need `tenant_id` added to mirror the server types (`client/src/types/category/`, `client/src/types/transaction/`) — small, mechanical, but currently missing.
+   - `CategoryForm.vue` currently requires selecting a department (`client/src/components/CategoryForm.vue`, from PR #6) — needs a branch for `tenant_type === 'personal'` where there's no department to pick at all (mirrors the server's `owner`-role branch in `routes/categories.ts`).
+2. **Docs**: once client work is done, write the usual `docs/stories/NN-*.md` + `docs/decisions/NN-*.md` pair (check `docs/stories/` for the latest number — story 14 was the last one from PR #6) and update `docs/FILE_STRUCTURE.md`, per `CLAUDE.md`'s documented convention.
+3. **User also asked for**: a separate doc explaining the general *concept* of multi-tenancy and how this specific solution achieves it — call out which parts are standard/textbook multi-tenancy patterns vs. which parts are specific to this stack's choices (SQLite/better-sqlite3, JWT-in-cookie, Express, the pre-tenant-token bridge for multi-membership login). Not started yet — do this once the phase is otherwise done, so it can describe the actual shipped implementation, not the plan.
 
 ## How to verify progress as you go
 
