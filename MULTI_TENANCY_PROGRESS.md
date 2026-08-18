@@ -1,6 +1,8 @@
 # Multi-Tenancy Foundation — Handoff / Progress Doc
 
-**Branch:** `feat/multi-tenancy-foundation`, off `main` (after merging PR #6, the department-roles/approval-workflow PR).
+**Backend PR (done, open):** https://github.com/m-nweke/budget-tool/pull/7 — branch `feat/multi-tenancy-foundation`, off `main` (after merging PR #6, the department-roles/approval-workflow PR).
+
+**Frontend branch (in progress — this is what you're working on):** `feat/multi-tenancy-frontend`, off `feat/multi-tenancy-foundation`.
 
 **Read this whole file before touching code.** It's written so a fresh agent/session with zero prior context can resume exactly where this left off — no assumptions, no "as discussed earlier."
 
@@ -22,7 +24,15 @@ Read that file first — it has the complete design (schema, auth flow, why each
 
 ## Phase 1 (Foundation) — what's done so far
 
-**Update 2:** the server side is now **fully done** — functionally complete (manually verified via `curl`, see below) *and* the automated test suite is green: **171/171 server tests passing**, `npm run build` and `npm run lint` both clean. All the old fixture-shape test failures from Update 1 are fixed; new tests were added for the migration, `tenantRepository`, `tenantMembershipRepository`, `register`/`select-tenant`, and `resolveScope`/`userCanAccessResource`. **Only client-side work remains** for this phase (see "Not done yet" below, item 1 — item 2/3/4 from the original list are now done and removed).
+**Update 4 (current — READ THIS FIRST):** The backend PR is **done and open**: **https://github.com/m-nweke/budget-tool/pull/7** (branch `feat/multi-tenancy-foundation` → `main`), 174/174 tests passing, build/lint clean, all 5 code-review findings from Update 3 fixed and committed. **Do not touch the backend branch/PR further unless a reviewer comments on it** — it's finished and awaiting review/merge.
+
+**You are here:** branch `feat/multi-tenancy-frontend`, created off `feat/multi-tenancy-foundation` (not off `main` — the frontend needs the backend's types/endpoints, which aren't on `main` until PR #7 merges). This is a **stacked PR** — when you open it, its base will show PR #7's commits too until #7 merges; that's expected, note the dependency in the PR description. All frontend work described in "Not done yet" below happens on this branch.
+
+If PR #7 has merged into `main` by the time you're reading this and you'd rather rebase onto `main` directly instead of staying stacked, that's a reasonable judgment call — check `gh pr view 7 --json state` first.
+
+**Update 3 (superseded by Update 4, kept for history):** The user asked to split this work into two separate PRs: backend and frontend. A full code review (`/code-review high`) ran against the pushed backend branch and found 5 issues (details now in PR #7's commit history and `docs/decisions/15-multi-tenancy-backend.md`'s "Fixes from code review" section — both committed as of Update 4).
+
+**Update 2 (superseded by Update 3, kept for history):** the server side is now **fully done** — functionally complete (manually verified via `curl`, see below) *and* the automated test suite is green: **171/171 server tests passing**, `npm run build` and `npm run lint` both clean. All the old fixture-shape test failures from Update 1 are fixed; new tests were added for the migration, `tenantRepository`, `tenantMembershipRepository`, `register`/`select-tenant`, and `resolveScope`/`userCanAccessResource`. **Only client-side work remains** for this phase (see "Not done yet" below, item 1 — item 2/3/4 from the original list are now done and removed).
 
 **Update 1 (superseded by Update 2 above, kept for history):** the server-side implementation described below is now **functionally complete**. It was manually verified end-to-end via `curl` against a running instance (seed → login as head/personal/join-code registration → select-tenant picker for a multi-membership login → pre-tenant token correctly rejected by tenant-scoped routes → department assignment via the new team endpoint → full cross-tenant data isolation confirmed both directions).
 
@@ -50,7 +60,7 @@ Read that file first — it has the complete design (schema, auth flow, why each
 
 ### ❌ Not done yet — pick up here
 
-Everything server-side is done (schema, auth, routes, seed script, and now the full automated test suite — 171/171 passing, build/lint clean). **Only client-side work remains** for this phase:
+Everything server-side is done and PR'd (schema, auth, routes, seed script, full automated test suite — 174/174 passing, build/lint clean). **Only client-side work remains** for this phase — this is the entirety of the `feat/multi-tenancy-frontend` branch's scope:
 
 1. **Client** (none of this started yet):
    - Registration flow: a new `RegisterView.vue` with account-type choice (personal / start a company / join a company), calling `POST /api/auth/register`. Look at `client/src/views/LoginView.vue` for the existing form/error-handling pattern to match.
@@ -65,8 +75,8 @@ Everything server-side is done (schema, auth, routes, seed script, and now the f
 
 ## How to verify progress as you go
 
-- `cd server && npm test` — was 111/139 failing before the auth/routes work in this section; re-run to get the current count, then track it to 0 fixing fixtures (item 2 above).
-- `cd server && npm run build` and `cd client && npm run build` — must stay clean (`tsc`/`vue-tsc` have caught real bugs already this session, e.g. an index-ordering bug in the schema migration itself — don't skip checking this after schema/type changes).
+- `cd server && npm test` — 174/174 passing as of the backend PR (#7); should stay green throughout frontend work (the frontend branch shouldn't need server-side changes — if you find yourself editing `server/src`, stop and reconsider whether that belongs in this PR or should go back to backend scope).
+- `cd server && npm run build` and `cd client && npm run build` — must stay clean (`tsc`/`vue-tsc` have caught real bugs already this session, e.g. an index-ordering bug in the schema migration itself — don't skip checking this after type changes).
 - The exact manual `curl` sequence that verified the server-side implementation (login/register/select-tenant/scoping/isolation) is in this branch's git log — look at the WIP commit that says "server-side foundation is now functionally complete" for the full transcript of what was run and what it returned.
 - Manual verification pattern already used successfully in this project (see the git history for PR #5/#6): seed the db, boot the server on a scratch port (`DB_PATH=/tmp/whatever.sqlite PORT=3993 npm start`), drive it via `curl` or the claude-in-chrome browser tools, then kill the process and delete the scratch db file.
 - The plan file's own "Verification (Phase 1)" section has the specific end-to-end manual scenario to run once auth/routes/client are all in place (register a company → create department → get join code → register+join a second account → assign department → confirm scoping; separately register a personal account → confirm isolation; then join-as-existing-email → confirm the tenant picker appears and switching works).
