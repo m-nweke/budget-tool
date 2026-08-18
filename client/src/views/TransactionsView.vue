@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
+import { useAuth } from '../composables/useAuth';
 import TransactionForm from '../components/TransactionForm.vue';
 import RecurringTransactionForm from '../components/RecurringTransactionForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
@@ -12,11 +13,14 @@ import type {
   RecurringTransaction,
   UpdateRecurringTransactionDto,
   RecurrenceInterval,
+  Department,
 } from '../types';
 
+const { isHead } = useAuth();
 const transactions = ref<Transaction[]>([]);
 const categories = ref<Category[]>([]);
 const recurringTransactions = ref<RecurringTransaction[]>([]);
+const departments = ref<Department[]>([]);
 const showForm = ref(false);
 const editingTransaction = ref<Transaction | null>(null);
 const showRecurringForm = ref(false);
@@ -49,6 +53,24 @@ const categoryNameById = computed(() => {
   return map;
 });
 
+// Only worth labeling by department when a head has access to more than
+// one — an employee (always exactly one department) or a head scoped to a
+// single one gets no extra information from the label.
+const showDepartmentLabel = computed(() => departments.value.length > 1);
+const departmentNameByCategoryId = computed(() => {
+  const departmentNames: Record<number, string> = {};
+  for (const department of departments.value) {
+    departmentNames[department.id] = department.name;
+  }
+  const map: Record<number, string> = {};
+  for (const category of categories.value) {
+    if (category.department_id !== null) {
+      map[category.id] = departmentNames[category.department_id];
+    }
+  }
+  return map;
+});
+
 const filteredTransactions = computed(() => {
   if (!categoryFilter.value) return transactions.value;
   return transactions.value.filter((t) => t.category_id === categoryFilter.value);
@@ -57,10 +79,11 @@ const filteredTransactions = computed(() => {
 let filterInitialized = false;
 
 async function loadData() {
-  [transactions.value, categories.value, recurringTransactions.value] = await Promise.all([
+  [transactions.value, categories.value, recurringTransactions.value, departments.value] = await Promise.all([
     api.getTransactions(),
     api.getCategories(),
     api.getRecurringTransactions(),
+    api.getDepartments(),
   ]);
   loaded.value = true;
 
@@ -258,13 +281,19 @@ onMounted(loadData);
               <td>
                 {{ transaction.description || '—' }}
                 <span v-if="transaction.recurring_transaction_id" class="badge badge-recurring">↻ Recurring</span>
+                <span v-if="transaction.needs_approval" class="badge badge-pending">Pending approval</span>
               </td>
               <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
-              <td>{{ categoryNameById[transaction.category_id] }}</td>
+              <td>
+                {{ categoryNameById[transaction.category_id] }}
+                <span v-if="showDepartmentLabel" class="badge badge-department">
+                  {{ departmentNameByCategoryId[transaction.category_id] }}
+                </span>
+              </td>
               <td class="table-row-actions">
                 <KebabMenu v-if="!isLockedToActiveSeries(transaction)">
                   <button type="button" @click="openEditForm(transaction)">Edit</button>
-                  <button type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
+                  <button v-if="isHead" type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
                 </KebabMenu>
               </td>
             </tr>

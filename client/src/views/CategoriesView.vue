@@ -1,24 +1,39 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
+import { useAuth } from '../composables/useAuth';
 import CategoryForm from '../components/CategoryForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import { formatCurrency } from '../utils/format';
-import type { Category, CreateCategoryDto } from '../types';
+import type { Category, CreateCategoryDto, Department } from '../types';
 
+const { isHead } = useAuth();
 const categories = ref<Category[]>([]);
+const departments = ref<Department[]>([]);
 const showForm = ref(false);
 const editingCategory = ref<Category | null>(null);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
 
+// Only worth labeling categories by department when there's more than one
+// in view — a head scoped to a single department gets no extra info from
+// seeing that department's name repeated on every row.
+const showDepartmentLabel = computed(() => departments.value.length > 1);
+const departmentNameById = computed(() => {
+  const map: Record<number, string> = {};
+  for (const department of departments.value) {
+    map[department.id] = department.name;
+  }
+  return map;
+});
+
 function scrollToForm() {
   viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadCategories() {
-  categories.value = await api.getCategories();
+  [categories.value, departments.value] = await Promise.all([api.getCategories(), api.getDepartments()]);
   loaded.value = true;
 }
 
@@ -73,31 +88,37 @@ onMounted(loadCategories);
       <h1>Categories</h1>
       <p>Set a budget for each spending category.</p>
     </div>
-    <button v-if="!showForm && categories.length" class="btn btn-primary" @click="openCreateForm">
+    <button v-if="isHead && !showForm && categories.length" class="btn btn-primary" @click="openCreateForm">
       + Add Category
     </button>
   </div>
 
   <p v-if="error" class="alert">{{ error }}</p>
 
-  <div v-if="showForm" class="panel form-panel">
+  <div v-if="isHead && showForm" class="panel form-panel">
     <h2>{{ editingCategory ? 'Edit Category' : 'New Category' }}</h2>
     <CategoryForm :category="editingCategory" @submit="handleSubmit" @cancel="closeForm" />
   </div>
 
   <div v-if="loaded && !categories.length && !showForm" class="empty-state">
     <h3>No categories yet</h3>
-    <p>Categories are how you set budgets — create one to start tracking spending against it.</p>
-    <button class="btn btn-primary" @click="openCreateForm">Create your first category</button>
+    <p v-if="isHead">Categories are how you set budgets — create one to start tracking spending against it.</p>
+    <p v-else>No categories have been set up for your department yet — check with your department head.</p>
+    <button v-if="isHead" class="btn btn-primary" @click="openCreateForm">Create your first category</button>
   </div>
 
   <ul v-else class="category-list">
     <li v-for="category in categories" :key="category.id" class="card category-row">
       <div>
-        <div class="category-name">{{ category.name }}</div>
+        <div class="category-name">
+          {{ category.name }}
+          <span v-if="showDepartmentLabel" class="badge badge-department">
+            {{ departmentNameById[category.department_id ?? -1] }}
+          </span>
+        </div>
         <div class="category-amount">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
       </div>
-      <KebabMenu>
+      <KebabMenu v-if="isHead">
         <button type="button" @click="openEditForm(category)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(category)">Delete</button>
       </KebabMenu>

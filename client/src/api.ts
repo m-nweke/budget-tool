@@ -8,6 +8,7 @@ import type {
   CreateRecurringTransactionDto,
   UpdateRecurringTransactionDto,
   AuthUser,
+  Department,
 } from './types';
 
 const BASE = '/api';
@@ -45,6 +46,8 @@ export const api = {
   logout: () => request<null>('/auth/logout', { method: 'POST' }),
   getMe: () => request<{ user: AuthUser }>('/auth/me'),
 
+  getDepartments: () => request<Department[]>('/departments'),
+
   getCategories: () => request<Category[]>('/categories'),
   createCategory: (data: CreateCategoryDto) =>
     request<Category>('/categories', { method: 'POST', body: JSON.stringify(data) }),
@@ -58,6 +61,10 @@ export const api = {
   updateTransaction: (id: number, data: CreateTransactionDto) =>
     request<Transaction>(`/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteTransaction: (id: number) => request<null>(`/transactions/${id}`, { method: 'DELETE' }),
+  approveTransaction: (id: number) => request<Transaction>(`/transactions/${id}/approve`, { method: 'POST' }),
+  rejectTransaction: (id: number) => request<Transaction>(`/transactions/${id}/reject`, { method: 'POST' }),
+
+  getPendingApprovals: () => request<Transaction[]>('/approvals'),
 
   getDashboard: (from?: string, to?: string) => {
     const params = new URLSearchParams();

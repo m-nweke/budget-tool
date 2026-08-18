@@ -249,6 +249,28 @@ a {
   margin-left: var(--space-2);
 }
 
+.badge-department {
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  border: 1px solid var(--color-border);
+  margin-left: var(--space-2);
+}
+
+.badge-pending {
+  background: transparent;
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  margin-left: var(--space-2);
+}
+
+.badge-count {
+  background: var(--color-danger);
+  color: #fff;
+  margin-left: var(--space-2);
+  padding: 1px 7px;
+  font-size: 0.7rem;
+}
+
 /* Empty state */
 .empty-state {
   text-align: center;
