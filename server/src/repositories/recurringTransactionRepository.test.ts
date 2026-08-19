@@ -140,6 +140,49 @@ describe('generateDue', () => {
   });
 });
 
+describe('projectOccurrences', () => {
+  it('walks forward without persisting any transactions or mutating the template', () => {
+    const template = recurringTransactionRepository.create({
+      amount: 49.99,
+      description: 'SaaS',
+      category_id: categoryId,
+      start_date: '2026-08-01',
+      interval: 'weekly',
+    });
+    recurringTransactionRepository.generateDue();
+    const refreshed = recurringTransactionRepository.findById(template.id)!;
+    const countBefore = transactionRepository.findAll().length;
+
+    const occurrences = recurringTransactionRepository.projectOccurrences(refreshed, '2026-09-10');
+
+    expect(occurrences).toEqual([
+      { date: '2026-08-15', amount: 49.99 },
+      { date: '2026-08-22', amount: 49.99 },
+      { date: '2026-08-29', amount: 49.99 },
+      { date: '2026-09-05', amount: 49.99 },
+    ]);
+    expect(transactionRepository.findAll()).toHaveLength(countBefore);
+    expect(recurringTransactionRepository.findById(template.id)!.next_run_date).toBe(refreshed.next_run_date);
+  });
+
+  it('stops projecting once past the template end_date, even with a much later window', () => {
+    const template = recurringTransactionRepository.create({
+      amount: 10,
+      description: 'Gym',
+      category_id: categoryId,
+      start_date: '2026-08-01',
+      interval: 'monthly',
+      end_date: '2026-09-15',
+    });
+    recurringTransactionRepository.generateDue();
+    const refreshed = recurringTransactionRepository.findById(template.id)!;
+
+    const occurrences = recurringTransactionRepository.projectOccurrences(refreshed, '2026-12-01');
+
+    expect(occurrences).toEqual([{ date: '2026-09-01', amount: 10 }]);
+  });
+});
+
 describe('update', () => {
   it('auto-deactivates when the new end_date precedes the current next_run_date', () => {
     const created = recurringTransactionRepository.create({
