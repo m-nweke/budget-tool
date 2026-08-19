@@ -578,6 +578,44 @@ describe('POST /api/transactions/:id/approve and /reject for a personal-tenant o
     expect(res.body.needs_approval).toBe(false);
   });
 
+  it('an owner can approve a recurring-generator-created transaction (created_by NULL)', async () => {
+    const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
+    const category = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
+      personalTenantId
+    );
+    const generated = db
+      .prepare(
+        'INSERT INTO transactions (amount, date, category_id, needs_approval, approved, created_by) VALUES (250, ?, ?, 1, 0, NULL)'
+      )
+      .run('2026-08-01', category.id);
+
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post(`/api/transactions/${generated.lastInsertRowid}/approve`);
+    expect(res.status).toBe(200);
+    expect(res.body.approved).toBe(true);
+    expect(res.body.needs_approval).toBe(false);
+  });
+
+  it('an owner can reject a recurring-generator-created transaction (created_by NULL)', async () => {
+    const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
+    const category = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
+      personalTenantId
+    );
+    const generated = db
+      .prepare(
+        'INSERT INTO transactions (amount, date, category_id, needs_approval, approved, created_by) VALUES (250, ?, ?, 1, 0, NULL)'
+      )
+      .run('2026-08-01', category.id);
+
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post(`/api/transactions/${generated.lastInsertRowid}/reject`);
+    expect(res.status).toBe(200);
+    expect(res.body.approved).toBe(false);
+    expect(res.body.needs_approval).toBe(false);
+  });
+
   it('an owner cannot approve another tenant\'s transaction', async () => {
     const categoryA = categoryRepository.create(
       { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },

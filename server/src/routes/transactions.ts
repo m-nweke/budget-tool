@@ -11,6 +11,13 @@ function computeApproval(amount: number, category: Category): { needsApproval: b
   return { needsApproval, approved: !needsApproval };
 }
 
+// An owner's access boundary is their tenant, not a department — "this
+// department" would be a lie for that role, so approve/reject give each
+// role the message that matches how it's actually scoped.
+function notAuthorizedForResourceMessage(user: AuthUser): string {
+  return user.role === 'owner' ? 'Not authorized for this tenant' : 'Not authorized for this department';
+}
+
 router.get('/', (req: Request, res: Response) => {
   const scope = resolveScope(req.user as AuthUser);
   res.json(transactionRepository.findAll(scope.departmentIds, scope.tenantId));
@@ -142,10 +149,15 @@ router.post(
     const user = req.user as AuthUser;
     const category = categoryRepository.findById(existing.category_id);
     if (!category || !userCanAccessResource(user, category)) {
-      return res.status(403).json({ error: 'Not authorized for this department' });
+      return res.status(403).json({ error: notAuthorizedForResourceMessage(user) });
     }
     if (user.role === 'owner') {
-      if (existing.created_by !== user.id) {
+      // created_by is null for transactions the recurring-transaction
+      // generator creates on an owner's behalf (see
+      // recurringTransactionRepository.generateDue) — those aren't "someone
+      // else's" transaction, just nobody's, so they must clear the same as
+      // a self-created one or they'd be stuck in needs_approval forever.
+      if (existing.created_by !== null && existing.created_by !== user.id) {
         return res.status(403).json({ error: 'Not authorized for this transaction' });
       }
     } else if (existing.created_by === user.id) {
@@ -166,10 +178,12 @@ router.post(
     const user = req.user as AuthUser;
     const category = categoryRepository.findById(existing.category_id);
     if (!category || !userCanAccessResource(user, category)) {
-      return res.status(403).json({ error: 'Not authorized for this department' });
+      return res.status(403).json({ error: notAuthorizedForResourceMessage(user) });
     }
     if (user.role === 'owner') {
-      if (existing.created_by !== user.id) {
+      // See the matching comment in /approve above — created_by null means
+      // recurring-generator-created, not "someone else's".
+      if (existing.created_by !== null && existing.created_by !== user.id) {
         return res.status(403).json({ error: 'Not authorized for this transaction' });
       }
     } else if (existing.created_by === user.id) {
