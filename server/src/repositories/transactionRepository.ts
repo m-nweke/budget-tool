@@ -128,18 +128,35 @@ const transactionRepository = {
     return transactionRepository.findById(id) as Transaction;
   },
 
-  findPendingApproval(departmentIds: number[]): Transaction[] {
-    if (departmentIds.length === 0) return [];
-    const placeholders = departmentIds.map(() => '?').join(', ');
-    return (
-      db
-        .prepare(
-          `SELECT ${COLUMNS} FROM transactions t
-           JOIN categories c ON c.id = t.category_id
-           WHERE t.needs_approval = 1 AND c.department_id IN (${placeholders})`
-        )
-        .all(...departmentIds) as Record<string, unknown>[]
-    ).map(mapRow);
+  // Same departmentIds/tenantId split as findAll: enterprise scoping wins
+  // when departmentIds is given, tenantId is the fallback for a personal
+  // tenant's owner (whose categories have department_id = NULL).
+  findPendingApproval(departmentIds?: number[], tenantId?: number): Transaction[] {
+    if (departmentIds) {
+      if (departmentIds.length === 0) return [];
+      const placeholders = departmentIds.map(() => '?').join(', ');
+      return (
+        db
+          .prepare(
+            `SELECT ${COLUMNS} FROM transactions t
+             JOIN categories c ON c.id = t.category_id
+             WHERE t.needs_approval = 1 AND c.department_id IN (${placeholders})`
+          )
+          .all(...departmentIds) as Record<string, unknown>[]
+      ).map(mapRow);
+    }
+    if (tenantId !== undefined) {
+      return (
+        db
+          .prepare(
+            `SELECT ${COLUMNS} FROM transactions t
+             JOIN categories c ON c.id = t.category_id
+             WHERE t.needs_approval = 1 AND c.tenant_id = ?`
+          )
+          .all(tenantId) as Record<string, unknown>[]
+      ).map(mapRow);
+    }
+    return [];
   },
 };
 

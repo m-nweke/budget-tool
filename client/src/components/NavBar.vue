@@ -4,7 +4,7 @@ import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { usePendingApprovals } from '../composables/usePendingApprovals';
 
-const { user, isHead, memberships, logout, fetchMemberships, selectTenant } = useAuth();
+const { user, canApprove, memberships, logout, fetchMemberships, selectTenant } = useAuth();
 const { pending, refresh } = usePendingApprovals();
 const router = useRouter();
 
@@ -12,15 +12,16 @@ const workspaceMenuOpen = ref(false);
 const workspaceMenuRoot = ref<HTMLElement | null>(null);
 const switching = ref(false);
 
-// Refreshes once a head is known to be logged in (not on every mount —
-// NavBar mounts once for the app's lifetime) and again whenever isHead
-// flips true (e.g. right after login), so the badge is populated without
-// ApprovalsView needing to have been visited yet. refresh() is async and
-// the watcher callback isn't awaited, so a rejection (e.g. a transient
-// network failure) must be caught here — otherwise it surfaces as an
-// unhandled promise rejection. Best-effort: the badge just stays at
-// whatever it last showed until the next successful refresh.
-watch(isHead, (value) => {
+// Refreshes once someone who can approve (head or personal-tenant owner)
+// is known to be logged in (not on every mount — NavBar mounts once for
+// the app's lifetime) and again whenever canApprove flips true (e.g.
+// right after login), so the badge is populated without ApprovalsView
+// needing to have been visited yet. refresh() is async and the watcher
+// callback isn't awaited, so a rejection (e.g. a transient network
+// failure) must be caught here — otherwise it surfaces as an unhandled
+// promise rejection. Best-effort: the badge just stays at whatever it
+// last showed until the next successful refresh.
+watch(canApprove, (value) => {
   if (value) refresh().catch(() => {});
 }, { immediate: true });
 
@@ -83,7 +84,7 @@ async function handleLogout() {
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/transactions">Transactions</RouterLink>
         <RouterLink to="/categories">Categories</RouterLink>
-        <RouterLink v-if="isHead" to="/approvals">
+        <RouterLink v-if="canApprove" to="/approvals">
           Approvals
           <span v-if="pending.length" class="badge badge-count">{{ pending.length }}</span>
         </RouterLink>

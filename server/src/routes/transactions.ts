@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import transactionRepository from '../repositories/transactionRepository';
 import categoryRepository from '../repositories/categoryRepository';
-import { requireRole, resolveScope, userHasDepartmentAccess, userCanAccessResource } from '../middleware/scoping';
+import { requireRole, resolveScope, userCanAccessResource } from '../middleware/scoping';
 import type { CreateTransactionDto, AuthUser, Category } from '../types';
 
 const router = express.Router();
@@ -9,6 +9,13 @@ const router = express.Router();
 function computeApproval(amount: number, category: Category): { needsApproval: boolean; approved: boolean } {
   const needsApproval = category.approval_threshold !== null && amount > category.approval_threshold;
   return { needsApproval, approved: !needsApproval };
+}
+
+// An owner's access boundary is their tenant, not a department — "this
+// department" would be a lie for that role, so approve/reject give each
+// role the message that matches how it's actually scoped.
+function notAuthorizedForResourceMessage(user: AuthUser): string {
+  return user.role === 'owner' ? 'Not authorized for this tenant' : 'Not authorized for this department';
 }
 
 router.get('/', (req: Request, res: Response) => {
@@ -98,9 +105,10 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
 // (including one a head already approved or rejected) would undercut the
 // audit trail reject() is specifically designed to preserve. Confirmed
 // with the user before implementing — the tradeoff is employees can no
-// longer delete their own mistaken entries, only heads can. A personal
-// tenant has no approval workflow to protect, so its 'owner' can freely
-// delete their own transactions, same as before approvals existed.
+// longer delete their own mistaken entries, only heads can. An 'owner' can
+// still delete freely — including a pending one, sidestepping approve/
+// reject entirely — since there's no one else in a personal tenant whose
+// review that would undercut.
 router.delete(
   '/:id',
   requireRole('department_head', 'owner'),
@@ -119,29 +127,41 @@ router.delete(
   }
 );
 
-// Head-only, access-checked against the transaction's category's
-// department. Reject clears the pending flag without deleting the row —
-// it stays for audit visibility (see transactionRepository.approve). A
-// head can't approve/reject their own submission — the whole point of
-// requiring approval is a second set of eyes, and heads can create
-// transactions too (see routes/transactions.ts POST). Not applicable to
-// personal tenants at all — an 'owner's categories never have an
-// approval_threshold, so nothing they create ever needs approval.
+// Head-or-owner, access-checked against the transaction's category
+// (department for enterprise, tenant for personal). Reject clears the
+// pending flag without deleting the row — it stays for audit visibility
+// (see transactionRepository.approve). An enterprise head can't
+// approve/reject their own submission — the whole point of requiring
+// approval is a second set of eyes, and heads can create transactions too
+// (see POST above). A personal tenant has no second person to provide that
+// — its 'owner' can set an approval_threshold on their own categories (see
+// routes/categories.ts) and must be able to clear their own pending
+// transactions, so the self-check is inverted for 'owner' instead of
+// skipped: it must be their own transaction, not someone else's.
 router.post(
   '/:id/approve',
-  requireRole('department_head'),
+  requireRole('department_head', 'owner'),
   (req: Request<{ id: string }>, res: Response) => {
     const existing = transactionRepository.findById(req.params.id);
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
     const user = req.user as AuthUser;
-    if (existing.created_by === user.id) {
-      return res.status(403).json({ error: 'Cannot approve your own transaction' });
-    }
     const category = categoryRepository.findById(existing.category_id);
-    if (!userHasDepartmentAccess(user, category?.department_id ?? null)) {
-      return res.status(403).json({ error: 'Not authorized for this department' });
+    if (!category || !userCanAccessResource(user, category)) {
+      return res.status(403).json({ error: notAuthorizedForResourceMessage(user) });
+    }
+    if (user.role === 'owner') {
+      // created_by is null for transactions the recurring-transaction
+      // generator creates on an owner's behalf (see
+      // recurringTransactionRepository.generateDue) — those aren't "someone
+      // else's" transaction, just nobody's, so they must clear the same as
+      // a self-created one or they'd be stuck in needs_approval forever.
+      if (existing.created_by !== null && existing.created_by !== user.id) {
+        return res.status(403).json({ error: 'Not authorized for this transaction' });
+      }
+    } else if (existing.created_by === user.id) {
+      return res.status(403).json({ error: 'Cannot approve your own transaction' });
     }
     res.json(transactionRepository.approve(req.params.id, true));
   }
@@ -149,19 +169,25 @@ router.post(
 
 router.post(
   '/:id/reject',
-  requireRole('department_head'),
+  requireRole('department_head', 'owner'),
   (req: Request<{ id: string }>, res: Response) => {
     const existing = transactionRepository.findById(req.params.id);
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
     const user = req.user as AuthUser;
-    if (existing.created_by === user.id) {
-      return res.status(403).json({ error: 'Cannot reject your own transaction' });
-    }
     const category = categoryRepository.findById(existing.category_id);
-    if (!userHasDepartmentAccess(user, category?.department_id ?? null)) {
-      return res.status(403).json({ error: 'Not authorized for this department' });
+    if (!category || !userCanAccessResource(user, category)) {
+      return res.status(403).json({ error: notAuthorizedForResourceMessage(user) });
+    }
+    if (user.role === 'owner') {
+      // See the matching comment in /approve above — created_by null means
+      // recurring-generator-created, not "someone else's".
+      if (existing.created_by !== null && existing.created_by !== user.id) {
+        return res.status(403).json({ error: 'Not authorized for this transaction' });
+      }
+    } else if (existing.created_by === user.id) {
+      return res.status(403).json({ error: 'Cannot reject your own transaction' });
     }
     res.json(transactionRepository.approve(req.params.id, false));
   }
