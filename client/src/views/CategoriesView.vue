@@ -7,7 +7,7 @@ import KebabMenu from '../components/KebabMenu.vue';
 import { formatCurrency } from '../utils/format';
 import type { Category, CreateCategoryDto, Department } from '../types';
 
-const { isHead } = useAuth();
+const { canManageBudget } = useAuth();
 const categories = ref<Category[]>([]);
 const departments = ref<Department[]>([]);
 const showForm = ref(false);
@@ -88,23 +88,23 @@ onMounted(loadCategories);
       <h1>Categories</h1>
       <p>Set a budget for each spending category.</p>
     </div>
-    <button v-if="isHead && !showForm && categories.length" class="btn btn-primary" @click="openCreateForm">
+    <button v-if="canManageBudget && !showForm && categories.length" class="btn btn-primary" @click="openCreateForm">
       + Add Category
     </button>
   </div>
 
   <p v-if="error" class="alert">{{ error }}</p>
 
-  <div v-if="isHead && showForm" class="panel form-panel">
+  <div v-if="canManageBudget && showForm" class="panel form-panel">
     <h2>{{ editingCategory ? 'Edit Category' : 'New Category' }}</h2>
     <CategoryForm :category="editingCategory" @submit="handleSubmit" @cancel="closeForm" />
   </div>
 
   <div v-if="loaded && !categories.length && !showForm" class="empty-state">
     <h3>No categories yet</h3>
-    <p v-if="isHead">Categories are how you set budgets — create one to start tracking spending against it.</p>
+    <p v-if="canManageBudget">Categories are how you set budgets — create one to start tracking spending against it.</p>
     <p v-else>No categories have been set up for your department yet — check with your department head.</p>
-    <button v-if="isHead" class="btn btn-primary" @click="openCreateForm">Create your first category</button>
+    <button v-if="canManageBudget" class="btn btn-primary" @click="openCreateForm">Create your first category</button>
   </div>
 
   <ul v-else class="category-list">
@@ -118,7 +118,7 @@ onMounted(loadCategories);
         </div>
         <div class="category-amount">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
       </div>
-      <KebabMenu v-if="isHead">
+      <KebabMenu v-if="canManageBudget">
         <button type="button" @click="openEditForm(category)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(category)">Delete</button>
       </KebabMenu>

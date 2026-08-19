@@ -9,7 +9,16 @@ import type {
   UpdateRecurringTransactionDto,
   AuthUser,
   Department,
+  MembershipSummary,
 } from './types';
+
+export type AccountType = 'personal' | 'company' | 'join';
+
+// Mirrors server/src/types/auth/LoginResponse.ts's union: a single-
+// membership login (or /me, /select-tenant, /register) sets a session and
+// returns `user` directly; a multi-membership login sets no cookie yet and
+// returns `memberships` instead — the caller must call selectTenant next.
+export type LoginResult = { user: AuthUser } | { memberships: MembershipSummary[] };
 
 const BASE = '/api';
 
@@ -42,11 +51,24 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   login: (email: string, password: string) =>
-    request<{ user: AuthUser }>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+    request<LoginResult>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
   logout: () => request<null>('/auth/logout', { method: 'POST' }),
   getMe: () => request<{ user: AuthUser }>('/auth/me'),
+  register: (name: string, email: string, password: string, accountType: AccountType, joinCode?: string) =>
+    request<{ user: AuthUser }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify({ name, email, password, accountType, joinCode }),
+    }),
+  selectTenant: (tenantId: number) =>
+    request<{ user: AuthUser }>('/auth/select-tenant', {
+      method: 'POST',
+      body: JSON.stringify({ tenant_id: tenantId }),
+    }),
+  getMemberships: () => request<{ memberships: MembershipSummary[] }>('/auth/memberships'),
 
   getDepartments: () => request<Department[]>('/departments'),
+  createDepartment: (name: string) =>
+    request<Department>('/departments', { method: 'POST', body: JSON.stringify({ name }) }),
 
   getCategories: () => request<Category[]>('/categories'),
   createCategory: (data: CreateCategoryDto) =>

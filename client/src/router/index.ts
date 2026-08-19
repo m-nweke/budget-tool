@@ -4,6 +4,7 @@ import TransactionsView from '../views/TransactionsView.vue';
 import CategoriesView from '../views/CategoriesView.vue';
 import ApprovalsView from '../views/ApprovalsView.vue';
 import LoginView from '../views/LoginView.vue';
+import RegisterView from '../views/RegisterView.vue';
 import { useAuth } from '../composables/useAuth';
 
 const router = createRouter({
@@ -16,7 +17,11 @@ const router = createRouter({
     // special-cased by route name — any future head-only route just needs
     // the same flag, not a new branch in beforeEach.
     { path: '/approvals', name: 'approvals', component: ApprovalsView, meta: { headOnly: true } },
-    { path: '/login', name: 'login', component: LoginView },
+    // meta.public follows the same generic-flag pattern as meta.headOnly
+    // below — any future public route (a password-reset page, etc.) just
+    // needs the same flag, not a new name check in the guard.
+    { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
+    { path: '/register', name: 'register', component: RegisterView, meta: { public: true } },
     // Catches any unmatched path, including a hand-edited or stale
     // `?redirect=` value from the login flow that no longer resolves to a
     // real route — sends it to the dashboard instead of rendering blank.
@@ -35,10 +40,10 @@ router.beforeEach(async (to) => {
     await fetchMe();
   }
 
-  if (!user.value && to.name !== 'login') {
+  if (!user.value && !to.meta.public) {
     return { name: 'login', query: { redirect: to.fullPath } };
   }
-  if (user.value && to.name === 'login') {
+  if (user.value && to.meta.public) {
     return { path: '/' };
   }
   // The API already enforces this (approve/reject and GET /api/approvals

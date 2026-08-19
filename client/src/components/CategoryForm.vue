@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { api } from '../api';
+import { useAuth } from '../composables/useAuth';
 import type { Category, CreateCategoryDto, Department } from '../types';
 
 const props = defineProps<{
@@ -11,12 +12,24 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
+const { user } = useAuth();
+// A personal tenant has no departments at all — categories always have
+// department_id: null server-side (mirrors the owner-role branch in
+// routes/categories.ts), so the field is never shown, not just optional.
+// A computed (not a plain const read once) because `user` is a shared
+// singleton that a tenant switch elsewhere in the app mutates in place.
+const isPersonal = computed(() => user.value?.tenant_type === 'personal');
+
 const name = ref('');
 const budgetedAmount = ref<number | string>('');
 const startOn = ref(new Date().toISOString().slice(0, 10));
 const departmentId = ref<number | ''>('');
 const approvalThreshold = ref<number | string>('');
 const departments = ref<Department[]>([]);
+const showNewDepartmentField = ref(false);
+const newDepartmentName = ref('');
+const departmentError = ref('');
+const creatingDepartment = ref(false);
 
 watch(
   () => props.category,
@@ -31,6 +44,7 @@ watch(
 );
 
 onMounted(async () => {
+  if (isPersonal.value) return;
   departments.value = await api.getDepartments();
   // A head with exactly one accessible department shouldn't have to pick
   // it — same "auto-select the only option" pattern as the transactions
@@ -38,7 +52,31 @@ onMounted(async () => {
   if (!props.category && departments.value.length === 1) {
     departmentId.value = departments.value[0].id;
   }
+  // A brand-new company has zero departments — nothing to pick from, so
+  // open the create-department affordance immediately instead of leaving
+  // the head staring at an empty, unusable select.
+  if (!departments.value.length) {
+    showNewDepartmentField.value = true;
+  }
 });
+
+async function handleCreateDepartment() {
+  const trimmedName = newDepartmentName.value.trim();
+  if (creatingDepartment.value || !trimmedName) return;
+  departmentError.value = '';
+  creatingDepartment.value = true;
+  try {
+    const department = await api.createDepartment(trimmedName);
+    departments.value.push(department);
+    departmentId.value = department.id;
+    newDepartmentName.value = '';
+    showNewDepartmentField.value = false;
+  } catch (e) {
+    departmentError.value = (e as Error).message;
+  } finally {
+    creatingDepartment.value = false;
+  }
+}
 
 function handleSubmit() {
   emit('submit', {
@@ -61,15 +99,52 @@ function handleSubmit() {
       Budgeted Amount
       <input v-model="budgetedAmount" type="number" step="0.01" min="0" placeholder="0.00" required />
     </label>
-    <label class="field">
-      Department
-      <select v-model="departmentId" required>
-        <option value="" disabled>Select a department</option>
-        <option v-for="department in departments" :key="department.id" :value="department.id">
-          {{ department.name }}
-        </option>
-      </select>
-    </label>
+    <template v-if="!isPersonal">
+      <label v-if="departments.length" class="field">
+        Department
+        <select v-model="departmentId" required>
+          <option value="" disabled>Select a department</option>
+          <option v-for="department in departments" :key="department.id" :value="department.id">
+            {{ department.name }}
+          </option>
+        </select>
+      </label>
+
+      <p v-if="departmentError" class="alert">{{ departmentError }}</p>
+
+      <button
+        v-if="!showNewDepartmentField"
+        type="button"
+        class="btn btn-secondary new-department-toggle"
+        @click="showNewDepartmentField = true"
+      >
+        + New department
+      </button>
+      <div v-else class="field new-department-field">
+        <label>
+          {{ departments.length ? 'New department name' : 'Department name' }}
+          <input
+            v-model="newDepartmentName"
+            type="text"
+            placeholder="e.g. Engineering"
+            @keydown.enter.prevent="handleCreateDepartment"
+          />
+        </label>
+        <div class="actions">
+          <button
+            type="button"
+            class="btn btn-secondary"
+            @click="handleCreateDepartment"
+            :disabled="!newDepartmentName.trim() || creatingDepartment"
+          >
+            Add department
+          </button>
+          <button v-if="departments.length" type="button" class="btn btn-secondary" @click="showNewDepartmentField = false">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </template>
     <label class="field">
       Approval Threshold (optional)
       <input v-model="approvalThreshold" type="number" step="0.01" min="0" placeholder="No threshold" />
@@ -109,5 +184,14 @@ function handleSubmit() {
   display: flex;
   gap: var(--space-2);
   margin-top: var(--space-1);
+}
+
+.new-department-toggle {
+  align-self: flex-start;
+  margin-top: calc(var(--space-3) * -1);
+}
+
+.new-department-field {
+  margin-top: calc(var(--space-3) * -1);
 }
 </style>

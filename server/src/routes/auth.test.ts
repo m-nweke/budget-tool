@@ -228,3 +228,36 @@ describe('GET /api/auth/me', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('GET /api/auth/memberships', () => {
+  it('returns 401 with no cookie', async () => {
+    const res = await request(app).get('/api/auth/memberships');
+    expect(res.status).toBe(401);
+  });
+
+  it('lists every membership for the authenticated user, including the currently active one', async () => {
+    const { user } = await seedUser();
+    // Logs in while there's still only one membership (a direct session,
+    // not the picker flow), then a second membership appears afterward —
+    // the real-world "already logged into tenant A, later joins tenant B
+    // elsewhere" case this endpoint exists for.
+    const agent = request.agent(app);
+    await agent.post('/api/auth/login').send({ email: 'dana@example.com', password: 'correct-horse' });
+
+    const secondTenant = tenantRepository.create("Pat's Budget", 'personal');
+    tenantMembershipRepository.create({
+      user_id: user.id,
+      tenant_id: secondTenant.id,
+      role: 'owner',
+      department_id: null,
+    });
+
+    const res = await agent.get('/api/auth/memberships');
+    expect(res.status).toBe(200);
+    expect(res.body.memberships).toHaveLength(2);
+    expect(res.body.memberships.map((m: { tenant_type: string }) => m.tenant_type).sort()).toEqual([
+      'enterprise',
+      'personal',
+    ]);
+  });
+});
