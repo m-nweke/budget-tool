@@ -139,6 +139,67 @@ db.exec(`
     name TEXT PRIMARY KEY,
     applied_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  -- Personal-budget tables (Phase 2). Each is tenant_id-scoped directly
+  -- (not via department, which doesn't exist for a personal tenant) and
+  -- only ever populated under a personal tenant in practice — enforced at
+  -- the route layer (requireRole('owner')), not by a CHECK here.
+  CREATE TABLE IF NOT EXISTS bank_accounts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('checking', 'savings', 'other')),
+    current_balance REAL NOT NULL DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS paychecks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    label TEXT NOT NULL,
+    amount REAL NOT NULL,
+    frequency TEXT NOT NULL CHECK (frequency IN ('weekly', 'biweekly', 'semimonthly', 'monthly')),
+    next_pay_date TEXT NOT NULL
+  );
+
+  -- No tenant_id of its own — scoped transitively through paycheck_id, the
+  -- same way transactions are scoped transitively through category_id.
+  CREATE TABLE IF NOT EXISTS paycheck_splits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    paycheck_id INTEGER NOT NULL REFERENCES paychecks(id),
+    bank_account_id INTEGER NOT NULL REFERENCES bank_accounts(id),
+    split_type TEXT NOT NULL CHECK (split_type IN ('percentage', 'fixed')),
+    value REAL NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS savings_goals (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    name TEXT NOT NULL,
+    target_amount REAL NOT NULL,
+    -- Defaults to today, same convention as categories.start_on — when the
+    -- goal starts counting toward its target, not when the row was created.
+    start_on TEXT NOT NULL DEFAULT (date('now')),
+    target_date TEXT,
+    bank_account_id INTEGER REFERENCES bank_accounts(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS debts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    name TEXT NOT NULL,
+    balance REAL NOT NULL,
+    interest_rate REAL NOT NULL,
+    minimum_payment REAL NOT NULL,
+    due_day INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_bank_accounts_tenant_id ON bank_accounts(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_paychecks_tenant_id ON paychecks(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_paycheck_splits_paycheck_id ON paycheck_splits(paycheck_id);
+  CREATE INDEX IF NOT EXISTS idx_paycheck_splits_bank_account_id ON paycheck_splits(bank_account_id);
+  CREATE INDEX IF NOT EXISTS idx_savings_goals_tenant_id ON savings_goals(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_savings_goals_bank_account_id ON savings_goals(bank_account_id);
+  CREATE INDEX IF NOT EXISTS idx_debts_tenant_id ON debts(tenant_id);
 `);
 
 // Lightweight migration for columns added after a database already existed.

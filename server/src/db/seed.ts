@@ -12,6 +12,10 @@ import tenantRepository from '../repositories/tenantRepository';
 import tenantMembershipRepository from '../repositories/tenantMembershipRepository';
 import departmentRepository from '../repositories/departmentRepository';
 import departmentAccessRepository from '../repositories/departmentAccessRepository';
+import bankAccountRepository from '../repositories/bankAccountRepository';
+import paycheckRepository from '../repositories/paycheckRepository';
+import savingsGoalRepository from '../repositories/savingsGoalRepository';
+import debtRepository from '../repositories/debtRepository';
 import { hashPassword } from '../utils/password';
 
 const HEAD_EMAIL = 'head@example.com';
@@ -75,6 +79,39 @@ async function seed(): Promise<void> {
       role: 'owner',
       department_id: null,
     });
+
+    // Phase 2 sample data — enough to manually exercise accounts, a
+    // paycheck with mixed split types, a linked savings goal, and a debt
+    // without having to create everything by hand first.
+    const checking = bankAccountRepository.create(
+      { name: 'Checking', type: 'checking', current_balance: 1500 },
+      personalTenant.id
+    );
+    const savings = bankAccountRepository.create(
+      { name: 'Savings', type: 'savings', current_balance: 4000 },
+      personalTenant.id
+    );
+    paycheckRepository.create(
+      {
+        label: 'Paycheck',
+        amount: 2000,
+        frequency: 'biweekly',
+        next_pay_date: '2026-09-01',
+        splits: [
+          { bank_account_id: savings.id, split_type: 'percentage', value: 20 },
+          { bank_account_id: checking.id, split_type: 'fixed', value: 1600 },
+        ],
+      },
+      personalTenant.id
+    );
+    savingsGoalRepository.create(
+      { name: 'Emergency Fund', target_amount: 10000, bank_account_id: savings.id },
+      personalTenant.id
+    );
+    debtRepository.create(
+      { name: 'Credit Card', balance: 2500, interest_rate: 21.99, minimum_payment: 75, due_day: 15 },
+      personalTenant.id
+    );
 
     console.log('Seeded tenants and users:');
     console.log(`  company:  Acme Co — Engineering (id ${engineering.id}), Marketing (no access granted)`);

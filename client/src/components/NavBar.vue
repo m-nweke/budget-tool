@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { usePendingApprovals } from '../composables/usePendingApprovals';
@@ -7,6 +7,12 @@ import { usePendingApprovals } from '../composables/usePendingApprovals';
 const { user, canApprove, memberships, logout, fetchMemberships, selectTenant } = useAuth();
 const { pending, refresh } = usePendingApprovals();
 const router = useRouter();
+
+// Same idiom as CategoryForm.vue's isPersonal — swaps in the Phase 2
+// personal-budget nav links alongside the existing tenant-agnostic ones
+// (Dashboard/Transactions/Categories/Approvals all already work for a
+// personal tenant unmodified, so they stay as-is).
+const isPersonal = computed(() => user.value?.tenant_type === 'personal');
 
 const workspaceMenuOpen = ref(false);
 const workspaceMenuRoot = ref<HTMLElement | null>(null);
@@ -88,6 +94,12 @@ async function handleLogout() {
           Approvals
           <span v-if="pending.length" class="badge badge-count">{{ pending.length }}</span>
         </RouterLink>
+        <template v-if="isPersonal">
+          <RouterLink to="/accounts">Accounts</RouterLink>
+          <RouterLink to="/paycheck">Paycheck</RouterLink>
+          <RouterLink to="/goals">Goals</RouterLink>
+          <RouterLink to="/debts">Debts</RouterLink>
+        </template>
       </nav>
       <div v-if="user" class="nav-user">
         <div v-if="memberships.length > 1" ref="workspaceMenuRoot" class="workspace-switcher">

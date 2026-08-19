@@ -10,6 +10,10 @@ import dashboardRouter from './routes/dashboard';
 import recurringTransactionsRouter from './routes/recurringTransactions';
 import approvalsRouter from './routes/approvals';
 import teamRouter from './routes/team';
+import bankAccountsRouter from './routes/bankAccounts';
+import paychecksRouter from './routes/paychecks';
+import savingsGoalsRouter from './routes/savingsGoals';
+import debtsRouter from './routes/debts';
 import recurringTransactionRepository from './repositories/recurringTransactionRepository';
 import { errorHandler } from './middleware/errorHandler';
 import { authenticate } from './middleware/authenticate';
@@ -51,6 +55,12 @@ app.use(
 );
 app.use('/api/approvals', authenticate, approvalsRouter);
 app.use('/api/team', authenticate, teamRouter);
+// Personal-budget resources (Phase 2) — no materializeDueTransactions,
+// since nothing here interacts with recurring-transaction generation.
+app.use('/api/bank-accounts', authenticate, bankAccountsRouter);
+app.use('/api/paychecks', authenticate, paychecksRouter);
+app.use('/api/savings-goals', authenticate, savingsGoalsRouter);
+app.use('/api/debts', authenticate, debtsRouter);
 
 // Any /api/* path that didn't match a router above is a real 404, not a
 // SPA route — return JSON instead of falling through to index.html.
