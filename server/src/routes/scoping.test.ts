@@ -44,6 +44,22 @@ async function createEmployee(name: string, email: string, departmentId: number 
   return user;
 }
 
+// Creates its own personal tenant (not the shared enterprise `tenantId`) —
+// an 'owner' membership only ever exists on a departmentless personal
+// tenant, unlike createHead/createEmployee which share the module-level
+// enterprise tenant.
+async function createOwner(name: string, email: string) {
+  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
+  const personalTenant = tenantRepository.create(`${name}'s Budget`, 'personal');
+  tenantMembershipRepository.create({
+    user_id: user.id,
+    tenant_id: personalTenant.id,
+    role: 'owner',
+    department_id: null,
+  });
+  return { user, tenantId: personalTenant.id };
+}
+
 beforeEach(() => {
   db.exec(
     'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
@@ -494,5 +510,103 @@ describe('GET /api/approvals', () => {
     const res = await headAgent.get('/api/approvals');
     expect(res.body).toHaveLength(1);
     expect(res.body[0].category_id).toBe(categoryA.id);
+  });
+
+  it('a personal-tenant owner sees their own pending transactions', async () => {
+    const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
+    const category = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
+      personalTenantId
+    );
+    const agent = await loginAs('pat@example.com');
+    await agent.post('/api/transactions').send({ amount: 250, date: '2026-08-01', category_id: category.id });
+
+    const res = await agent.get('/api/approvals');
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].category_id).toBe(category.id);
+  });
+
+  it('an owner never sees an enterprise head\'s pending transactions', async () => {
+    const categoryA = categoryRepository.create(
+      { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },
+      tenantId
+    );
+    await createHead('Dana', 'dana@example.com', deptA);
+    const headAgent = await loginAs('dana@example.com');
+    await headAgent.post('/api/transactions').send({ amount: 250, date: '2026-08-01', category_id: categoryA.id });
+
+    await createOwner('Pat', 'pat@example.com');
+    const ownerAgent = await loginAs('pat@example.com');
+    const res = await ownerAgent.get('/api/approvals');
+    expect(res.body).toEqual([]);
+  });
+});
+
+describe('POST /api/transactions/:id/approve and /reject for a personal-tenant owner', () => {
+  it('an owner can approve their own pending transaction', async () => {
+    const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
+    const category = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
+      personalTenantId
+    );
+    const agent = await loginAs('pat@example.com');
+    const created = await agent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', category_id: category.id });
+    expect(created.body.needs_approval).toBe(true);
+
+    const res = await agent.post(`/api/transactions/${created.body.id}/approve`);
+    expect(res.status).toBe(200);
+    expect(res.body.approved).toBe(true);
+    expect(res.body.needs_approval).toBe(false);
+  });
+
+  it('an owner can reject their own pending transaction', async () => {
+    const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
+    const category = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
+      personalTenantId
+    );
+    const agent = await loginAs('pat@example.com');
+    const created = await agent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', category_id: category.id });
+
+    const res = await agent.post(`/api/transactions/${created.body.id}/reject`);
+    expect(res.status).toBe(200);
+    expect(res.body.approved).toBe(false);
+    expect(res.body.needs_approval).toBe(false);
+  });
+
+  it('an owner cannot approve another tenant\'s transaction', async () => {
+    const categoryA = categoryRepository.create(
+      { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },
+      tenantId
+    );
+    await createHead('Dana', 'dana@example.com', deptA);
+    const headAgent = await loginAs('dana@example.com');
+    const created = await headAgent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', category_id: categoryA.id });
+
+    await createOwner('Pat', 'pat@example.com');
+    const ownerAgent = await loginAs('pat@example.com');
+    const res = await ownerAgent.post(`/api/transactions/${created.body.id}/approve`);
+    expect(res.status).toBe(403);
+  });
+
+  it('an employee remains blocked from approving even in a department they have access to', async () => {
+    const category = categoryRepository.create(
+      { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },
+      tenantId
+    );
+    await createEmployee('Evan', 'evan@example.com', deptA);
+    const agent = await loginAs('evan@example.com');
+    const created = await agent
+      .post('/api/transactions')
+      .send({ amount: 250, date: '2026-08-01', category_id: category.id });
+
+    const res = await agent.post(`/api/transactions/${created.body.id}/approve`);
+    expect(res.status).toBe(403);
   });
 });

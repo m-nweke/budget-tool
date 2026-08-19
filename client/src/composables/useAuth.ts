@@ -23,6 +23,11 @@ const isOwner = computed(() => user.value?.role === 'owner');
 // less) personal tenant. Views branch on this instead of `isHead` alone
 // wherever the permission, not the specific role, is what matters.
 const canManageBudget = computed(() => isHead.value || isOwner.value);
+// Approvals are gated the same way as budget management: a head reviews
+// department submissions, an owner reviews their own personal-tenant
+// submissions (there's no one else to do it) — see routes/transactions.ts
+// approve/reject on the server for the matching self-approval carve-out.
+const canApprove = computed(() => isHead.value || isOwner.value);
 
 // Shared by two different UI moments: the picker after a multi-membership
 // login (nothing else has resolved yet, `user` is still null) and the
@@ -136,6 +141,7 @@ export function useAuth() {
     isHead,
     isOwner,
     canManageBudget,
+    canApprove,
     memberships,
     initialized,
     fetchMe,
