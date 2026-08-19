@@ -1,7 +1,7 @@
 import db from '../db';
 import type { Department } from '../types';
 
-const COLUMNS = 'id, name';
+const COLUMNS = 'id, tenant_id, name';
 
 const departmentRepository = {
   // Omitting departmentIds returns every department, unscoped — no route
@@ -24,6 +24,13 @@ const departmentRepository = {
     return db.prepare(`SELECT ${COLUMNS} FROM departments WHERE id = ?`).get(id) as
       | Department
       | undefined;
+  },
+
+  create(name: string, tenantId: number): Department {
+    const result = db
+      .prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)')
+      .run(name, tenantId);
+    return departmentRepository.findById(result.lastInsertRowid as number) as Department;
   },
 };
 

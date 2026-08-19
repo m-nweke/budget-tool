@@ -12,7 +12,27 @@ export function resolveAccessibleDepartmentIds(user: AuthUser): number[] {
   if (user.role === 'department_head') {
     return departmentAccessRepository.listForUser(user.id);
   }
-  return user.department_id !== null ? [user.department_id] : [];
+  if (user.role === 'department_employee') {
+    return user.department_id !== null ? [user.department_id] : [];
+  }
+  // 'owner' — a personal tenant has no departments at all. See
+  // resolveScope: an owner's data is scoped by tenant_id directly, not by
+  // department, so this returning [] is correct (zero departments exist to
+  // be accessible) rather than a "zero access" bug to work around.
+  return [];
+}
+
+// The listing-query scope for a GET route. Enterprise roles are scoped by
+// accessible department ids (resolveAccessibleDepartmentIds, existing
+// behavior). A personal tenant's 'owner' has no departments to scope by —
+// the only boundary is their own tenant_id. Every scoped repo's findAll
+// accepts both departmentIds and tenantId for this reason: departmentIds
+// wins when present (enterprise), tenantId is the fallback (personal).
+export function resolveScope(user: AuthUser): { departmentIds?: number[]; tenantId?: number } {
+  if (user.role === 'owner') {
+    return { tenantId: user.tenant_id };
+  }
+  return { departmentIds: resolveAccessibleDepartmentIds(user) };
 }
 
 // Used inline in route handlers *after* a resource (and its department) is
@@ -34,6 +54,23 @@ export function userHasDepartmentAccess(user: AuthUser, departmentId: number | n
 export function userHasAccessToAll(user: AuthUser, departmentIds: (number | null)[]): boolean {
   const accessibleIds = resolveAccessibleDepartmentIds(user);
   return departmentIds.every((id) => id !== null && accessibleIds.includes(id));
+}
+
+// Unifies the "can this user touch this category/transaction" check across
+// both tenant types: an owner is authorized for anything in their own
+// tenant (there's no department indirection to lean on, unlike enterprise,
+// where department_access/employee assignment already keeps a user's
+// writes inside their own tenant by construction — an owner has no such
+// natural boundary, so tenant_id has to be checked explicitly). Enterprise
+// roles fall back to the existing department check.
+export function userCanAccessResource(
+  user: AuthUser,
+  resource: { tenant_id: number; department_id: number | null }
+): boolean {
+  if (user.role === 'owner') {
+    return resource.tenant_id === user.tenant_id;
+  }
+  return userHasDepartmentAccess(user, resource.department_id);
 }
 
 // Express middleware factory for head-only routes (category management,

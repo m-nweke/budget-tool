@@ -53,24 +53,34 @@ function generateDueForTemplate(template: RecurringTransaction): void {
 }
 
 const recurringTransactionRepository = {
-  // Omitting departmentIds returns every active template, unscoped — used
+  // departmentIds (enterprise) wins when given; tenantId (personal) is the
+  // fallback. Omitting both returns every active template, unscoped — used
   // internally by generateDue() (materializes for the whole app, not one
-  // user's view). Route handlers always pass the caller's accessible ids.
-  findAllActive(departmentIds?: number[]): RecurringTransaction[] {
-    if (!departmentIds) {
+  // user's view).
+  findAllActive(departmentIds?: number[], tenantId?: number): RecurringTransaction[] {
+    if (departmentIds) {
+      if (departmentIds.length === 0) return [];
+      const placeholders = departmentIds.map(() => '?').join(', ');
       return db
-        .prepare(`SELECT ${COLUMNS} FROM recurring_transactions WHERE active = 1`)
-        .all() as RecurringTransaction[];
+        .prepare(
+          `SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
+           JOIN categories c ON c.id = rt.category_id
+           WHERE rt.active = 1 AND c.department_id IN (${placeholders})`
+        )
+        .all(...departmentIds) as RecurringTransaction[];
     }
-    if (departmentIds.length === 0) return [];
-    const placeholders = departmentIds.map(() => '?').join(', ');
+    if (tenantId !== undefined) {
+      return db
+        .prepare(
+          `SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
+           JOIN categories c ON c.id = rt.category_id
+           WHERE rt.active = 1 AND c.tenant_id = ?`
+        )
+        .all(tenantId) as RecurringTransaction[];
+    }
     return db
-      .prepare(
-        `SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
-         JOIN categories c ON c.id = rt.category_id
-         WHERE rt.active = 1 AND c.department_id IN (${placeholders})`
-      )
-      .all(...departmentIds) as RecurringTransaction[];
+      .prepare(`SELECT ${COLUMNS} FROM recurring_transactions WHERE active = 1`)
+      .all() as RecurringTransaction[];
   },
 
   findById(id: number | string): RecurringTransaction | undefined {

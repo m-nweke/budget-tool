@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import dashboardRepository from '../repositories/dashboardRepository';
-import { resolveAccessibleDepartmentIds } from '../middleware/scoping';
+import { resolveScope } from '../middleware/scoping';
 import type { AuthUser } from '../types';
 
 const router = express.Router();
@@ -29,8 +29,8 @@ router.get('/', (req: Request, res: Response) => {
   const resolvedFrom = isValidMonth(from) ? from : isValidMonth(to) ? to : undefined;
   const resolvedTo = isValidMonth(to) ? to : resolvedFrom;
 
-  const accessibleIds = resolveAccessibleDepartmentIds(req.user as AuthUser);
-  res.json(dashboardRepository.findSummary(resolvedFrom, resolvedTo, accessibleIds));
+  const scope = resolveScope(req.user as AuthUser);
+  res.json(dashboardRepository.findSummary(resolvedFrom, resolvedTo, scope.departmentIds, scope.tenantId));
 });
 
 export default router;

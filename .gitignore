@@ -11,4 +11,5 @@ docs/*
 *.md
 !/README.md
 !/CLAUDE.md
+!/MULTI_TENANCY_PROGRESS.md
 .idea/

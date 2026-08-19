@@ -1,29 +1,72 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import db from '../db';
 import departmentAccessRepository from '../repositories/departmentAccessRepository';
-import { resolveAccessibleDepartmentIds, userHasDepartmentAccess, requireRole } from './scoping';
+import {
+  resolveAccessibleDepartmentIds,
+  resolveScope,
+  userHasDepartmentAccess,
+  userCanAccessResource,
+  requireRole,
+} from './scoping';
 import type { AuthUser } from '../types';
 
+let tenantId: number;
+let otherTenantId: number;
 let deptA: number;
 let deptB: number;
 
 beforeEach(() => {
-  db.exec('DELETE FROM department_access; DELETE FROM users; DELETE FROM departments;');
-  deptA = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing').lastInsertRowid as number;
+  db.exec(
+    'DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
+  );
+  tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')").run()
+    .lastInsertRowid as number;
+  otherTenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Other Co', 'enterprise')").run()
+    .lastInsertRowid as number;
+  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+    .lastInsertRowid as number;
+  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+    .lastInsertRowid as number;
 });
 
 function employee(departmentId: number | null): AuthUser {
-  return { id: 1, name: 'Evan Employee', email: 'evan@example.com', role: 'department_employee', department_id: departmentId };
+  return {
+    id: 1,
+    name: 'Evan Employee',
+    email: 'evan@example.com',
+    tenant_id: tenantId,
+    tenant_type: 'enterprise',
+    role: 'department_employee',
+    department_id: departmentId,
+  };
+}
+
+function owner(): AuthUser {
+  return {
+    id: 1,
+    name: 'Pat Personal',
+    email: 'pat@example.com',
+    tenant_id: tenantId,
+    tenant_type: 'personal',
+    role: 'owner',
+    department_id: null,
+  };
 }
 
 // A real users row is required — department_access.user_id has a foreign
 // key, so any test granting access needs an actual user to grant it to.
 function head(): AuthUser {
-  const id = db
-    .prepare('INSERT INTO users (name, email, role, department_id) VALUES (?, ?, ?, ?)')
-    .run('Dana Head', 'dana@example.com', 'department_head', null).lastInsertRowid as number;
-  return { id, name: 'Dana Head', email: 'dana@example.com', role: 'department_head', department_id: null };
+  const id = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)').run('Dana Head', 'dana@example.com')
+    .lastInsertRowid as number;
+  return {
+    id,
+    name: 'Dana Head',
+    email: 'dana@example.com',
+    tenant_id: tenantId,
+    tenant_type: 'enterprise',
+    role: 'department_head',
+    department_id: null,
+  };
 }
 
 describe('resolveAccessibleDepartmentIds', () => {
@@ -44,6 +87,20 @@ describe('resolveAccessibleDepartmentIds', () => {
     departmentAccessRepository.grant(user.id, deptA);
     departmentAccessRepository.grant(user.id, deptB);
     expect(resolveAccessibleDepartmentIds(user).sort()).toEqual([deptA, deptB].sort());
+  });
+
+  it('an owner (personal tenant) always resolves to zero departments — no departments exist to be accessible', () => {
+    expect(resolveAccessibleDepartmentIds(owner())).toEqual([]);
+  });
+});
+
+describe('resolveScope', () => {
+  it('an enterprise user gets a department-based scope', () => {
+    expect(resolveScope(employee(deptA))).toEqual({ departmentIds: [deptA] });
+  });
+
+  it('an owner gets a tenant-based scope instead', () => {
+    expect(resolveScope(owner())).toEqual({ tenantId });
   });
 });
 
@@ -70,6 +127,24 @@ describe('userHasDepartmentAccess', () => {
     const user = head();
     departmentAccessRepository.grant(user.id, deptA);
     expect(userHasDepartmentAccess(user, deptB)).toBe(false);
+  });
+});
+
+describe('userCanAccessResource', () => {
+  it('an enterprise user falls back to the department check', () => {
+    const resource = { tenant_id: tenantId, department_id: deptA };
+    expect(userCanAccessResource(employee(deptA), resource)).toBe(true);
+    expect(userCanAccessResource(employee(deptB), resource)).toBe(false);
+  });
+
+  it('an owner is authorized for any resource in their own tenant', () => {
+    const resource = { tenant_id: tenantId, department_id: null };
+    expect(userCanAccessResource(owner(), resource)).toBe(true);
+  });
+
+  it('an owner is not authorized for a resource in a different tenant', () => {
+    const resource = { tenant_id: otherTenantId, department_id: null };
+    expect(userCanAccessResource(owner(), resource)).toBe(false);
   });
 });
 

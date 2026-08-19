@@ -3,10 +3,13 @@ import request from 'supertest';
 import app from '../app';
 import db from '../db';
 import userRepository from '../repositories/userRepository';
+import tenantRepository from '../repositories/tenantRepository';
+import tenantMembershipRepository from '../repositories/tenantMembershipRepository';
 import departmentAccessRepository from '../repositories/departmentAccessRepository';
 import categoryRepository from '../repositories/categoryRepository';
 import { hashPassword } from '../utils/password';
 
+let tenantId: number;
 let deptA: number;
 let deptB: number;
 
@@ -17,12 +20,12 @@ async function loginAs(email: string, password = 'password123') {
 }
 
 async function createHead(name: string, email: string, ...grantedDeptIds: number[]) {
-  const user = userRepository.create({
-    name,
-    email,
+  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
+  tenantMembershipRepository.create({
+    user_id: user.id,
+    tenant_id: tenantId,
     role: 'department_head',
     department_id: null,
-    password_hash: await hashPassword('password123'),
   });
   for (const deptId of grantedDeptIds) {
     departmentAccessRepository.grant(user.id, deptId);
@@ -31,21 +34,25 @@ async function createHead(name: string, email: string, ...grantedDeptIds: number
 }
 
 async function createEmployee(name: string, email: string, departmentId: number | null) {
-  return userRepository.create({
-    name,
-    email,
+  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
+  tenantMembershipRepository.create({
+    user_id: user.id,
+    tenant_id: tenantId,
     role: 'department_employee',
     department_id: departmentId,
-    password_hash: await hashPassword('password123'),
   });
+  return user;
 }
 
 beforeEach(() => {
   db.exec(
-    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM department_access; DELETE FROM users; DELETE FROM departments;'
+    'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
   );
-  deptA = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing').lastInsertRowid as number;
+  tenantId = tenantRepository.create('Acme Co', 'enterprise').id;
+  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+    .lastInsertRowid as number;
+  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+    .lastInsertRowid as number;
 });
 
 describe('GET /api/departments', () => {
@@ -66,10 +73,28 @@ describe('GET /api/departments', () => {
   });
 });
 
+describe('POST /api/departments', () => {
+  it('grants the creating head access to the new department, so they are not immediately locked out of it', async () => {
+    await createHead('Dana', 'dana@example.com');
+    const agent = await loginAs('dana@example.com');
+
+    const createRes = await agent.post('/api/departments').send({ name: 'Sales' });
+    expect(createRes.status).toBe(201);
+
+    const listRes = await agent.get('/api/departments');
+    expect(listRes.body.map((d: { id: number }) => d.id)).toContain(createRes.body.id);
+
+    const categoryRes = await agent
+      .post('/api/categories')
+      .send({ name: 'Travel', budgeted_amount: 100, department_id: createRes.body.id, start_on: '2026-01-01' });
+    expect(categoryRes.status).toBe(201);
+  });
+});
+
 describe('GET /api/categories scoping', () => {
   it('an employee only sees categories in their own department', async () => {
-    categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
-    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB });
+    categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
+    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -143,7 +168,7 @@ describe('category management is head-only', () => {
 
 describe('transactions: employees can transact within their own department', () => {
   it('an employee can create a transaction in their own department', async () => {
-    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
+    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -156,7 +181,7 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('an employee cannot create a transaction in a department they don\'t belong to', async () => {
-    const category = categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB });
+    const category = categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -172,7 +197,7 @@ describe('transactions: employees can transact within their own department', () 
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -184,8 +209,8 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('GET /api/transactions is scoped to the caller\'s accessible departments', async () => {
-    const categoryA = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
-    const categoryB = categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB });
+    const categoryA = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
+    const categoryB = categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -207,7 +232,7 @@ describe('transactions: employees can transact within their own department', () 
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -238,7 +263,7 @@ describe('transactions: employees can transact within their own department', () 
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -263,7 +288,7 @@ describe('transactions: employees can transact within their own department', () 
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -295,7 +320,7 @@ describe('approve/reject workflow', () => {
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
     const created = await agent
@@ -312,7 +337,7 @@ describe('approve/reject workflow', () => {
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -333,7 +358,7 @@ describe('approve/reject workflow', () => {
       budgeted_amount: 1000,
       department_id: deptB,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Erin', 'erin@example.com', deptB);
     const employeeAgent = await loginAs('erin@example.com');
     const created = await employeeAgent
@@ -354,7 +379,7 @@ describe('approve/reject workflow', () => {
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -378,7 +403,7 @@ describe('approve/reject workflow', () => {
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
     const created = await headAgent
@@ -395,7 +420,7 @@ describe('approve/reject workflow', () => {
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
     const created = await headAgent
@@ -409,7 +434,7 @@ describe('approve/reject workflow', () => {
 
 describe('DELETE /api/transactions/:id is head-only', () => {
   it('an employee cannot delete a transaction, even one they created', async () => {
-    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
+    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
     const created = await agent
@@ -421,7 +446,7 @@ describe('DELETE /api/transactions/:id is head-only', () => {
   });
 
   it('a head can delete a transaction in their department', async () => {
-    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA });
+    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
     await createHead('Dana', 'dana@example.com', deptA);
     const agent = await loginAs('dana@example.com');
     const created = await agent
@@ -447,13 +472,13 @@ describe('GET /api/approvals', () => {
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    });
+    }, tenantId);
     const categoryB = categoryRepository.create({
       name: 'Ads',
       budgeted_amount: 1000,
       department_id: deptB,
       approval_threshold: 100,
-    });
+    }, tenantId);
     await createEmployee('Evan', 'evan@example.com', deptA);
     const evanAgent = await loginAs('evan@example.com');
     await evanAgent.post('/api/transactions').send({ amount: 250, date: '2026-08-01', category_id: categoryA.id });

@@ -10,6 +10,11 @@ if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
 export const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-do-not-use-in-production';
 export const COOKIE_NAME = 'auth_token';
 export const JWT_EXPIRES_IN = '7d';
+// A pre-tenant token only proves "this password check passed" — it can't
+// authenticate any tenant-scoped route (authenticate rejects a token with
+// no tenant_id claim). Short-lived on purpose: its only job is bridging a
+// multi-membership login to the immediately-following select-tenant call.
+export const PRE_TENANT_TOKEN_EXPIRES_IN = '10m';
 
 // Cookies are only sent over HTTPS in production; local dev runs over plain
 // HTTP so `secure: true` there would silently drop the cookie.

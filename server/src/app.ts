@@ -9,6 +9,7 @@ import transactionsRouter from './routes/transactions';
 import dashboardRouter from './routes/dashboard';
 import recurringTransactionsRouter from './routes/recurringTransactions';
 import approvalsRouter from './routes/approvals';
+import teamRouter from './routes/team';
 import recurringTransactionRepository from './repositories/recurringTransactionRepository';
 import { errorHandler } from './middleware/errorHandler';
 import { authenticate } from './middleware/authenticate';
@@ -49,6 +50,7 @@ app.use(
   recurringTransactionsRouter
 );
 app.use('/api/approvals', authenticate, approvalsRouter);
+app.use('/api/team', authenticate, teamRouter);
 
 // Any /api/* path that didn't match a router above is a real 404, not a
 // SPA route — return JSON instead of falling through to index.html.

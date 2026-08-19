@@ -12,27 +12,38 @@ function mapRow(row: Record<string, unknown>): Transaction {
 }
 
 const transactionRepository = {
-  // Omitting departmentIds returns every transaction, unscoped — used by
-  // internal callers (recurringTransactionRepository) that already scope
-  // by other means. A route handler always passes the caller's accessible
-  // department ids; an empty array (zero access) returns zero rows.
-  findAll(departmentIds?: number[]): Transaction[] {
-    if (!departmentIds) {
-      return (db.prepare(`SELECT ${COLUMNS} FROM transactions t`).all() as Record<string, unknown>[]).map(
-        mapRow
-      );
+  // departmentIds (enterprise scoping) wins when given. tenantId (personal
+  // scoping) is the fallback when departmentIds is omitted — a personal
+  // tenant's transactions all belong to categories with department_id =
+  // NULL, so they're scoped by the category's tenant_id instead. Omitting
+  // both returns every transaction, unscoped — used by internal callers
+  // (recurringTransactionRepository) that already scope by other means.
+  findAll(departmentIds?: number[], tenantId?: number): Transaction[] {
+    if (departmentIds) {
+      if (departmentIds.length === 0) return [];
+      const placeholders = departmentIds.map(() => '?').join(', ');
+      return (
+        db
+          .prepare(
+            `SELECT ${COLUMNS} FROM transactions t
+             JOIN categories c ON c.id = t.category_id
+             WHERE c.department_id IN (${placeholders})`
+          )
+          .all(...departmentIds) as Record<string, unknown>[]
+      ).map(mapRow);
     }
-    if (departmentIds.length === 0) return [];
-    const placeholders = departmentIds.map(() => '?').join(', ');
-    return (
-      db
-        .prepare(
-          `SELECT ${COLUMNS} FROM transactions t
-           JOIN categories c ON c.id = t.category_id
-           WHERE c.department_id IN (${placeholders})`
-        )
-        .all(...departmentIds) as Record<string, unknown>[]
-    ).map(mapRow);
+    if (tenantId !== undefined) {
+      return (
+        db
+          .prepare(
+            `SELECT ${COLUMNS} FROM transactions t
+             JOIN categories c ON c.id = t.category_id
+             WHERE c.tenant_id = ?`
+          )
+          .all(tenantId) as Record<string, unknown>[]
+      ).map(mapRow);
+    }
+    return (db.prepare(`SELECT ${COLUMNS} FROM transactions t`).all() as Record<string, unknown>[]).map(mapRow);
   },
 
   findById(id: number | string): Transaction | undefined {

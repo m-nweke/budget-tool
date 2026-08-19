@@ -8,13 +8,17 @@ let deptB: number;
 let deptC: number;
 
 beforeEach(() => {
-  db.exec('DELETE FROM department_access; DELETE FROM users; DELETE FROM departments;');
-  deptA = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Engineering').lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Marketing').lastInsertRowid as number;
-  deptC = db.prepare('INSERT INTO departments (name) VALUES (?)').run('Sales').lastInsertRowid as number;
-  userId = db
-    .prepare('INSERT INTO users (name, email, role, department_id) VALUES (?, ?, ?, ?)')
-    .run('Dana Head', 'dana@example.com', 'department_head', null).lastInsertRowid as number;
+  db.exec('DELETE FROM department_access; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;');
+  const tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')").run()
+    .lastInsertRowid as number;
+  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+    .lastInsertRowid as number;
+  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+    .lastInsertRowid as number;
+  deptC = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Sales', tenantId)
+    .lastInsertRowid as number;
+  userId = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)').run('Dana Head', 'dana@example.com')
+    .lastInsertRowid as number;
 });
 
 describe('departmentAccessRepository', () => {

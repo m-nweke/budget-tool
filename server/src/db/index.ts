@@ -7,22 +7,55 @@ const db = new Database(process.env.DB_PATH || path.join(__dirname, 'budget.sqli
 db.pragma('foreign_keys = ON');
 
 db.exec(`
+  -- The top-level data-isolation boundary. Every department/category (and,
+  -- transitively, every transaction) belongs to exactly one tenant. A
+  -- 'personal' tenant has no departments at all — its categories carry
+  -- department_id = NULL and are scoped by tenant_id alone (see
+  -- scoping.ts's resolveAccessibleDepartmentIds for the 'owner' role).
+  CREATE TABLE IF NOT EXISTS tenants (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('enterprise', 'personal')),
+    -- Only set for type='enterprise' — the code a new employee enters at
+    -- signup to join this company instead of creating a new tenant.
+    join_code TEXT UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
   CREATE TABLE IF NOT EXISTS departments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
     name TEXT NOT NULL
   );
 
+  -- Identity only — a user's role and department are per-tenant (see
+  -- tenant_memberships below), because one login can belong to more than
+  -- one tenant (e.g. a personal budget plus a company membership).
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
     email TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'department_employee',
-    department_id INTEGER REFERENCES departments(id),
     password_hash TEXT
+  );
+
+  -- One row per (user, tenant) the user belongs to. role/department_id used
+  -- to live directly on users — moved here once a login could span more
+  -- than one tenant. department_id is the employee's home department
+  -- (null until a head assigns one, always null for 'owner'/personal and
+  -- for a fresh 'department_head' membership — heads see departments via
+  -- department_access, same as before).
+  CREATE TABLE IF NOT EXISTS tenant_memberships (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    role TEXT NOT NULL,
+    department_id INTEGER REFERENCES departments(id),
+    UNIQUE (user_id, tenant_id)
   );
 
   CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
     name TEXT NOT NULL,
     budgeted_amount REAL NOT NULL,
     department_id INTEGER REFERENCES departments(id),
@@ -79,7 +112,6 @@ db.exec(`
   -- (user_id, department_id) already gives SQLite an implicit index usable
   -- for user_id-only lookups via its leftmost column.
   CREATE INDEX IF NOT EXISTS idx_department_access_department_id ON department_access(department_id);
-  CREATE INDEX IF NOT EXISTS idx_users_department_id ON users(department_id);
   -- UNIQUE, not just indexed: userRepository.findByEmail does a single
   -- .get() and login will trust whatever row it returns, so two users
   -- sharing an email would make login authenticate against an arbitrary
@@ -88,6 +120,16 @@ db.exec(`
   -- existing one via IF NOT EXISTS, matching every other index below.
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_categories_department_id ON categories(department_id);
+  -- idx_categories_tenant_id / idx_departments_tenant_id are created below,
+  -- after migrateColumn adds tenant_id to these two tables — both existed
+  -- before tenant_id did, so on an existing database this index can't be
+  -- created in the same batch as CREATE TABLE IF NOT EXISTS (a no-op here,
+  -- since the tables already exist): the column wouldn't exist yet.
+  -- No index on tenant_memberships.user_id: the composite UNIQUE
+  -- (user_id, tenant_id) already gives SQLite an implicit index usable for
+  -- user_id-only lookups via its leftmost column, same reasoning as
+  -- department_access above. No index on department_id either — nothing
+  -- queries tenant_memberships by department_id, only by user_id/tenant_id.
 
   -- Tracks one-time data migrations (see runOnce below) — distinct from
   -- migrateColumn, which is safe to re-run every boot. A backfill here
@@ -122,6 +164,23 @@ db.exec("UPDATE categories SET start_on = date('now') WHERE start_on IS NULL");
 
 migrateColumn('ALTER TABLE users ADD COLUMN password_hash TEXT');
 migrateColumn('ALTER TABLE categories ADD COLUMN approval_threshold REAL');
+migrateColumn('ALTER TABLE departments ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)');
+migrateColumn('ALTER TABLE categories ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_categories_tenant_id ON categories(tenant_id)');
+db.exec('CREATE INDEX IF NOT EXISTS idx_departments_tenant_id ON departments(tenant_id)');
+
+// Like migrateColumn, but for a column being removed rather than added —
+// dropping a column that was never there (a database created fresh, after
+// this migration already shipped, never had it) is the SQLite error this
+// guards against.
+function dropColumnIfExists(table: string, column: string): void {
+  try {
+    db.exec(`ALTER TABLE ${table} DROP COLUMN ${column}`);
+  } catch (err) {
+    const message = (err as Error).message;
+    if (!message.includes('no such column')) throw err;
+  }
+}
 
 // Runs `fn` at most once ever, tracked in schema_migrations — unlike
 // migrateColumn (idempotent, safe every boot), a data backfill must not
@@ -133,6 +192,42 @@ function runOnce(name: string, fn: () => void): void {
   fn();
   db.prepare('INSERT INTO schema_migrations (name) VALUES (?)').run(name);
 }
+
+// One-time consolidation of the pre-tenancy schema into the tenant model.
+// Synthesizes a default 'Default Company' tenant for any data that
+// predates tenants entirely, gives every existing user a
+// tenant_memberships row built from their (about-to-be-dropped)
+// role/department_id columns, backfills tenant_id on departments/
+// categories, then drops those now-superseded columns from users. Must
+// run exactly once: by the time it could run a second time,
+// users.role/department_id no longer exist to read from.
+runOnce('migrate_users_and_departments_to_tenants', () => {
+  const userCount = (db.prepare('SELECT COUNT(*) AS count FROM users').get() as { count: number }).count;
+
+  if (userCount > 0) {
+    const defaultTenantId = db
+      .prepare("INSERT INTO tenants (name, type) VALUES ('Default Company', 'enterprise')")
+      .run().lastInsertRowid as number;
+
+    db.prepare('UPDATE departments SET tenant_id = ? WHERE tenant_id IS NULL').run(defaultTenantId);
+    db.prepare('UPDATE categories SET tenant_id = ? WHERE tenant_id IS NULL').run(defaultTenantId);
+
+    const legacyUsers = db.prepare('SELECT id, role, department_id FROM users').all() as {
+      id: number;
+      role: string;
+      department_id: number | null;
+    }[];
+    const insertMembership = db.prepare(
+      'INSERT INTO tenant_memberships (user_id, tenant_id, role, department_id) VALUES (?, ?, ?, ?)'
+    );
+    for (const user of legacyUsers) {
+      insertMembership.run(user.id, defaultTenantId, user.role, user.department_id);
+    }
+  }
+
+  dropColumnIfExists('users', 'role');
+  dropColumnIfExists('users', 'department_id');
+});
 
 // Before the approval workflow existed, transactionRepository.create
 // hardcoded every row to needs_approval=0, approved=0 — the columns were
