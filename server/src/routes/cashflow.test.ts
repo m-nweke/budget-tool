@@ -69,7 +69,9 @@ describe('GET /api/cash-flow', () => {
     const res = await agent.get('/api/cash-flow');
     expect(res.status).toBe(200);
     expect(res.body.from).toBe('2026-08-19');
-    expect(res.body.to).toBe('2026-09-02');
+    // Inclusive of both endpoints, so a 14-day window is today + 13 more —
+    // exactly 14 dates, not 15.
+    expect(res.body.to).toBe('2026-09-01');
     expect(res.body.accounts[0].starting_balance).toBe(100);
   });
 
@@ -79,7 +81,16 @@ describe('GET /api/cash-flow', () => {
 
     const res = await agent.get('/api/cash-flow?days=7');
     expect(res.status).toBe(200);
-    expect(res.body.to).toBe('2026-08-26');
+    expect(res.body.to).toBe('2026-08-25');
+  });
+
+  it('returns exactly `days` dates per account, not days + 1', async () => {
+    const { tenantId } = await createOwner('Pat', 'pat@example.com');
+    bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
+    const agent = await loginAs('pat@example.com');
+
+    const res = await agent.get('/api/cash-flow?days=7');
+    expect(res.body.accounts[0].daily).toHaveLength(7);
   });
 
   it.each(['0', '-1', 'abc', '91', '3.5'])('rejects an invalid days value: %s', async (days) => {

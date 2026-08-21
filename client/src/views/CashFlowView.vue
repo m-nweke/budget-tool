@@ -65,7 +65,11 @@ function sourceLabel(source: 'recurring_transaction' | 'debt'): string {
           >
             <span class="daily-date">{{ day.date }}</span>
             <span class="daily-credits">
-              <span v-for="credit in day.credits" :key="credit.paycheck_id" class="badge badge-department">
+              <span
+                v-for="(credit, creditIndex) in day.credits"
+                :key="`${credit.paycheck_id}-${creditIndex}`"
+                class="badge badge-department"
+              >
                 +{{ formatCurrency(credit.amount) }} {{ credit.label }}
               </span>
             </span>

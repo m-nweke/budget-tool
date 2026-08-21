@@ -3,7 +3,13 @@ import paycheckRepository from './paycheckRepository';
 import recurringTransactionRepository from './recurringTransactionRepository';
 import debtRepository from './debtRepository';
 import { addDays, stepPaycheckDates, stepMonthlyDueDates } from '../utils/dateUtils';
-import type { CashflowProjection, AccountProjection, AccountDailyBalance, ProjectedOutflow } from '../types';
+import type {
+  CashflowProjection,
+  AccountProjection,
+  AccountDailyBalance,
+  PaycheckCredit,
+  ProjectedOutflow,
+} from '../types';
 
 function dateRange(from: string, to: string): string[] {
   const dates: string[] = [];
@@ -27,21 +33,32 @@ const cashflowRepository = {
     // debt payments have no account link (transactions were never wired to
     // accounts — story 18's decision doc), so they're collected separately
     // below instead of guessed onto an arbitrary account.
+    //
+    // Computed once, outside the account loop: paychecks/splits don't
+    // depend on which account is being projected, so fetching them (and
+    // stepping their occurrence dates) per account was redundant DB work
+    // that scaled with account count for no reason.
+    const creditsByAccount = new Map<number, (PaycheckCredit & { date: string })[]>();
+    for (const paycheck of paycheckRepository.findAll(tenantId)) {
+      const occurrenceDates = stepPaycheckDates(paycheck.next_pay_date, paycheck.frequency, from, to);
+      for (const split of paycheck.splits) {
+        const amount = split.split_type === 'percentage' ? (paycheck.amount * split.value) / 100 : split.value;
+        const existing = creditsByAccount.get(split.bank_account_id) ?? [];
+        for (const date of occurrenceDates) {
+          existing.push({ paycheck_id: paycheck.id, label: paycheck.label, amount, date });
+        }
+        creditsByAccount.set(split.bank_account_id, existing);
+      }
+    }
+
     const accounts: AccountProjection[] = bankAccountRepository.findAll(tenantId).map((account) => {
       const daily: AccountDailyBalance[] = dates.map((date) => ({ date, balance: account.current_balance, credits: [] }));
       const balanceByIndex = new Map(dates.map((date, index) => [date, index]));
 
-      for (const paycheck of paycheckRepository.findAll(tenantId)) {
-        const occurrenceDates = stepPaycheckDates(paycheck.next_pay_date, paycheck.frequency, from, to);
-        for (const split of paycheck.splits) {
-          if (split.bank_account_id !== account.id) continue;
-          const amount = split.split_type === 'percentage' ? (paycheck.amount * split.value) / 100 : split.value;
-          for (const occurrenceDate of occurrenceDates) {
-            const index = balanceByIndex.get(occurrenceDate);
-            if (index === undefined) continue;
-            daily[index].credits.push({ paycheck_id: paycheck.id, label: paycheck.label, amount });
-          }
-        }
+      for (const { date, ...credit } of creditsByAccount.get(account.id) ?? []) {
+        const index = balanceByIndex.get(date);
+        if (index === undefined) continue;
+        daily[index].credits.push(credit);
       }
 
       // A credit applies from the day it lands onward, not just that one

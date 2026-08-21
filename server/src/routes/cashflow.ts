@@ -24,7 +24,12 @@ router.get('/', requireRole('owner'), (req: Request, res: Response) => {
 
   const user = req.user as AuthUser;
   const from = todayISO();
-  const to = addDays(from, windowDays);
+  // cashflowRepository.dateRange is inclusive of both endpoints, so a
+  // window of exactly `windowDays` dates (today + the next windowDays - 1
+  // days) needs `to` one day short of a naive addDays(from, windowDays) —
+  // otherwise `days=N` would return N + 1 dates, off by one from what the
+  // query param name (and the client's "next N days" copy) promises.
+  const to = addDays(from, windowDays - 1);
   res.json(cashflowRepository.simulate(user.tenant_id, from, to));
 });
 
