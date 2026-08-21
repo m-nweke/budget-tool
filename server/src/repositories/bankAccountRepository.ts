@@ -19,11 +19,16 @@ const bankAccountRepository = {
     return bankAccountRepository.findById(result.lastInsertRowid as number) as BankAccount;
   },
 
+  // Unlike create() (where an omitted current_balance correctly means "this
+  // new account starts at 0"), an omitted current_balance here must mean
+  // "leave it as-is" — otherwise an edit that only changes name/type would
+  // silently wipe the account's tracked balance back to 0.
   update(id: number | string, { name, type, current_balance }: CreateBankAccountDto): BankAccount {
+    const existing = bankAccountRepository.findById(id);
     db.prepare('UPDATE bank_accounts SET name = ?, type = ?, current_balance = ? WHERE id = ?').run(
       name,
       type,
-      current_balance ?? 0,
+      current_balance ?? existing?.current_balance ?? 0,
       id
     );
     return bankAccountRepository.findById(id) as BankAccount;

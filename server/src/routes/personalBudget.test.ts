@@ -207,6 +207,21 @@ describe('CRUD /api/paychecks', () => {
     expect(res.body.splits).toHaveLength(2);
   });
 
+  it('rejects a percentage split value over 100', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const account = await agent.post('/api/bank-accounts').send({ name: 'Checking', type: 'checking' });
+
+    const res = await agent.post('/api/paychecks').send({
+      label: 'Job',
+      amount: 2000,
+      frequency: 'biweekly',
+      next_pay_date: '2026-09-01',
+      splits: [{ bank_account_id: account.body.id, split_type: 'percentage', value: 500 }],
+    });
+    expect(res.status).toBe(400);
+  });
+
   it('rejects a split whose bank_account_id belongs to another tenant', async () => {
     const other = tenantRepository.create("Alex's Budget", 'personal');
     const otherAccountId = db

@@ -39,6 +39,12 @@ describe('bankAccountRepository', () => {
     expect(updated).toMatchObject({ id: created.id, name: 'Main Checking', current_balance: 1200 });
   });
 
+  it('update preserves current_balance when omitted, instead of resetting it to 0', () => {
+    const created = bankAccountRepository.create({ name: 'Checking', type: 'checking', current_balance: 1500 }, tenantId);
+    const updated = bankAccountRepository.update(created.id, { name: 'Main Checking', type: 'checking' });
+    expect(updated.current_balance).toBe(1500);
+  });
+
   it('remove deletes the account', () => {
     const created = bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
     bankAccountRepository.remove(created.id);

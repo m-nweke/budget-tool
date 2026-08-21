@@ -26,7 +26,13 @@ const savingsGoalRepository = {
   },
 
   // Like categoryRepository.update, an omitted start_on means "leave it
-  // as-is", not "reset to today".
+  // as-is", not "reset to today". target_date/bank_account_id get the same
+  // treatment: both are optional on CreateSavingsGoalDto, so `undefined`
+  // (the field wasn't sent) must preserve the existing value — only an
+  // explicit `null` clears it. Using `?? null` unconditionally would treat
+  // "omitted" the same as "explicitly cleared," silently unlinking the
+  // account or dropping the target date on an update that only meant to
+  // change the name/amount.
   update(
     id: number | string,
     { name, target_amount, start_on, target_date, bank_account_id }: CreateSavingsGoalDto
@@ -38,8 +44,8 @@ const savingsGoalRepository = {
       name,
       target_amount,
       start_on || existing?.start_on || todayISO(),
-      target_date ?? null,
-      bank_account_id ?? null,
+      target_date === undefined ? (existing?.target_date ?? null) : target_date,
+      bank_account_id === undefined ? (existing?.bank_account_id ?? null) : bank_account_id,
       id
     );
     return savingsGoalRepository.findById(id) as SavingsGoal;
