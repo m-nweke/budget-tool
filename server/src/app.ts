@@ -14,6 +14,7 @@ import bankAccountsRouter from './routes/bankAccounts';
 import paychecksRouter from './routes/paychecks';
 import savingsGoalsRouter from './routes/savingsGoals';
 import debtsRouter from './routes/debts';
+import cashFlowRouter from './routes/cashFlow';
 import recurringTransactionRepository from './repositories/recurringTransactionRepository';
 import { errorHandler } from './middleware/errorHandler';
 import { authenticate } from './middleware/authenticate';
@@ -61,6 +62,7 @@ app.use('/api/bank-accounts', authenticate, bankAccountsRouter);
 app.use('/api/paychecks', authenticate, paychecksRouter);
 app.use('/api/savings-goals', authenticate, savingsGoalsRouter);
 app.use('/api/debts', authenticate, debtsRouter);
+app.use('/api/cash-flow', authenticate, cashFlowRouter);
 
 // Any /api/* path that didn't match a router above is a real 404, not a
 // SPA route — return JSON instead of falling through to index.html.

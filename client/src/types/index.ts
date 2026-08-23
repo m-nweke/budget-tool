@@ -21,3 +21,4 @@ export type {
 } from './paycheck';
 export type { SavingsGoal, CreateSavingsGoalDto } from './savingsGoal';
 export type { Debt, CreateDebtDto } from './debt';
+export type { CashFlowEvent, CashFlowSnapshot, CashFlowResult } from './cashFlow';

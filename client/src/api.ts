@@ -18,6 +18,7 @@ import type {
   CreateSavingsGoalDto,
   Debt,
   CreateDebtDto,
+  CashFlowResult,
 } from './types';
 
 export type AccountType = 'personal' | 'company' | 'join';
@@ -144,4 +145,9 @@ export const api = {
     }),
   deleteRecurringTransaction: (id: number) =>
     request<null>(`/recurring-transactions/${id}`, { method: 'DELETE' }),
+
+  getCashFlow: (months?: number) => {
+    const params = months !== undefined ? `?months=${months}` : '';
+    return request<CashFlowResult>(`/cash-flow${params}`);
+  },
 };

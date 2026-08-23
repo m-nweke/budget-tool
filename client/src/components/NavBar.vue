@@ -99,6 +99,7 @@ async function handleLogout() {
           <RouterLink to="/paycheck">Paycheck</RouterLink>
           <RouterLink to="/goals">Goals</RouterLink>
           <RouterLink to="/debts">Debts</RouterLink>
+          <RouterLink to="/cash-flow">Cash Flow</RouterLink>
         </template>
       </nav>
       <div v-if="user" class="nav-user">
