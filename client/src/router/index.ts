@@ -3,6 +3,10 @@ import DashboardView from '../views/DashboardView.vue';
 import TransactionsView from '../views/TransactionsView.vue';
 import CategoriesView from '../views/CategoriesView.vue';
 import ApprovalsView from '../views/ApprovalsView.vue';
+import AccountsView from '../views/AccountsView.vue';
+import PaycheckView from '../views/PaycheckView.vue';
+import GoalsView from '../views/GoalsView.vue';
+import DebtsView from '../views/DebtsView.vue';
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import { useAuth } from '../composables/useAuth';
@@ -17,6 +21,13 @@ const router = createRouter({
     // special-cased by route name — any future head-only route just needs
     // the same flag, not a new branch in beforeEach.
     { path: '/approvals', name: 'approvals', component: ApprovalsView, meta: { headOnly: true } },
+    // meta.personalOnly follows the same generic-flag pattern as
+    // meta.headOnly above — gates a route to a personal tenant's owner
+    // instead of an enterprise head (Phase 2 personal-budget views).
+    { path: '/accounts', name: 'accounts', component: AccountsView, meta: { personalOnly: true } },
+    { path: '/paycheck', name: 'paycheck', component: PaycheckView, meta: { personalOnly: true } },
+    { path: '/goals', name: 'goals', component: GoalsView, meta: { personalOnly: true } },
+    { path: '/debts', name: 'debts', component: DebtsView, meta: { personalOnly: true } },
     // meta.public follows the same generic-flag pattern as meta.headOnly
     // below — any future public route (a password-reset page, etc.) just
     // needs the same flag, not a new name check in the guard.
@@ -50,6 +61,13 @@ router.beforeEach(async (to) => {
   // are head-or-owner-only), but redirecting here avoids rendering a view
   // that would just show an empty/error state for an employee.
   if (to.meta.headOnly && !canApprove.value) {
+    return { path: '/' };
+  }
+  // The API already enforces this too (every Phase 2 personal-budget
+  // route is requireRole('owner'), which only ever exists on a personal
+  // tenant) — redirecting here avoids rendering a view that would just
+  // 403 immediately for an enterprise user.
+  if (to.meta.personalOnly && user.value?.tenant_type !== 'personal') {
     return { path: '/' };
   }
 });

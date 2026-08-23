@@ -10,3 +10,14 @@ export type {
   UpdateRecurringTransactionDto,
   RecurrenceInterval,
 } from './recurringTransaction';
+export type { BankAccount, BankAccountType, CreateBankAccountDto } from './bankAccount';
+export type {
+  Paycheck,
+  PaycheckFrequency,
+  PaycheckSplit,
+  SplitType,
+  CreatePaycheckDto,
+  CreatePaycheckSplitDto,
+} from './paycheck';
+export type { SavingsGoal, CreateSavingsGoalDto } from './savingsGoal';
+export type { Debt, CreateDebtDto } from './debt';

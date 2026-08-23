@@ -10,6 +10,14 @@ import type {
   AuthUser,
   Department,
   MembershipSummary,
+  BankAccount,
+  CreateBankAccountDto,
+  Paycheck,
+  CreatePaycheckDto,
+  SavingsGoal,
+  CreateSavingsGoalDto,
+  Debt,
+  CreateDebtDto,
 } from './types';
 
 export type AccountType = 'personal' | 'company' | 'join';
@@ -95,6 +103,33 @@ export const api = {
     const query = params.toString();
     return request<DashboardRow[]>(`/dashboard${query ? `?${query}` : ''}`);
   },
+
+  getBankAccounts: () => request<BankAccount[]>('/bank-accounts'),
+  createBankAccount: (data: CreateBankAccountDto) =>
+    request<BankAccount>('/bank-accounts', { method: 'POST', body: JSON.stringify(data) }),
+  updateBankAccount: (id: number, data: CreateBankAccountDto) =>
+    request<BankAccount>(`/bank-accounts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBankAccount: (id: number) => request<null>(`/bank-accounts/${id}`, { method: 'DELETE' }),
+
+  getPaychecks: () => request<Paycheck[]>('/paychecks'),
+  createPaycheck: (data: CreatePaycheckDto) =>
+    request<Paycheck>('/paychecks', { method: 'POST', body: JSON.stringify(data) }),
+  updatePaycheck: (id: number, data: CreatePaycheckDto) =>
+    request<Paycheck>(`/paychecks/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deletePaycheck: (id: number) => request<null>(`/paychecks/${id}`, { method: 'DELETE' }),
+
+  getSavingsGoals: () => request<SavingsGoal[]>('/savings-goals'),
+  createSavingsGoal: (data: CreateSavingsGoalDto) =>
+    request<SavingsGoal>('/savings-goals', { method: 'POST', body: JSON.stringify(data) }),
+  updateSavingsGoal: (id: number, data: CreateSavingsGoalDto) =>
+    request<SavingsGoal>(`/savings-goals/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteSavingsGoal: (id: number) => request<null>(`/savings-goals/${id}`, { method: 'DELETE' }),
+
+  getDebts: () => request<Debt[]>('/debts'),
+  createDebt: (data: CreateDebtDto) => request<Debt>('/debts', { method: 'POST', body: JSON.stringify(data) }),
+  updateDebt: (id: number, data: CreateDebtDto) =>
+    request<Debt>(`/debts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDebt: (id: number) => request<null>(`/debts/${id}`, { method: 'DELETE' }),
 
   getRecurringTransactions: () => request<RecurringTransaction[]>('/recurring-transactions'),
   createRecurringTransaction: (data: CreateRecurringTransactionDto) =>
