@@ -97,6 +97,7 @@ async function handleLogout() {
         <template v-if="isPersonal">
           <RouterLink to="/accounts">Accounts</RouterLink>
           <RouterLink to="/paycheck">Paycheck</RouterLink>
+          <RouterLink to="/cash-flow">Cash Flow</RouterLink>
           <RouterLink to="/goals">Goals</RouterLink>
           <RouterLink to="/debts">Debts</RouterLink>
         </template>
