@@ -31,7 +31,13 @@ function handleSubmit() {
     name: name.value,
     type: type.value,
     current_balance: currentBalance.value === '' ? undefined : Number(currentBalance.value),
-    apy: apy.value === '' ? null : Number(apy.value),
+    // The APY field only renders for type === 'savings' (see template) — an
+    // apy.value of '' while some other type is selected doesn't mean "the
+    // user cleared it," it means the field was never shown. Sending an
+    // explicit null there would clear an existing APY the account might
+    // still carry (see bankAccountRepository.update's null-vs-undefined
+    // handling); undefined tells the server to leave it untouched instead.
+    apy: type.value !== 'savings' ? undefined : apy.value === '' ? null : Number(apy.value),
   });
 }
 </script>

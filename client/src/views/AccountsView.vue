@@ -95,7 +95,7 @@ onMounted(loadAccounts);
         <div class="account-name">
           {{ account.name }}
           <span class="badge badge-department">{{ account.type }}</span>
-          <span v-if="account.apy" class="badge badge-recurring">{{ account.apy }}% APY</span>
+          <span v-if="account.apy != null" class="badge badge-recurring">{{ account.apy }}% APY</span>
         </div>
         <div class="account-balance">{{ formatCurrency(account.current_balance) }}</div>
       </div>

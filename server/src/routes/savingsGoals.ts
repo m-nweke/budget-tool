@@ -28,7 +28,7 @@ function validateLinkedAccount(
 
 function validateSavedAmount(savedAmount: unknown): string | null {
   if (savedAmount === undefined) return null;
-  if (typeof savedAmount !== 'number' || savedAmount < 0) {
+  if (typeof savedAmount !== 'number' || !Number.isFinite(savedAmount) || savedAmount < 0) {
     return 'saved_amount must be a non-negative number';
   }
   return null;

@@ -17,11 +17,14 @@ function validateBody(body: CreateBillDto): string | null {
   if (!name || amount === undefined || amount === null) {
     return 'name and amount are required';
   }
+  if (typeof amount !== 'number' || !Number.isFinite(amount) || amount <= 0) {
+    return 'amount must be a positive number';
+  }
   if (!category || !VALID_CATEGORIES.includes(category)) {
     return `category must be one of: ${VALID_CATEGORIES.join(', ')}`;
   }
-  if (due_day === undefined || due_day === null || due_day < 1 || due_day > 31) {
-    return 'due_day is required and must be between 1 and 31';
+  if (due_day === undefined || due_day === null || !Number.isInteger(due_day) || due_day < 1 || due_day > 31) {
+    return 'due_day is required and must be an integer between 1 and 31';
   }
   return null;
 }

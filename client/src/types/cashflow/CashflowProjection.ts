@@ -20,7 +20,7 @@ export interface AccountProjection {
 
 export interface ProjectedOutflow {
   date: string;
-  source: 'recurring_transaction' | 'debt';
+  source: 'recurring_transaction' | 'debt' | 'bill';
   id: number;
   label: string;
   amount: number;

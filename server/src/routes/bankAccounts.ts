@@ -21,7 +21,7 @@ router.get('/', requireRole('owner'), (req: Request, res: Response) => {
 // pasted in (0.042 instead of 4.2), which the UI would render nonsensically.
 function validateApy(apy: unknown): string | null {
   if (apy === undefined || apy === null) return null;
-  if (typeof apy !== 'number' || apy < 0 || apy > 100) {
+  if (typeof apy !== 'number' || !Number.isFinite(apy) || apy < 0 || apy > 100) {
     return 'apy must be a number between 0 and 100 (a percentage, e.g. 4.5 for 4.5%)';
   }
   return null;

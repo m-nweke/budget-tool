@@ -93,6 +93,26 @@ describe('CRUD /api/bank-accounts', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects an out-of-range apy', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    for (const apy of [-1, 101]) {
+      const res = await agent.post('/api/bank-accounts').send({ name: 'Savings', type: 'savings', apy });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("an update with apy omitted preserves the account's existing apy", async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const created = await agent.post('/api/bank-accounts').send({ name: 'Savings', type: 'savings', apy: 4.5 });
+
+    const updated = await agent
+      .put(`/api/bank-accounts/${created.body.id}`)
+      .send({ name: 'HYSA', type: 'savings' });
+    expect(updated.body.apy).toBe(4.5);
+  });
+
   it('an owner cannot update or delete another tenant\'s bank account', async () => {
     const other = tenantRepository.create("Alex's Budget", 'personal');
     const otherAccountId = db
@@ -130,6 +150,15 @@ describe('CRUD /api/bank-accounts', () => {
 });
 
 describe('CRUD /api/savings-goals', () => {
+  it('rejects a negative saved_amount', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/savings-goals')
+      .send({ name: 'Emergency Fund', target_amount: 5000, saved_amount: -1 });
+    expect(res.status).toBe(400);
+  });
+
   it('rejects a bank_account_id from another tenant', async () => {
     const other = tenantRepository.create("Alex's Budget", 'personal');
     const otherAccountId = db
@@ -206,6 +235,22 @@ describe('CRUD /api/bills', () => {
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
     const res = await agent.post('/api/bills').send({ name: 'Rent', category: 'mortgage', amount: 1500, due_day: 1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a non-positive amount', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    for (const amount of [0, -50]) {
+      const res = await agent.post('/api/bills').send({ name: 'Rent', category: 'rent', amount, due_day: 1 });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('rejects a non-integer due_day', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/bills').send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 3.5 });
     expect(res.status).toBe(400);
   });
 
