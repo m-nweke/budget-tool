@@ -18,11 +18,18 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
+// A split row's value is typed loosely (number | string) the same way
+// amount/currentBalance are elsewhere in this codebase — lets the input
+// start blank ('') instead of a pre-filled 0, so the browser's `required`
+// validation actually blocks submitting an unedited split (the server
+// rejects value <= 0, so a blank-that-becomes-0 default guaranteed a 400).
+type SplitRow = Omit<CreatePaycheckSplitDto, 'value'> & { value: number | string };
+
 const label = ref('');
 const amount = ref<number | string>('');
 const frequency = ref<PaycheckFrequency>('biweekly');
 const nextPayDate = ref(new Date().toISOString().slice(0, 10));
-const splits = ref<CreatePaycheckSplitDto[]>([]);
+const splits = ref<SplitRow[]>([]);
 const accounts = ref<BankAccount[]>([]);
 
 watch(
@@ -48,7 +55,9 @@ onMounted(async () => {
 });
 
 function addSplit() {
-  splits.value.push({ bank_account_id: accounts.value[0]?.id ?? 0, split_type: 'percentage', value: 0 });
+  // Only ever called with accounts.value non-empty (the "+ Add Split"
+  // button is disabled otherwise), so accounts.value[0] always exists here.
+  splits.value.push({ bank_account_id: accounts.value[0].id, split_type: 'percentage', value: '' });
 }
 
 function removeSplit(index: number) {
@@ -167,7 +176,7 @@ function handleSubmit() {
           <option value="percentage">%</option>
           <option value="fixed">$</option>
         </select>
-        <input v-model="split.value" type="number" step="0.01" min="0" placeholder="0" />
+        <input v-model="split.value" type="number" step="0.01" min="0.01" placeholder="0" required />
         <button type="button" class="btn btn-secondary btn-sm" @click="removeSplit(index)">Remove</button>
       </div>
     </div>

@@ -38,6 +38,9 @@ function validateBody(body: CreatePaycheckDto, user: AuthUser): string | null {
     if (typeof split.value !== 'number' || split.value <= 0) {
       return 'each split value must be a positive number';
     }
+    if (split.split_type === 'percentage' && split.value > 100) {
+      return 'a percentage split value cannot exceed 100';
+    }
     const account = bankAccountRepository.findById(split.bank_account_id);
     if (!account || account.tenant_id !== user.tenant_id) {
       return 'each split bank_account_id must reference an account in this tenant';

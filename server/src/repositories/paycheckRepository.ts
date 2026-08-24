@@ -19,7 +19,7 @@ function findRowById(id: number | string): Omit<Paycheck, 'splits'> | undefined 
     | undefined;
 }
 
-function insertSplits(paycheckId: number, splits: CreatePaycheckDto['splits']): void {
+function insertSplits(paycheckId: number | string, splits: CreatePaycheckDto['splits']): void {
   const insert = db.prepare(
     'INSERT INTO paycheck_splits (paycheck_id, bank_account_id, split_type, value) VALUES (?, ?, ?, ?)'
   );
@@ -61,7 +61,7 @@ const paycheckRepository = {
         'UPDATE paychecks SET label = ?, amount = ?, frequency = ?, next_pay_date = ? WHERE id = ?'
       ).run(label, amount, frequency, next_pay_date, id);
       db.prepare('DELETE FROM paycheck_splits WHERE paycheck_id = ?').run(id);
-      insertSplits(id as number, splits);
+      insertSplits(id, splits);
       return paycheckRepository.findById(id) as Paycheck;
     }
   ),

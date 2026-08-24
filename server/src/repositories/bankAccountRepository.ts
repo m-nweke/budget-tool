@@ -19,12 +19,21 @@ const bankAccountRepository = {
     return bankAccountRepository.findById(result.lastInsertRowid as number) as BankAccount;
   },
 
+  // Unlike create() (where an omitted current_balance/apy correctly means
+  // "this new account starts at 0/untracked"), an omitted value here must
+  // mean "leave it as-is" — otherwise an edit that only changes name/type
+  // would silently wipe the account's tracked balance (or APY) back out.
+  // apy specifically uses an `undefined` check rather than `??`: AccountForm
+  // sends an explicit `null` to clear an already-set APY, and `??` would
+  // treat that null the same as "omitted" and silently restore the old
+  // value instead of clearing it.
   update(id: number | string, { name, type, current_balance, apy }: CreateBankAccountDto): BankAccount {
+    const existing = bankAccountRepository.findById(id);
     db.prepare('UPDATE bank_accounts SET name = ?, type = ?, current_balance = ?, apy = ? WHERE id = ?').run(
       name,
       type,
-      current_balance ?? 0,
-      apy ?? null,
+      current_balance ?? existing?.current_balance ?? 0,
+      apy === undefined ? existing?.apy ?? null : apy,
       id
     );
     return bankAccountRepository.findById(id) as BankAccount;

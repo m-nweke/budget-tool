@@ -74,6 +74,17 @@ describe('savingsGoalRepository', () => {
     expect(updated.bank_account_id).toBeNull();
   });
 
+  it('update preserves bank_account_id and target_date when omitted, instead of clearing them', () => {
+    const account = bankAccountRepository.create({ name: 'Savings', type: 'savings' }, tenantId);
+    const created = savingsGoalRepository.create(
+      { name: 'Emergency Fund', target_amount: 5000, target_date: '2027-01-01', bank_account_id: account.id },
+      tenantId
+    );
+    const updated = savingsGoalRepository.update(created.id, { name: 'Emergency Fund', target_amount: 6000 });
+    expect(updated.bank_account_id).toBe(account.id);
+    expect(updated.target_date).toBe('2027-01-01');
+  });
+
   it('remove deletes the goal', () => {
     const created = savingsGoalRepository.create({ name: 'Emergency Fund', target_amount: 5000 }, tenantId);
     savingsGoalRepository.remove(created.id);
