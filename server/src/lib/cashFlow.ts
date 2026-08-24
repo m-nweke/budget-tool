@@ -36,13 +36,17 @@ function addDays(dateStr: string, days: number): string {
 }
 
 // Advances a semimonthly date to its next occurrence.
-// If the day is 1–15, the next pay is day+15 in the same month.
+// If the day is 1–15, the next pay is day+15 in the same month — clamped to
+// the last day of that month so Feb 15 → Feb 28/29, not Mar 1/2.
 // If the day is 16–31, the next pay is (day-15) in the following month.
-// e.g. Aug 1 → Aug 16 → Sep 1; Aug 15 → Aug 30 → Sep 15.
+// e.g. Aug 1 → Aug 16 → Sep 1; Aug 15 → Aug 28 (Feb) or Aug 30 (Aug).
 function advanceSemimonthly(dateStr: string): string {
   const [year, month, day] = dateStr.split('-').map(Number);
   if (day <= 15) {
-    return new Date(Date.UTC(year, month - 1, day + 15)).toISOString().slice(0, 10);
+    const targetDay = day + 15;
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const clampedDay = Math.min(targetDay, daysInMonth);
+    return new Date(Date.UTC(year, month - 1, clampedDay)).toISOString().slice(0, 10);
   }
   return new Date(Date.UTC(year, month - 1 + 1, day - 15)).toISOString().slice(0, 10);
 }
@@ -73,7 +77,10 @@ function paycheckEvents(
 
   for (const paycheck of paychecks) {
     let current = paycheck.next_pay_date;
-    while (current < startDate) current = advanceByFrequency(current, paycheck.frequency);
+    // Guard against pathologically stale next_pay_date values (e.g. from
+    // import errors); 1000 iterations is far beyond any realistic catch-up.
+    let guard = 0;
+    while (current < startDate && guard++ < 1000) current = advanceByFrequency(current, paycheck.frequency);
 
     while (current <= endDate) {
       if (paycheck.splits.length === 0) {
@@ -156,7 +163,7 @@ function recurringTransactionEvents(
       events.push({
         date: current,
         type: 'recurring_transaction',
-        amount: -template.amount,
+        amount: -Math.abs(template.amount),
         description: template.description ?? 'Recurring transaction',
         account_id: null,
         account_name: null,
@@ -205,7 +212,14 @@ export function simulateCashFlow(tenantId: number, months: number): CashFlowResu
       i++;
     }
     runningBalance += dayTotal;
-    snapshots.push({ date, total_balance: runningBalance });
+    // Events on startDate update the seed snapshot in-place rather than
+    // appending a duplicate entry — otherwise the client's Array.find
+    // on snapshots by date would return the stale pre-event balance.
+    if (date === startDate) {
+      snapshots[0].total_balance = runningBalance;
+    } else {
+      snapshots.push({ date, total_balance: runningBalance });
+    }
   }
 
   const totalIncome = allEvents.filter((e) => e.amount > 0).reduce((s, e) => s + e.amount, 0);

@@ -160,6 +160,40 @@ describe('GET /api/cash-flow', () => {
     expect(debtEvents[0].amount).toBe(-200);
   });
 
+  it('includes recurring transaction events as negative amounts', async () => {
+    const agent = await loginAsOwner();
+
+    // A recurring transaction requires a category, which requires a department on an enterprise
+    // tenant. On a personal tenant, categories scope by tenant_id, so create one directly.
+    const categoryRes = await agent
+      .post('/api/categories')
+      .send({ name: 'Subscriptions', budgeted_amount: 100, start_date: '2026-01-01' });
+    expect(categoryRes.status).toBe(201);
+
+    const tomorrow = new Date();
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+    const recurRes = await agent.post('/api/recurring-transactions').send({
+      amount: 15,
+      description: 'Netflix',
+      category_id: categoryRes.body.id,
+      start_date: tomorrowStr,
+      interval: 'monthly',
+    });
+    expect(recurRes.status).toBe(201);
+
+    const res = await agent.get('/api/cash-flow?months=3');
+    expect(res.status).toBe(200);
+    const recurEvents = res.body.events.filter(
+      (e: { type: string }) => e.type === 'recurring_transaction'
+    );
+    expect(recurEvents.length).toBeGreaterThanOrEqual(1);
+    // Recurring transactions should appear as expenses (negative)
+    expect(recurEvents[0].amount).toBe(-15);
+    expect(res.body.total_expenses).toBeGreaterThan(0);
+  });
+
   it('only sees data from its own tenant', async () => {
     // Create a second owner with their own account and paycheck
     const { tenantId: otherTenantId } = await createOwner('Other', 'other@example.com');
