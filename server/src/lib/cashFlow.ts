@@ -35,6 +35,15 @@ function addDays(dateStr: string, days: number): string {
   return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
 }
 
+// Adds `months` calendar months, clamping to the target month's last day so
+// e.g. Jan 31 + 1 month lands on Feb 28/29 instead of overflowing to Mar 3.
+function addMonthsClamped(dateStr: string, months: number): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const daysInTargetMonth = new Date(Date.UTC(year, month - 1 + months + 1, 0)).getUTCDate();
+  const clampedDay = Math.min(day, daysInTargetMonth);
+  return new Date(Date.UTC(year, month - 1 + months, clampedDay)).toISOString().slice(0, 10);
+}
+
 // Advances a semimonthly date to its next occurrence.
 // If the day is 1–15, the next pay is day+15 in the same month — clamped to
 // the last day of that month so Feb 15 → Feb 28/29, not Mar 1/2.
@@ -79,8 +88,12 @@ function paycheckEvents(
     let current = paycheck.next_pay_date;
     // Guard against pathologically stale next_pay_date values (e.g. from
     // import errors); 1000 iterations is far beyond any realistic catch-up.
+    // If it's still stale after the guard, skip this paycheck entirely
+    // rather than falling through to the generation loop below, which
+    // would otherwise emit a flood of pre-start events.
     let guard = 0;
     while (current < startDate && guard++ < 1000) current = advanceByFrequency(current, paycheck.frequency);
+    if (current < startDate) continue;
 
     while (current <= endDate) {
       if (paycheck.splits.length === 0) {
@@ -177,8 +190,7 @@ function recurringTransactionEvents(
 
 export function simulateCashFlow(tenantId: number, months: number): CashFlowResult {
   const startDate = todayISO();
-  const [sy, sm, sd] = startDate.split('-').map(Number);
-  const endDate = new Date(Date.UTC(sy, sm - 1 + months, sd)).toISOString().slice(0, 10);
+  const endDate = addMonthsClamped(startDate, months);
 
   const accounts = bankAccountRepository.findAll(tenantId);
   const paychecks = paycheckRepository.findAll(tenantId);

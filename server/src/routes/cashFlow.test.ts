@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 import app from '../app';
 import db from '../db';
@@ -71,6 +71,18 @@ describe('GET /api/cash-flow', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 for a non-integer months param', async () => {
+    const agent = await loginAsOwner();
+    const res = await agent.get('/api/cash-flow?months=3.9');
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 for a non-numeric months param', async () => {
+    const agent = await loginAsOwner();
+    const res = await agent.get('/api/cash-flow?months=3abc');
+    expect(res.status).toBe(400);
+  });
+
   it('returns baseline structure with no data', async () => {
     const agent = await loginAsOwner();
     const res = await agent.get('/api/cash-flow');
@@ -107,6 +119,43 @@ describe('GET /api/cash-flow', () => {
     const diffMonths =
       (end.getUTCFullYear() - start.getUTCFullYear()) * 12 + (end.getUTCMonth() - start.getUTCMonth());
     expect(diffMonths).toBe(6);
+  });
+
+  it('clamps end_date to the target month\'s last day instead of overflowing', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-01-31T00:00:00Z'));
+    try {
+      const agent = await loginAsOwner();
+      const res = await agent.get('/api/cash-flow?months=1');
+      expect(res.status).toBe(200);
+      expect(res.body.start_date).toBe('2026-01-31');
+      // Naive Date.UTC(2026, 1, 31) overflows to 2026-03-03; clamped it should
+      // land on Feb 28 (2026 is not a leap year).
+      expect(res.body.end_date).toBe('2026-02-28');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not leak pre-start events when a stale next_pay_date exceeds the catch-up guard', async () => {
+    const agent = await loginAsOwner();
+
+    // Weekly paycheck dated far enough in the past that the 1000-iteration
+    // catch-up guard (weekly = 7 days/iteration) can't reach "today".
+    const paycheckRes = await agent.post('/api/paychecks').send({
+      label: 'Stale Salary',
+      amount: 1000,
+      frequency: 'weekly',
+      next_pay_date: '1990-01-01',
+      splits: [],
+    });
+    expect(paycheckRes.status).toBe(201);
+
+    const res = await agent.get('/api/cash-flow?months=1');
+    expect(res.status).toBe(200);
+    for (const event of res.body.events) {
+      expect(event.date >= res.body.start_date).toBe(true);
+    }
   });
 
   it('includes paycheck income events and adds them to snapshots', async () => {

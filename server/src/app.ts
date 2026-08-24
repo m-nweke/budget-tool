@@ -62,7 +62,9 @@ app.use('/api/bank-accounts', authenticate, bankAccountsRouter);
 app.use('/api/paychecks', authenticate, paychecksRouter);
 app.use('/api/savings-goals', authenticate, savingsGoalsRouter);
 app.use('/api/debts', authenticate, debtsRouter);
-app.use('/api/cash-flow', authenticate, cashFlowRouter);
+// Cash-flow projections read recurring-transaction next_run_date, so it
+// needs generation materialized first, same as the routers above.
+app.use('/api/cash-flow', authenticate, materializeDueTransactions, cashFlowRouter);
 
 // Any /api/* path that didn't match a router above is a real 404, not a
 // SPA route — return JSON instead of falling through to index.html.
