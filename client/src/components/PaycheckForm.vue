@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { api } from '../api';
-import type { Paycheck, CreatePaycheckDto, CreatePaycheckSplitDto, PaycheckFrequency, BankAccount } from '../types';
+import type {
+  Paycheck,
+  CreatePaycheckDto,
+  CreatePaycheckSplitDto,
+  PaycheckFrequency,
+  BankAccount,
+  BankAccountType,
+} from '../types';
 
 const props = defineProps<{
   paycheck: Paycheck | null;
@@ -48,6 +55,34 @@ function removeSplit(index: number) {
   splits.value.splice(index, 1);
 }
 
+// Splitting requires an account to split into, but sending someone all the
+// way to /accounts and back to add their first one (and then having to
+// re-open this form) was the friction behind "why can't I add a split" —
+// this quick-create form lets them create one inline instead, without
+// leaving the paycheck form.
+const showQuickAccount = ref(false);
+const quickAccountName = ref('');
+const quickAccountType = ref<BankAccountType>('checking');
+const quickAccountError = ref('');
+const creatingQuickAccount = ref(false);
+
+async function handleQuickAddAccount() {
+  quickAccountError.value = '';
+  creatingQuickAccount.value = true;
+  try {
+    const account = await api.createBankAccount({ name: quickAccountName.value, type: quickAccountType.value });
+    accounts.value.push(account);
+    quickAccountName.value = '';
+    quickAccountType.value = 'checking';
+    showQuickAccount.value = false;
+    addSplit();
+  } catch (e) {
+    quickAccountError.value = (e as Error).message;
+  } finally {
+    creatingQuickAccount.value = false;
+  }
+}
+
 function handleSubmit() {
   emit('submit', {
     label: label.value,
@@ -90,7 +125,37 @@ function handleSubmit() {
           + Add Split
         </button>
       </div>
-      <p v-if="!accounts.length" class="field-hint">Add a bank account first to split this paycheck across it.</p>
+      <template v-if="!accounts.length">
+        <p class="field-hint">You'll need a bank account before you can split this paycheck across one.</p>
+        <button
+          v-if="!showQuickAccount"
+          type="button"
+          class="btn btn-secondary btn-sm quick-account-toggle"
+          @click="showQuickAccount = true"
+        >
+          + Add an account now
+        </button>
+        <div v-else class="quick-account-form">
+          <p v-if="quickAccountError" class="alert">{{ quickAccountError }}</p>
+          <div class="quick-account-row">
+            <input v-model="quickAccountName" type="text" placeholder="e.g. Checking" />
+            <select v-model="quickAccountType">
+              <option value="checking">Checking</option>
+              <option value="savings">Savings</option>
+              <option value="other">Other</option>
+            </select>
+            <button
+              type="button"
+              class="btn btn-primary btn-sm"
+              :disabled="!quickAccountName || creatingQuickAccount"
+              @click="handleQuickAddAccount"
+            >
+              Create
+            </button>
+            <button type="button" class="btn btn-secondary btn-sm" @click="showQuickAccount = false">Cancel</button>
+          </div>
+        </div>
+      </template>
       <p v-else class="field-hint">
         Each split is a percentage of the paycheck or a fixed dollar amount. Splits don't need to add up to the full amount.
       </p>
@@ -151,6 +216,24 @@ function handleSubmit() {
 .split-row {
   display: grid;
   grid-template-columns: 1fr 70px 100px auto;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.quick-account-toggle {
+  align-self: flex-start;
+}
+
+.quick-account-form {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.quick-account-row {
+  display: grid;
+  grid-template-columns: 1fr 110px auto auto;
   gap: var(--space-2);
   align-items: center;
 }

@@ -6,6 +6,8 @@ import KebabMenu from '../components/KebabMenu.vue';
 import { formatCurrency } from '../utils/format';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
 
+type Interval = 'week' | 'month' | 'quarter';
+
 const goals = ref<SavingsGoal[]>([]);
 const accounts = ref<BankAccount[]>([]);
 const showForm = ref(false);
@@ -13,6 +15,7 @@ const editingGoal = ref<SavingsGoal | null>(null);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
+const interval = ref<Interval>('month');
 
 const accountNameById = computed(() => {
   const map: Record<number, string> = {};
@@ -21,6 +24,29 @@ const accountNameById = computed(() => {
   }
   return map;
 });
+
+const INTERVAL_LABELS: Record<Interval, string> = { week: 'week', month: 'month', quarter: 'quarter' };
+// Average days per interval — a week is exact, month/quarter are averages
+// (365.25 / 12 and / 4) since neither divides a calendar evenly, same
+// tradeoff the server's PERIODS_PER_MONTH-style proration makes elsewhere.
+const DAYS_PER_INTERVAL: Record<Interval, number> = { week: 7, month: 365.25 / 12, quarter: 365.25 / 4 };
+
+function progressFor(goal: SavingsGoal): number {
+  if (goal.target_amount <= 0) return 0;
+  return Math.min(1, Math.max(0, goal.saved_amount / goal.target_amount));
+}
+
+// How much to set aside each `interval` to hit target_date, based on what's
+// left to save today. Returns null when there's nothing to compute (no
+// target date, or the goal is already fully funded) so the template can
+// show a plain "on track" state instead of a pace.
+function paceFor(goal: SavingsGoal): number | null {
+  const remaining = goal.target_amount - goal.saved_amount;
+  if (remaining <= 0 || !goal.target_date) return null;
+  const daysLeft = (new Date(goal.target_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  const periodsLeft = Math.max(1, daysLeft / DAYS_PER_INTERVAL[interval.value]);
+  return remaining / periodsLeft;
+}
 
 function scrollToForm() {
   viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -80,9 +106,23 @@ onMounted(loadGoals);
   <div ref="viewTop" class="view-header">
     <div>
       <h1>Goals</h1>
-      <p>Save toward a target amount, optionally linked to an account.</p>
+      <p>Save toward a target amount, optionally as a vault of a linked account.</p>
     </div>
-    <button v-if="!showForm && goals.length" class="btn btn-primary" @click="openCreateForm">+ Add Goal</button>
+    <div class="header-actions">
+      <div v-if="goals.length" class="interval-toggle">
+        <button
+          v-for="option in (['week', 'month', 'quarter'] as Interval[])"
+          :key="option"
+          type="button"
+          class="interval-option"
+          :class="{ active: interval === option }"
+          @click="interval = option"
+        >
+          Per {{ option }}
+        </button>
+      </div>
+      <button v-if="!showForm && goals.length" class="btn btn-primary" @click="openCreateForm">+ Add Goal</button>
+    </div>
   </div>
 
   <p v-if="error" class="alert">{{ error }}</p>
@@ -100,16 +140,24 @@ onMounted(loadGoals);
 
   <ul v-else class="goal-list">
     <li v-for="goal in goals" :key="goal.id" class="card goal-row">
-      <div>
+      <div class="goal-body">
         <div class="goal-name">
           {{ goal.name }}
           <span v-if="goal.bank_account_id" class="badge badge-department">
-            {{ accountNameById[goal.bank_account_id] }}
+            Vault of {{ accountNameById[goal.bank_account_id] }}
           </span>
         </div>
         <div class="goal-amount">
-          {{ formatCurrency(goal.target_amount) }} target<span v-if="goal.target_date"> by {{ goal.target_date }}</span>
+          {{ formatCurrency(goal.saved_amount) }} of {{ formatCurrency(goal.target_amount) }} saved
+          <span v-if="goal.target_date"> · target {{ goal.target_date }}</span>
         </div>
+        <div class="progress-track">
+          <div class="progress-fill" :style="{ width: `${progressFor(goal) * 100}%` }" />
+        </div>
+        <div v-if="paceFor(goal) !== null" class="goal-pace">
+          Save {{ formatCurrency(paceFor(goal)!) }} per {{ INTERVAL_LABELS[interval] }} to hit your target date
+        </div>
+        <div v-else-if="progressFor(goal) >= 1" class="goal-pace goal-pace-done">Goal reached</div>
       </div>
       <KebabMenu>
         <button type="button" @click="openEditForm(goal)">Edit</button>
@@ -149,11 +197,50 @@ onMounted(loadGoals);
   gap: var(--space-3);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.interval-toggle {
+  display: inline-flex;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.interval-option {
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 6px 10px;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.interval-option.active {
+  background: var(--color-surface);
+  color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
 .goal-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
+  gap: var(--space-4);
+}
+
+.goal-body {
+  flex: 1;
+  min-width: 0;
 }
 
 .goal-name {
@@ -164,5 +251,31 @@ onMounted(loadGoals);
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 2px;
+}
+
+.progress-track {
+  margin-top: var(--space-3);
+  height: 6px;
+  border-radius: 999px;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 999px;
+  transition: width 0.25s ease-out;
+}
+
+.goal-pace {
+  margin-top: var(--space-2);
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.goal-pace-done {
+  color: var(--color-success);
+  font-weight: 600;
 }
 </style>
