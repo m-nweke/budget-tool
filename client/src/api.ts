@@ -18,6 +18,8 @@ import type {
   CreateSavingsGoalDto,
   Debt,
   CreateDebtDto,
+  Bill,
+  CreateBillDto,
   CashflowProjection,
 } from './types';
 
@@ -131,6 +133,12 @@ export const api = {
   updateDebt: (id: number, data: CreateDebtDto) =>
     request<Debt>(`/debts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDebt: (id: number) => request<null>(`/debts/${id}`, { method: 'DELETE' }),
+
+  getBills: () => request<Bill[]>('/bills'),
+  createBill: (data: CreateBillDto) => request<Bill>('/bills', { method: 'POST', body: JSON.stringify(data) }),
+  updateBill: (id: number, data: CreateBillDto) =>
+    request<Bill>(`/bills/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteBill: (id: number) => request<null>(`/bills/${id}`, { method: 'DELETE' }),
 
   getCashFlow: (days?: number) => request<CashflowProjection>(`/cash-flow${days ? `?days=${days}` : ''}`),
 

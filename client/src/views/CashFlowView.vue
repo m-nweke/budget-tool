@@ -27,8 +27,10 @@ watch(days, load);
 
 onMounted(load);
 
-function sourceLabel(source: 'recurring_transaction' | 'debt'): string {
-  return source === 'recurring_transaction' ? 'Recurring' : 'Debt';
+function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill'): string {
+  if (source === 'recurring_transaction') return 'Recurring';
+  if (source === 'bill') return 'Bill';
+  return 'Debt';
 }
 </script>
 
@@ -81,7 +83,7 @@ function sourceLabel(source: 'recurring_transaction' | 'debt'): string {
 
     <h2 class="outflows-heading">Upcoming outflows</h2>
     <p class="field-hint">
-      Recurring transactions and debt payments aren't linked to a specific account yet, so they're listed here rather than subtracted from any one balance above.
+      Recurring transactions, debt payments, and bills aren't linked to a specific account yet, so they're listed here rather than subtracted from any one balance above.
     </p>
     <div v-if="!projection.outflows.length" class="empty-state">
       <p>Nothing scheduled in this window.</p>

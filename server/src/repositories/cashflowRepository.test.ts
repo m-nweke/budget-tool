@@ -3,6 +3,7 @@ import db from '../db';
 import bankAccountRepository from './bankAccountRepository';
 import paycheckRepository from './paycheckRepository';
 import debtRepository from './debtRepository';
+import billRepository from './billRepository';
 import recurringTransactionRepository from './recurringTransactionRepository';
 import categoryRepository from './categoryRepository';
 import cashflowRepository from './cashflowRepository';
@@ -12,8 +13,8 @@ let tenantId: number;
 beforeEach(() => {
   db.exec(
     'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; ' +
-      'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM debts; DELETE FROM savings_goals; ' +
-      'DELETE FROM bank_accounts; DELETE FROM tenants;'
+      'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM debts; DELETE FROM bills; ' +
+      'DELETE FROM savings_goals; DELETE FROM bank_accounts; DELETE FROM tenants;'
   );
   tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Pat''s Budget', 'personal')").run()
     .lastInsertRowid as number;
@@ -60,7 +61,7 @@ describe('cashflowRepository.simulate', () => {
     expect(checkingProjection.daily.find((d) => d.date === '2026-08-25')!.balance).toBe(1000 + 1500);
   });
 
-  it('recurring transactions and debts appear as unattributed outflows, never mutating an account balance', () => {
+  it('recurring transactions, debts, and bills appear as unattributed outflows, never mutating an account balance', () => {
     const account = bankAccountRepository.create({ name: 'Checking', type: 'checking', current_balance: 1000 }, tenantId);
     const category = categoryRepository.create({ name: 'Rent', budgeted_amount: 1200, department_id: null }, tenantId);
     recurringTransactionRepository.create({
@@ -75,6 +76,9 @@ describe('cashflowRepository.simulate', () => {
       { name: 'Credit Card', balance: 500, interest_rate: 20, minimum_payment: 75, due_day: 22 },
       tenantId
     );
+    billRepository.create({ name: 'Electric', category: 'electric', amount: 90, due_day: 25 }, tenantId);
+    // Inactive bills are excluded from the simulation entirely.
+    billRepository.create({ name: 'Old Gym', category: 'other', amount: 40, due_day: 1, active: false }, tenantId);
 
     const projection = cashflowRepository.simulate(tenantId, '2026-08-19', '2026-09-10');
 
@@ -82,8 +86,10 @@ describe('cashflowRepository.simulate', () => {
       expect.arrayContaining([
         expect.objectContaining({ date: '2026-09-01', source: 'recurring_transaction', amount: 1200 }),
         expect.objectContaining({ date: '2026-08-22', source: 'debt', amount: 75 }),
+        expect.objectContaining({ date: '2026-08-25', source: 'bill', amount: 90, label: 'Electric' }),
       ])
     );
+    expect(projection.outflows.some((o) => o.label === 'Old Gym')).toBe(false);
     // Untouched by either outflow — the account has no paychecks in this test.
     const accountProjection = projection.accounts.find((a) => a.bank_account_id === account.id)!;
     expect(accountProjection.daily.every((d) => d.balance === 1000)).toBe(true);

@@ -13,6 +13,7 @@ const emit = defineEmits<{
 const name = ref('');
 const type = ref<BankAccountType>('checking');
 const currentBalance = ref<number | string>('');
+const apy = ref<number | string>('');
 
 watch(
   () => props.account,
@@ -20,6 +21,7 @@ watch(
     name.value = account ? account.name : '';
     type.value = account ? account.type : 'checking';
     currentBalance.value = account ? account.current_balance : '';
+    apy.value = account?.apy ?? '';
   },
   { immediate: true }
 );
@@ -29,6 +31,7 @@ function handleSubmit() {
     name: name.value,
     type: type.value,
     current_balance: currentBalance.value === '' ? undefined : Number(currentBalance.value),
+    apy: apy.value === '' ? null : Number(apy.value),
   });
 }
 </script>
@@ -50,6 +53,10 @@ function handleSubmit() {
     <label class="field">
       Current Balance
       <input v-model="currentBalance" type="number" step="0.01" placeholder="0.00" />
+    </label>
+    <label v-if="type === 'savings'" class="field">
+      APY % (optional)
+      <input v-model="apy" type="number" step="0.01" min="0" max="100" placeholder="e.g. 4.50" />
     </label>
     <div class="actions">
       <button type="submit" class="btn btn-primary">{{ account ? 'Save Changes' : 'Create Account' }}</button>

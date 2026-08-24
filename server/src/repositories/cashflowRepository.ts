@@ -2,6 +2,7 @@ import bankAccountRepository from './bankAccountRepository';
 import paycheckRepository from './paycheckRepository';
 import recurringTransactionRepository from './recurringTransactionRepository';
 import debtRepository from './debtRepository';
+import billRepository from './billRepository';
 import { addDays, stepPaycheckDates, stepMonthlyDueDates } from '../utils/dateUtils';
 import type {
   CashflowProjection,
@@ -100,6 +101,21 @@ const cashflowRepository = {
           id: debt.id,
           label: debt.name,
           amount: debt.minimum_payment,
+        });
+      }
+    }
+
+    // Same monthly-due-date shape as debts above — a bill has no
+    // bank_account_id either (see ProjectedOutflow), so it lands in the
+    // same tenant-wide unattributed outflow list.
+    for (const bill of billRepository.findAllActive(tenantId)) {
+      for (const dueDate of stepMonthlyDueDates(bill.due_day, from, to)) {
+        outflows.push({
+          date: dueDate,
+          source: 'bill',
+          id: bill.id,
+          label: bill.name,
+          amount: bill.amount,
         });
       }
     }

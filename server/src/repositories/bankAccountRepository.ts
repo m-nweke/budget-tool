@@ -1,7 +1,7 @@
 import db from '../db';
 import type { BankAccount, CreateBankAccountDto } from '../types';
 
-const COLUMNS = 'id, tenant_id, name, type, current_balance';
+const COLUMNS = 'id, tenant_id, name, type, current_balance, apy';
 
 const bankAccountRepository = {
   findAll(tenantId: number): BankAccount[] {
@@ -12,18 +12,19 @@ const bankAccountRepository = {
     return db.prepare(`SELECT ${COLUMNS} FROM bank_accounts WHERE id = ?`).get(id) as BankAccount | undefined;
   },
 
-  create({ name, type, current_balance }: CreateBankAccountDto, tenantId: number): BankAccount {
+  create({ name, type, current_balance, apy }: CreateBankAccountDto, tenantId: number): BankAccount {
     const result = db
-      .prepare('INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, ?, ?, ?)')
-      .run(tenantId, name, type, current_balance ?? 0);
+      .prepare('INSERT INTO bank_accounts (tenant_id, name, type, current_balance, apy) VALUES (?, ?, ?, ?, ?)')
+      .run(tenantId, name, type, current_balance ?? 0, apy ?? null);
     return bankAccountRepository.findById(result.lastInsertRowid as number) as BankAccount;
   },
 
-  update(id: number | string, { name, type, current_balance }: CreateBankAccountDto): BankAccount {
-    db.prepare('UPDATE bank_accounts SET name = ?, type = ?, current_balance = ? WHERE id = ?').run(
+  update(id: number | string, { name, type, current_balance, apy }: CreateBankAccountDto): BankAccount {
+    db.prepare('UPDATE bank_accounts SET name = ?, type = ?, current_balance = ?, apy = ? WHERE id = ?').run(
       name,
       type,
       current_balance ?? 0,
+      apy ?? null,
       id
     );
     return bankAccountRepository.findById(id) as BankAccount;
