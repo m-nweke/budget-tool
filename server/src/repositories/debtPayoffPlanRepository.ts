@@ -150,7 +150,7 @@ const debtPayoffPlanRepository = {
     let avalancheComparison: DebtPayoffPlanResponse['avalanche_comparison'] = null;
 
     if (settings && settings.monthly_amount > 0 && debts.length > 0) {
-      const customOrder = settings.custom_order ? (JSON.parse(settings.custom_order) as number[]) : null;
+      const customOrder = (() => { if (!settings.custom_order) return null; try { return JSON.parse(settings.custom_order) as number[]; } catch { return null; } })();
       const order = orderDebts(debts, settings.strategy, customOrder);
       plan = simulate(debts, settings.monthly_amount, order);
 
