@@ -40,9 +40,12 @@ async function loadDashboard() {
 async function loadDepartments() {
   try {
     departments.value = await api.getDepartments();
-  } catch {
-    // A 403/empty result just means no department filter is offered —
-    // not worth surfacing as a page-level error alongside the dashboard's own.
+  } catch (e) {
+    // GET /api/departments 200s unconditionally for any authenticated user
+    // (an empty array for an owner/employee just means no filter is shown —
+    // see showDepartmentFilter), so a caught error here is a genuine
+    // failure (network/server), not an expected case to swallow quietly.
+    error.value = (e as Error).message;
   }
 }
 
