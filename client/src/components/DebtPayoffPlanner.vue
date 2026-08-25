@@ -159,7 +159,7 @@ const payoffResult = computed<DebtPayoffResult | null>(() => {
         <li v-for="row in payoffResult.per_debt" :key="row.debt_id">
           <span class="per-debt-name">{{ row.name }}</span>
           <span class="per-debt-meta">
-            paid off {{ row.payoff_date }} · {{ formatCurrency(row.interest_paid) }} interest
+            {{ row.payoff_date ? `paid off ${row.payoff_date}` : 'not paid off yet' }} · {{ formatCurrency(row.interest_paid) }} interest
           </span>
         </li>
       </ul>
