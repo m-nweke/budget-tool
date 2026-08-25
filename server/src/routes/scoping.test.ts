@@ -89,6 +89,45 @@ describe('GET /api/departments', () => {
   });
 });
 
+describe('GET /api/dashboard department_id filtering', () => {
+  it('narrows a head\'s combined dashboard to a single accessible department', async () => {
+    categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA, start_on: '2026-01-01' }, tenantId);
+    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB, start_on: '2026-01-01' }, tenantId);
+    await createHead('Dana', 'dana@example.com', deptA, deptB);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.get('/api/dashboard?from=2026-08&to=2026-08&department_id=' + deptA);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveLength(1);
+    expect(res.body[0].department_id).toBe(deptA);
+  });
+
+  it('rejects a department_id the head was not granted, with 403', async () => {
+    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB, start_on: '2026-01-01' }, tenantId);
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.get('/api/dashboard?department_id=' + deptB);
+    expect(res.status).toBe(403);
+  });
+
+  it('rejects a non-numeric department_id with 400', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.get('/api/dashboard?department_id=abc');
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects department_id for a personal-tenant owner with 400', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+
+    const res = await agent.get('/api/dashboard?department_id=1');
+    expect(res.status).toBe(400);
+  });
+});
+
 describe('POST /api/departments', () => {
   it('grants the creating head access to the new department, so they are not immediately locked out of it', async () => {
     await createHead('Dana', 'dana@example.com');

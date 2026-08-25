@@ -134,4 +134,25 @@ describe('findSummary department scoping', () => {
     const rows = dashboardRepository.findSummary('2026-08', '2026-08', []);
     expect(rows).toHaveLength(0);
   });
+
+  it('includes the department id and name on each row', () => {
+    const [row] = dashboardRepository.findSummary('2026-08');
+    expect(row.department_id).toBe(deptA);
+    expect(row.department_name).toBe('Engineering');
+  });
+
+  it('returns null department id/name for a personal-tenant category', () => {
+    const personalTenantId = db
+      .prepare("INSERT INTO tenants (name, type) VALUES ('Personal', 'personal')")
+      .run().lastInsertRowid as number;
+    const personalCategoryId = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 100, department_id: null },
+      personalTenantId
+    ).id;
+
+    const rows = dashboardRepository.findSummary('2026-08', '2026-08', undefined, personalTenantId);
+    const row = rows.find((r) => r.category_id === personalCategoryId)!;
+    expect(row.department_id).toBeNull();
+    expect(row.department_name).toBeNull();
+  });
 });

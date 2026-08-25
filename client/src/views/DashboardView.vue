@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { api } from '../api';
 import { formatCurrency } from '../utils/format';
-import type { DashboardRow } from '../types';
+import type { DashboardRow, Department } from '../types';
 
 const rows = ref<DashboardRow[]>([]);
 const error = ref('');
@@ -10,6 +10,15 @@ const loaded = ref(false);
 const currentMonth = new Date().toISOString().slice(0, 7);
 const fromMonth = ref(currentMonth);
 const toMonth = ref(currentMonth);
+const departments = ref<Department[]>([]);
+// '' means "all accessible departments" — kept as a string since a native
+// <select> only ever emits strings, converted to a number before the API call.
+const selectedDepartmentId = ref('');
+
+// Only worth showing a filter (or per-card labels) once there's more than
+// one department to distinguish — a single-department head, an employee,
+// and a personal-tenant owner all resolve to exactly one implicit scope.
+const showDepartmentFilter = computed(() => departments.value.length > 1);
 
 async function loadDashboard() {
   // Keep the range from ever inverting rather than surfacing a 400 for
@@ -19,11 +28,21 @@ async function loadDashboard() {
     return;
   }
   try {
-    rows.value = await api.getDashboard(fromMonth.value, toMonth.value);
+    const departmentId = selectedDepartmentId.value ? Number(selectedDepartmentId.value) : undefined;
+    rows.value = await api.getDashboard(fromMonth.value, toMonth.value, departmentId);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
     loaded.value = true;
+  }
+}
+
+async function loadDepartments() {
+  try {
+    departments.value = await api.getDepartments();
+  } catch {
+    // A 403/empty result just means no department filter is offered —
+    // not worth surfacing as a page-level error alongside the dashboard's own.
   }
 }
 
@@ -53,8 +72,11 @@ function usageLevel(row: DashboardRow): 'low' | 'medium' | 'high' {
   return 'low';
 }
 
-watch([fromMonth, toMonth], loadDashboard);
-onMounted(loadDashboard);
+watch([fromMonth, toMonth, selectedDepartmentId], loadDashboard);
+onMounted(() => {
+  loadDashboard();
+  loadDepartments();
+});
 </script>
 
 <template>
@@ -64,6 +86,10 @@ onMounted(loadDashboard);
       <p>Budget vs. actual spend by category.</p>
     </div>
     <div class="range-picker">
+      <select v-if="showDepartmentFilter" v-model="selectedDepartmentId" class="month-picker">
+        <option value="">All departments</option>
+        <option v-for="dept in departments" :key="dept.id" :value="String(dept.id)">{{ dept.name }}</option>
+      </select>
       <input v-model="fromMonth" type="month" class="month-picker" />
       <span class="range-separator">to</span>
       <input v-model="toMonth" type="month" class="month-picker" />
@@ -89,6 +115,12 @@ onMounted(loadDashboard);
         <h2>{{ row.name }}</h2>
         <span v-if="row.actual_spend > row.budgeted_amount" class="badge badge-danger">Over budget</span>
       </div>
+
+      <span
+        v-if="showDepartmentFilter && !selectedDepartmentId && row.department_name"
+        class="badge badge-department"
+        >{{ row.department_name }}</span
+      >
 
       <div class="budget-figures">
         <span class="actual">{{ formatCurrency(row.actual_spend) }}</span>
