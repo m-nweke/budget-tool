@@ -10,8 +10,9 @@ function isValidMonth(value: unknown): value is string {
   return typeof value === 'string' && MONTH_PATTERN.test(value);
 }
 
+// No leading zeros, no "0" itself — an id is always a positive integer.
 function isValidDepartmentId(value: unknown): value is string {
-  return typeof value === 'string' && /^\d+$/.test(value);
+  return typeof value === 'string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
 }
 
 router.get('/', (req: Request, res: Response) => {

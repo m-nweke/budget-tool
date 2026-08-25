@@ -119,6 +119,30 @@ describe('GET /api/dashboard department_id filtering', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects "0" with 400, not a misleading 403/200', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.get('/api/dashboard?department_id=0');
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a leading-zero id like "00' + deptA + '" with 400', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.get('/api/dashboard?department_id=00' + deptA);
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects an id beyond MAX_SAFE_INTEGER with 400 instead of losing precision', async () => {
+    await createHead('Dana', 'dana@example.com', deptA);
+    const agent = await loginAs('dana@example.com');
+
+    const res = await agent.get('/api/dashboard?department_id=99999999999999999999');
+    expect(res.status).toBe(400);
+  });
+
   it('rejects department_id for a personal-tenant owner with 400', async () => {
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');

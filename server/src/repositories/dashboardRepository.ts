@@ -39,7 +39,7 @@ const dashboardRepository = {
          FROM categories c
          LEFT JOIN transactions t
            ON t.category_id = c.id AND t.date >= ? AND t.date < ?
-         LEFT JOIN departments d ON d.id = c.department_id
+         LEFT JOIN departments d ON d.id = c.department_id AND d.tenant_id = c.tenant_id
          WHERE c.start_on < ? ${scopeFilter}
          GROUP BY c.id, c.name, c.budgeted_amount, c.department_id, d.name`
       )
