@@ -66,6 +66,44 @@
   }
 }
 
+/* Personal-tenant palette (SoFi-inspired: confident blue, mint accent) —
+   set on <html data-mode="personal"> by App.vue whenever the active
+   session's tenant_type is 'personal', so every var() consumer in this
+   file (buttons, badges, focus rings, links) repaints without any
+   component knowing a second palette exists. Enterprise keeps the
+   original green scheme untouched (no [data-mode="enterprise"] override). */
+:root[data-mode='personal'] {
+  --color-bg: #f4f7fd;
+  --color-surface: #ffffff;
+  --color-border: #dbe4f7;
+  --color-text: #101828;
+  --color-text-muted: #5b6b8c;
+
+  --color-primary: #0b5fff;
+  --color-primary-hover: #0847c8;
+  --color-primary-bg: #e8f0ff;
+
+  --color-success: #00b88d;
+  --color-warning: #ff8a3d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-mode='personal'] {
+    --color-bg: #0b1120;
+    --color-surface: #121b2e;
+    --color-border: #223251;
+    --color-text: #eef2fb;
+    --color-text-muted: #93a3c4;
+
+    --color-primary: #6fa2ff;
+    --color-primary-hover: #93b9ff;
+    --color-primary-bg: rgba(111, 162, 255, 0.16);
+
+    --color-success: #33d9ab;
+    --color-warning: #ffab6b;
+  }
+}
+
 *,
 *::before,
 *::after {

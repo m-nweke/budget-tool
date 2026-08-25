@@ -10,13 +10,49 @@ const router = useRouter();
 
 // Same idiom as CategoryForm.vue's isPersonal — swaps in the Phase 2
 // personal-budget nav links alongside the existing tenant-agnostic ones
-// (Dashboard/Transactions/Categories/Approvals all already work for a
-// personal tenant unmodified, so they stay as-is).
+// (Dashboard/Transactions/Categories all already work for a personal
+// tenant unmodified, so they stay as-is). Approvals is deliberately left
+// out of the personal-mode nav below — a single-owner tenant only ever
+// self-approves its own transactions, which is rare enough that it
+// doesn't earn a permanent nav slot; the route/API still work if
+// navigated to directly.
 const isPersonal = computed(() => user.value?.tenant_type === 'personal');
 
 const workspaceMenuOpen = ref(false);
 const workspaceMenuRoot = ref<HTMLElement | null>(null);
 const switching = ref(false);
+
+// The personal-only links (6, with Bills) collapse into this one
+// "Budget ▾" trigger on desktop instead of sitting inline — same dropdown
+// idiom as the workspace switcher below, just for route links instead of
+// tenant switching. Keeps Dashboard/Transactions/Categories as the only
+// always-inline items, so the bar doesn't grow with every personal-budget
+// feature added.
+const budgetMenuOpen = ref(false);
+const budgetMenuRoot = ref<HTMLElement | null>(null);
+
+// Separate from budgetMenuOpen: the mobile panel renders every link flat
+// (no nested dropdown-inside-a-dropdown), driven by its own hamburger
+// toggle rather than reusing the desktop dropdown's state.
+const mobileMenuOpen = ref(false);
+
+router.afterEach(() => {
+  budgetMenuOpen.value = false;
+  mobileMenuOpen.value = false;
+});
+
+function toggleBudgetMenu() {
+  budgetMenuOpen.value = !budgetMenuOpen.value;
+}
+
+function handleClickOutsideBudgetMenu(event: MouseEvent) {
+  if (budgetMenuRoot.value && !budgetMenuRoot.value.contains(event.target as Node)) {
+    budgetMenuOpen.value = false;
+  }
+}
+
+onMounted(() => document.addEventListener('click', handleClickOutsideBudgetMenu));
+onBeforeUnmount(() => document.removeEventListener('click', handleClickOutsideBudgetMenu));
 
 // Refreshes once someone who can approve (head or personal-tenant owner)
 // is known to be logged in (not on every mount — NavBar mounts once for
@@ -85,27 +121,46 @@ async function handleLogout() {
 <template>
   <header class="nav-bar">
     <div class="nav-inner">
-      <span class="brand">Budget Tool</span>
+      <div class="brand-group">
+        <span class="brand">Budget Tool</span>
+        <span v-if="user" class="mode-pill">{{ isPersonal ? 'Personal' : 'Enterprise' }}</span>
+        <RouterLink to="/about" class="about-link">About</RouterLink>
+      </div>
+
       <nav v-if="user" class="nav-links">
         <RouterLink to="/">Dashboard</RouterLink>
         <RouterLink to="/transactions">Transactions</RouterLink>
         <RouterLink to="/categories">Categories</RouterLink>
-        <RouterLink v-if="canApprove" to="/approvals">
+        <RouterLink v-if="canApprove && !isPersonal" to="/approvals">
           Approvals
           <span v-if="pending.length" class="badge badge-count">{{ pending.length }}</span>
         </RouterLink>
-        <template v-if="isPersonal">
-          <RouterLink to="/accounts">Accounts</RouterLink>
-          <RouterLink to="/paycheck">Paycheck</RouterLink>
-          <RouterLink to="/goals">Goals</RouterLink>
-          <RouterLink to="/debts">Debts</RouterLink>
-        </template>
+        <div v-if="isPersonal" ref="budgetMenuRoot" class="budget-menu">
+          <button
+            type="button"
+            class="budget-trigger"
+            :class="{ 'router-link-exact-active': budgetMenuOpen }"
+            @click="toggleBudgetMenu"
+          >
+            Budget
+            <span class="chevron">▾</span>
+          </button>
+          <ul v-if="budgetMenuOpen" class="budget-dropdown">
+            <li><RouterLink to="/accounts">Accounts</RouterLink></li>
+            <li><RouterLink to="/paycheck">Paycheck</RouterLink></li>
+            <li><RouterLink to="/bills">Bills</RouterLink></li>
+            <li><RouterLink to="/cash-flow">Cash Flow</RouterLink></li>
+            <li><RouterLink to="/goals">Goals</RouterLink></li>
+            <li><RouterLink to="/debts">Debts</RouterLink></li>
+          </ul>
+        </div>
       </nav>
+
       <div v-if="user" class="nav-user">
         <div v-if="memberships.length > 1" ref="workspaceMenuRoot" class="workspace-switcher">
           <button type="button" class="workspace-trigger" @click="toggleWorkspaceMenu">
             <span class="tenant-type-dot" :class="`dot-${user.tenant_type}`" />
-            {{ memberships.find((m) => m.tenant_id === user!.tenant_id)?.tenant_name }}
+            <span class="workspace-trigger-label">{{ memberships.find((m) => m.tenant_id === user!.tenant_id)?.tenant_name }}</span>
             <span class="chevron">▾</span>
           </button>
           <ul v-if="workspaceMenuOpen" class="workspace-dropdown">
@@ -128,8 +183,38 @@ async function handleLogout() {
         </div>
         <span class="user-name">{{ user.name }}</span>
         <button type="button" class="btn btn-secondary btn-sm" @click="handleLogout">Log Out</button>
+        <button
+          type="button"
+          class="hamburger"
+          :class="{ open: mobileMenuOpen }"
+          :aria-expanded="mobileMenuOpen"
+          aria-label="Toggle menu"
+          @click="mobileMenuOpen = !mobileMenuOpen"
+        >
+          <span /><span /><span />
+        </button>
       </div>
     </div>
+
+    <nav v-if="user && mobileMenuOpen" class="mobile-nav">
+      <RouterLink to="/">Dashboard</RouterLink>
+      <RouterLink to="/transactions">Transactions</RouterLink>
+      <RouterLink to="/categories">Categories</RouterLink>
+      <RouterLink v-if="canApprove && !isPersonal" to="/approvals">
+        Approvals
+        <span v-if="pending.length" class="badge badge-count">{{ pending.length }}</span>
+      </RouterLink>
+      <template v-if="isPersonal">
+        <span class="mobile-nav-section">Budget</span>
+        <RouterLink to="/accounts">Accounts</RouterLink>
+        <RouterLink to="/paycheck">Paycheck</RouterLink>
+        <RouterLink to="/bills">Bills</RouterLink>
+        <RouterLink to="/cash-flow">Cash Flow</RouterLink>
+        <RouterLink to="/goals">Goals</RouterLink>
+        <RouterLink to="/debts">Debts</RouterLink>
+      </template>
+      <RouterLink to="/about">About</RouterLink>
+    </nav>
   </header>
 </template>
 
@@ -152,14 +237,42 @@ async function handleLogout() {
   height: 60px;
 }
 
+.brand-group {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
 .brand {
   font-weight: 700;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
 }
 
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.about-link {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.about-link:hover {
+  color: var(--color-primary);
+}
+
 .nav-links {
   display: flex;
+  align-items: center;
   gap: var(--space-1);
 }
 
@@ -289,5 +402,161 @@ async function handleLogout() {
 
 .dot-personal {
   background: var(--color-warning);
+}
+
+.budget-menu {
+  position: relative;
+}
+
+.budget-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font: inherit;
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  padding: 7px 10px 7px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s;
+}
+
+.budget-trigger:hover {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.budget-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  z-index: 20;
+  animation: dropdown-in 0.12s ease-out;
+}
+
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.budget-dropdown a {
+  display: block;
+  text-decoration: none;
+  color: var(--color-text);
+  font-size: 0.88rem;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+}
+
+.budget-dropdown a:hover {
+  background: var(--color-bg);
+}
+
+.budget-dropdown a.router-link-exact-active {
+  background: var(--color-primary-bg);
+  color: var(--color-primary);
+}
+
+.hamburger {
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.hamburger span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: var(--color-text);
+  border-radius: 1px;
+  transition: transform 0.18s, opacity 0.18s;
+}
+
+.hamburger.open span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.hamburger.open span:nth-child(2) {
+  opacity: 0;
+}
+
+.hamburger.open span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .nav-links {
+    display: none;
+  }
+
+  .workspace-trigger-label,
+  .user-name {
+    display: none;
+  }
+
+  .hamburger {
+    display: flex;
+  }
+
+  .mobile-nav {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-2) var(--space-5) var(--space-4);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .mobile-nav a {
+    text-decoration: none;
+    color: var(--color-text-muted);
+    font-weight: 500;
+    font-size: 0.95rem;
+    padding: 11px 4px;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .mobile-nav a.router-link-exact-active {
+    color: var(--color-primary);
+  }
+
+  .mobile-nav-section {
+    margin-top: var(--space-2);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+  }
+
+  .nav-inner {
+    padding: 0 var(--space-4);
+  }
 }
 </style>

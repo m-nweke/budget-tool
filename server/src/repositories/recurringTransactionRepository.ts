@@ -174,6 +174,24 @@ const recurringTransactionRepository = {
       generateDueForTemplate(template);
     }
   }),
+
+  // Cash-flow simulation only (story 18) — same date-stepping shape as
+  // generateDueForTemplate, but purely additive: no createGenerated,
+  // deactivate, or next_run_date UPDATE. Assumes the caller has already run
+  // generateDue() for real (the cash-flow route mounts materializeDueTransactions
+  // like transactions/dashboard do), so template.next_run_date is already
+  // past today and this only ever walks forward into future occurrences,
+  // never re-derives backlog.
+  projectOccurrences(template: RecurringTransaction, windowEnd: string): { date: string; amount: number }[] {
+    const occurrences: { date: string; amount: number }[] = [];
+    let nextRun = template.next_run_date;
+    while (nextRun <= windowEnd) {
+      if (template.end_date && nextRun > template.end_date) break;
+      occurrences.push({ date: nextRun, amount: template.amount });
+      nextRun = addByInterval(nextRun, template.interval);
+    }
+    return occurrences;
+  },
 };
 
 export default recurringTransactionRepository;

@@ -149,7 +149,11 @@ db.exec(`
     tenant_id INTEGER NOT NULL REFERENCES tenants(id),
     name TEXT NOT NULL,
     type TEXT NOT NULL CHECK (type IN ('checking', 'savings', 'other')),
-    current_balance REAL NOT NULL DEFAULT 0
+    current_balance REAL NOT NULL DEFAULT 0,
+    -- Optional annual percentage yield, e.g. for a high-yield savings
+    -- account. Nullable — most checking/other accounts don't carry one,
+    -- and NULL (vs. 0) distinguishes "not tracked" from "tracked, 0%".
+    apy REAL
   );
 
   CREATE TABLE IF NOT EXISTS paychecks (
@@ -180,7 +184,13 @@ db.exec(`
     -- goal starts counting toward its target, not when the row was created.
     start_on TEXT NOT NULL DEFAULT (date('now')),
     target_date TEXT,
-    bank_account_id INTEGER REFERENCES bank_accounts(id)
+    bank_account_id INTEGER REFERENCES bank_accounts(id),
+    -- How much has actually been set aside toward this goal so far —
+    -- tracked independently of bank_accounts.current_balance (SoFi-vault
+    -- style: several goals can share one linked account without each
+    -- goal's progress being the account's whole balance). Manually
+    -- updated by the owner, not derived from transactions.
+    saved_amount REAL NOT NULL DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS debts (
@@ -193,6 +203,22 @@ db.exec(`
     due_day INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31)
   );
 
+  -- Recurring monthly household bills (rent, wifi, electric, water,
+  -- insurance, etc.) — same due_day/month-clamp shape as debts above, so
+  -- cashflowRepository can fold them into the simulation with the same
+  -- stepMonthlyDueDates helper already used for debt payments. category is
+  -- informational only (no behavioral branching on it), used for icon/
+  -- grouping in the UI.
+  CREATE TABLE IF NOT EXISTS bills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    name TEXT NOT NULL,
+    category TEXT NOT NULL CHECK (category IN ('rent', 'wifi', 'electric', 'water', 'insurance', 'other')),
+    amount REAL NOT NULL,
+    due_day INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31),
+    active INTEGER NOT NULL DEFAULT 1
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bank_accounts_tenant_id ON bank_accounts(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_paychecks_tenant_id ON paychecks(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_paycheck_splits_paycheck_id ON paycheck_splits(paycheck_id);
@@ -200,6 +226,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_savings_goals_tenant_id ON savings_goals(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_savings_goals_bank_account_id ON savings_goals(bank_account_id);
   CREATE INDEX IF NOT EXISTS idx_debts_tenant_id ON debts(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_bills_tenant_id ON bills(tenant_id);
 `);
 
 // Lightweight migration for columns added after a database already existed.
@@ -229,6 +256,8 @@ migrateColumn('ALTER TABLE departments ADD COLUMN tenant_id INTEGER REFERENCES t
 migrateColumn('ALTER TABLE categories ADD COLUMN tenant_id INTEGER REFERENCES tenants(id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_categories_tenant_id ON categories(tenant_id)');
 db.exec('CREATE INDEX IF NOT EXISTS idx_departments_tenant_id ON departments(tenant_id)');
+migrateColumn('ALTER TABLE bank_accounts ADD COLUMN apy REAL');
+migrateColumn('ALTER TABLE savings_goals ADD COLUMN saved_amount REAL NOT NULL DEFAULT 0');
 
 // Like migrateColumn, but for a column being removed rather than added —
 // dropping a column that was never there (a database created fresh, after

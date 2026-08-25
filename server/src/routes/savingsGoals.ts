@@ -26,10 +26,22 @@ function validateLinkedAccount(
   return null;
 }
 
+function validateSavedAmount(savedAmount: unknown): string | null {
+  if (savedAmount === undefined) return null;
+  if (typeof savedAmount !== 'number' || !Number.isFinite(savedAmount) || savedAmount < 0) {
+    return 'saved_amount must be a non-negative number';
+  }
+  return null;
+}
+
 router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateSavingsGoalDto>, res: Response) => {
-  const { name, target_amount, start_on, target_date, bank_account_id } = req.body;
+  const { name, target_amount, start_on, target_date, bank_account_id, saved_amount } = req.body;
   if (!name || target_amount === undefined || target_amount === null) {
     return res.status(400).json({ error: 'name and target_amount are required' });
+  }
+  const savedAmountError = validateSavedAmount(saved_amount);
+  if (savedAmountError) {
+    return res.status(400).json({ error: savedAmountError });
   }
   const user = req.user as AuthUser;
   const linkError = validateLinkedAccount(user, bank_account_id);
@@ -37,16 +49,20 @@ router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateSavingsGoalDt
     return res.status(400).json(linkError);
   }
   const goal = savingsGoalRepository.create(
-    { name, target_amount, start_on, target_date, bank_account_id },
+    { name, target_amount, start_on, target_date, bank_account_id, saved_amount },
     user.tenant_id
   );
   res.status(201).json(goal);
 });
 
 router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreateSavingsGoalDto>, res: Response) => {
-  const { name, target_amount, start_on, target_date, bank_account_id } = req.body;
+  const { name, target_amount, start_on, target_date, bank_account_id, saved_amount } = req.body;
   if (!name || target_amount === undefined || target_amount === null) {
     return res.status(400).json({ error: 'name and target_amount are required' });
+  }
+  const savedAmountError = validateSavedAmount(saved_amount);
+  if (savedAmountError) {
+    return res.status(400).json({ error: savedAmountError });
   }
   const existing = savingsGoalRepository.findById(req.params.id);
   if (!existing) {
@@ -66,6 +82,7 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
     start_on,
     target_date,
     bank_account_id,
+    saved_amount,
   });
   res.json(goal);
 });

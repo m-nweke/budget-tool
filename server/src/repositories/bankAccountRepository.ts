@@ -1,7 +1,7 @@
 import db from '../db';
 import type { BankAccount, CreateBankAccountDto } from '../types';
 
-const COLUMNS = 'id, tenant_id, name, type, current_balance';
+const COLUMNS = 'id, tenant_id, name, type, current_balance, apy';
 
 const bankAccountRepository = {
   findAll(tenantId: number): BankAccount[] {
@@ -12,23 +12,28 @@ const bankAccountRepository = {
     return db.prepare(`SELECT ${COLUMNS} FROM bank_accounts WHERE id = ?`).get(id) as BankAccount | undefined;
   },
 
-  create({ name, type, current_balance }: CreateBankAccountDto, tenantId: number): BankAccount {
+  create({ name, type, current_balance, apy }: CreateBankAccountDto, tenantId: number): BankAccount {
     const result = db
-      .prepare('INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, ?, ?, ?)')
-      .run(tenantId, name, type, current_balance ?? 0);
+      .prepare('INSERT INTO bank_accounts (tenant_id, name, type, current_balance, apy) VALUES (?, ?, ?, ?, ?)')
+      .run(tenantId, name, type, current_balance ?? 0, apy ?? null);
     return bankAccountRepository.findById(result.lastInsertRowid as number) as BankAccount;
   },
 
-  // Unlike create() (where an omitted current_balance correctly means "this
-  // new account starts at 0"), an omitted current_balance here must mean
-  // "leave it as-is" — otherwise an edit that only changes name/type would
-  // silently wipe the account's tracked balance back to 0.
-  update(id: number | string, { name, type, current_balance }: CreateBankAccountDto): BankAccount {
+  // Unlike create() (where an omitted current_balance/apy correctly means
+  // "this new account starts at 0/untracked"), an omitted value here must
+  // mean "leave it as-is" — otherwise an edit that only changes name/type
+  // would silently wipe the account's tracked balance (or APY) back out.
+  // apy specifically uses an `undefined` check rather than `??`: AccountForm
+  // sends an explicit `null` to clear an already-set APY, and `??` would
+  // treat that null the same as "omitted" and silently restore the old
+  // value instead of clearing it.
+  update(id: number | string, { name, type, current_balance, apy }: CreateBankAccountDto): BankAccount {
     const existing = bankAccountRepository.findById(id);
-    db.prepare('UPDATE bank_accounts SET name = ?, type = ?, current_balance = ? WHERE id = ?').run(
+    db.prepare('UPDATE bank_accounts SET name = ?, type = ?, current_balance = ?, apy = ? WHERE id = ?').run(
       name,
       type,
       current_balance ?? existing?.current_balance ?? 0,
+      apy === undefined ? existing?.apy ?? null : apy,
       id
     );
     return bankAccountRepository.findById(id) as BankAccount;

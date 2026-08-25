@@ -41,7 +41,7 @@ async function createOwner(name: string, email: string) {
 beforeEach(() => {
   db.exec(
     'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; DELETE FROM debts; ' +
-      'DELETE FROM bank_accounts; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
+      'DELETE FROM bills; DELETE FROM bank_accounts; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
   );
   enterpriseTenantId = tenantRepository.create('Acme Co', 'enterprise').id;
 });
@@ -93,6 +93,26 @@ describe('CRUD /api/bank-accounts', () => {
     expect(res.status).toBe(400);
   });
 
+  it('rejects an out-of-range apy', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    for (const apy of [-1, 101]) {
+      const res = await agent.post('/api/bank-accounts').send({ name: 'Savings', type: 'savings', apy });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("an update with apy omitted preserves the account's existing apy", async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const created = await agent.post('/api/bank-accounts').send({ name: 'Savings', type: 'savings', apy: 4.5 });
+
+    const updated = await agent
+      .put(`/api/bank-accounts/${created.body.id}`)
+      .send({ name: 'HYSA', type: 'savings' });
+    expect(updated.body.apy).toBe(4.5);
+  });
+
   it('an owner cannot update or delete another tenant\'s bank account', async () => {
     const other = tenantRepository.create("Alex's Budget", 'personal');
     const otherAccountId = db
@@ -130,6 +150,15 @@ describe('CRUD /api/bank-accounts', () => {
 });
 
 describe('CRUD /api/savings-goals', () => {
+  it('rejects a negative saved_amount', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/savings-goals')
+      .send({ name: 'Emergency Fund', target_amount: 5000, saved_amount: -1 });
+    expect(res.status).toBe(400);
+  });
+
   it('rejects a bank_account_id from another tenant', async () => {
     const other = tenantRepository.create("Alex's Budget", 'personal');
     const otherAccountId = db
@@ -182,6 +211,65 @@ describe('CRUD /api/debts', () => {
       .post('/api/debts')
       .send({ name: 'Credit Card', balance: 2000, interest_rate: 19.99, minimum_payment: 50, due_day: 32 });
     expect(res.status).toBe(400);
+  });
+});
+
+describe('CRUD /api/bills', () => {
+  it('is owner-only and tenant-scoped', async () => {
+    await createHead('Dana', 'dana@example.com');
+    const headAgent = await loginAs('dana@example.com');
+    expect((await headAgent.get('/api/bills')).status).toBe(403);
+
+    await createOwner('Pat', 'pat@example.com');
+    const ownerAgent = await loginAs('pat@example.com');
+    const created = await ownerAgent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1 });
+    expect(created.status).toBe(201);
+
+    const res = await ownerAgent.get('/api/bills');
+    expect(res.body).toHaveLength(1);
+  });
+
+  it('rejects an invalid category', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/bills').send({ name: 'Rent', category: 'mortgage', amount: 1500, due_day: 1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a non-positive amount', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    for (const amount of [0, -50]) {
+      const res = await agent.post('/api/bills').send({ name: 'Rent', category: 'rent', amount, due_day: 1 });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it('rejects a non-integer due_day', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/bills').send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 3.5 });
+    expect(res.status).toBe(400);
+  });
+
+  it('an owner cannot update or delete another tenant\'s bill', async () => {
+    const other = tenantRepository.create("Alex's Budget", 'personal');
+    const otherBillId = db
+      .prepare('INSERT INTO bills (tenant_id, name, category, amount, due_day) VALUES (?, ?, ?, ?, ?)')
+      .run(other.id, 'Rent', 'rent', 1500, 1).lastInsertRowid as number;
+
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+
+    const updateRes = await agent
+      .put(`/api/bills/${otherBillId}`)
+      .send({ name: 'Hijacked', category: 'rent', amount: 1, due_day: 1 });
+    expect(updateRes.status).toBe(403);
+
+    const deleteRes = await agent.delete(`/api/bills/${otherBillId}`);
+    expect(deleteRes.status).toBe(403);
   });
 });
 

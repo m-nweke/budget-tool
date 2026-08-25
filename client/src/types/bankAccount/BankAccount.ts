@@ -7,4 +7,5 @@ export interface BankAccount {
   name: string;
   type: BankAccountType;
   current_balance: number;
+  apy: number | null;
 }

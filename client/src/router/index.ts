@@ -7,8 +7,11 @@ import AccountsView from '../views/AccountsView.vue';
 import PaycheckView from '../views/PaycheckView.vue';
 import GoalsView from '../views/GoalsView.vue';
 import DebtsView from '../views/DebtsView.vue';
+import CashFlowView from '../views/CashFlowView.vue';
+import BillsView from '../views/BillsView.vue';
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
+import AboutView from '../views/AboutView.vue';
 import { useAuth } from '../composables/useAuth';
 
 const router = createRouter({
@@ -28,11 +31,19 @@ const router = createRouter({
     { path: '/paycheck', name: 'paycheck', component: PaycheckView, meta: { personalOnly: true } },
     { path: '/goals', name: 'goals', component: GoalsView, meta: { personalOnly: true } },
     { path: '/debts', name: 'debts', component: DebtsView, meta: { personalOnly: true } },
+    { path: '/cash-flow', name: 'cash-flow', component: CashFlowView, meta: { personalOnly: true } },
+    { path: '/bills', name: 'bills', component: BillsView, meta: { personalOnly: true } },
     // meta.public follows the same generic-flag pattern as meta.headOnly
     // below — any future public route (a password-reset page, etc.) just
     // needs the same flag, not a new name check in the guard.
     { path: '/login', name: 'login', component: LoginView, meta: { public: true } },
     { path: '/register', name: 'register', component: RegisterView, meta: { public: true } },
+    // meta.openToAll: public AND meant to stay reachable for an already
+    // logged-in user too (a recruiter-facing architecture page, linked
+    // from the nav regardless of auth state) — unlike login/register,
+    // which redirect an authenticated user away, this one is excluded
+    // from that redirect below.
+    { path: '/about', name: 'about', component: AboutView, meta: { public: true, openToAll: true } },
     // Catches any unmatched path, including a hand-edited or stale
     // `?redirect=` value from the login flow that no longer resolves to a
     // real route — sends it to the dashboard instead of rendering blank.
@@ -54,7 +65,7 @@ router.beforeEach(async (to) => {
   if (!user.value && !to.meta.public) {
     return { name: 'login', query: { redirect: to.fullPath } };
   }
-  if (user.value && to.meta.public) {
+  if (user.value && to.meta.public && !to.meta.openToAll) {
     return { path: '/' };
   }
   // The API already enforces this (approve/reject and GET /api/approvals

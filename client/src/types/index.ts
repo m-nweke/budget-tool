@@ -21,3 +21,11 @@ export type {
 } from './paycheck';
 export type { SavingsGoal, CreateSavingsGoalDto } from './savingsGoal';
 export type { Debt, CreateDebtDto } from './debt';
+export type { Bill, BillCategory, CreateBillDto } from './bill';
+export type {
+  CashflowProjection,
+  AccountProjection,
+  AccountDailyBalance,
+  PaycheckCredit,
+  ProjectedOutflow,
+} from './cashflow';
