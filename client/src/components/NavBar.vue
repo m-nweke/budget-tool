@@ -122,7 +122,7 @@ async function handleLogout() {
   <header class="nav-bar">
     <div class="nav-inner">
       <div class="brand-group">
-        <span class="brand">Budget Tool</span>
+        <RouterLink to="/" class="brand">Budget Tool</RouterLink>
         <span v-if="user" class="mode-pill">{{ isPersonal ? 'Personal' : 'Enterprise' }}</span>
         <RouterLink to="/about" class="about-link">About</RouterLink>
       </div>
@@ -247,6 +247,12 @@ async function handleLogout() {
   font-weight: 700;
   font-size: 1.05rem;
   letter-spacing: -0.01em;
+  color: inherit;
+  text-decoration: none;
+}
+
+.brand:hover {
+  color: var(--color-primary);
 }
 
 .mode-pill {

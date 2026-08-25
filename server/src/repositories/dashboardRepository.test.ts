@@ -134,4 +134,39 @@ describe('findSummary department scoping', () => {
     const rows = dashboardRepository.findSummary('2026-08', '2026-08', []);
     expect(rows).toHaveLength(0);
   });
+
+  it('includes the department id and name on each row', () => {
+    const [row] = dashboardRepository.findSummary('2026-08');
+    expect(row.department_id).toBe(deptA);
+    expect(row.department_name).toBe('Engineering');
+  });
+
+  it('does not leak another tenant\'s department name for a cross-tenant department_id', () => {
+    // Simulates data corruption (bad migration, manual DB edit) rather than
+    // anything reachable through the app's own write paths, which always
+    // keep department_id and category.tenant_id in the same tenant.
+    const otherTenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Other Co', 'enterprise')").run()
+      .lastInsertRowid as number;
+    const otherDeptId = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Secret Dept', otherTenantId)
+      .lastInsertRowid as number;
+    db.prepare('UPDATE categories SET department_id = ? WHERE id = ?').run(otherDeptId, categoryId);
+
+    const [row] = dashboardRepository.findSummary('2026-08');
+    expect(row.department_name).toBeNull();
+  });
+
+  it('returns null department id/name for a personal-tenant category', () => {
+    const personalTenantId = db
+      .prepare("INSERT INTO tenants (name, type) VALUES ('Personal', 'personal')")
+      .run().lastInsertRowid as number;
+    const personalCategoryId = categoryRepository.create(
+      { name: 'Groceries', budgeted_amount: 100, department_id: null },
+      personalTenantId
+    ).id;
+
+    const rows = dashboardRepository.findSummary('2026-08', '2026-08', undefined, personalTenantId);
+    const row = rows.find((r) => r.category_id === personalCategoryId)!;
+    expect(row.department_id).toBeNull();
+    expect(row.department_name).toBeNull();
+  });
 });

@@ -99,10 +99,11 @@ export const api = {
 
   getPendingApprovals: () => request<Transaction[]>('/approvals'),
 
-  getDashboard: (from?: string, to?: string) => {
+  getDashboard: (from?: string, to?: string, departmentId?: number) => {
     const params = new URLSearchParams();
     if (from) params.set('from', from);
     if (to) params.set('to', to);
+    if (departmentId !== undefined) params.set('department_id', String(departmentId));
     const query = params.toString();
     return request<DashboardRow[]>(`/dashboard${query ? `?${query}` : ''}`);
   },
