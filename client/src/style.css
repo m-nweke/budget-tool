@@ -104,6 +104,39 @@
   }
 }
 
+/* Slate/neutral palette — set on <html data-mode="neutral"> by App.vue
+   whenever there's no active session (login, register, and any other
+   public route visited logged-out), so a visitor never sees either brand
+   palette before the app actually knows which one applies. RegisterView
+   overrides this locally to live-preview 'personal'/'enterprise' as the
+   account-type selection changes, falling back to this neutral state
+   until one is chosen. */
+:root[data-mode='neutral'] {
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-border: #e2e8f0;
+  --color-text: #0f172a;
+  --color-text-muted: #64748b;
+
+  --color-primary: #475569;
+  --color-primary-hover: #334155;
+  --color-primary-bg: #eef2f6;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-mode='neutral'] {
+    --color-bg: #0f172a;
+    --color-surface: #1e293b;
+    --color-border: #334155;
+    --color-text: #f1f5f9;
+    --color-text-muted: #94a3b8;
+
+    --color-primary: #94a3b8;
+    --color-primary-hover: #cbd5e1;
+    --color-primary-bg: rgba(148, 163, 184, 0.16);
+  }
+}
+
 *,
 *::before,
 *::after {
