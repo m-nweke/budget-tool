@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
+import PasswordField from '../components/PasswordField.vue';
 import type { AccountType } from '../api';
 
 const { register } = useAuth();
@@ -10,12 +11,37 @@ const router = useRouter();
 const name = ref('');
 const email = ref('');
 const password = ref('');
-const accountType = ref<AccountType>('personal');
+// Starts unselected (not defaulted to 'personal') so the theme preview
+// below has a genuine neutral starting point — see the watcher.
+const accountType = ref<AccountType | null>(null);
 const joinCode = ref('');
 const error = ref('');
 const submitting = ref(false);
 
+// Live-previews the destination palette as the account type is chosen,
+// overriding App.vue's 'neutral' default (set for every logged-out route)
+// so picking "Personal budget" or a company path shows the theme you're
+// about to land in instead of a jarring swap right after signup. Reset on
+// unmount so navigating away without submitting (e.g. back to Login)
+// doesn't leave a preview palette applied to an unrelated page.
+watch(
+  accountType,
+  (value) => {
+    document.documentElement.dataset.mode = value === 'personal' ? 'personal' : value === null ? 'neutral' : 'enterprise';
+  },
+  { immediate: true }
+);
+
+onBeforeUnmount(() => {
+  document.documentElement.dataset.mode = 'neutral';
+});
+
 async function handleSubmit() {
+  // The account-type radios are `required`, so this shouldn't be
+  // reachable via a normal submit — guarding anyway since accountType is
+  // typed nullable now.
+  if (!accountType.value) return;
+
   error.value = '';
   submitting.value = true;
   try {
@@ -45,7 +71,7 @@ async function handleSubmit() {
 
       <div class="account-type-choices">
         <label class="account-type-option" :class="{ selected: accountType === 'personal' }">
-          <input v-model="accountType" type="radio" name="accountType" value="personal" />
+          <input v-model="accountType" type="radio" name="accountType" value="personal" required />
           <span class="account-type-title">Personal budget</span>
           <span class="account-type-desc">Track your own income, spending, and savings.</span>
         </label>
@@ -71,7 +97,7 @@ async function handleSubmit() {
       </label>
       <label class="field">
         Password
-        <input v-model="password" type="password" autocomplete="new-password" required minlength="8" />
+        <PasswordField v-model="password" autocomplete="new-password" :minlength="8" />
       </label>
       <label v-if="accountType === 'join'" class="field">
         Join code
