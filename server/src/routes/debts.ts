@@ -31,6 +31,9 @@ function validateBody(body: CreateDebtDto): string | null {
   if (hasPromoApr !== hasPromoExpiresOn) {
     return 'promo_apr and promo_expires_on must both be set, or both omitted';
   }
+  if (hasPromoExpiresOn && (typeof promo_expires_on !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(promo_expires_on))) {
+    return 'promo_expires_on must be a YYYY-MM-DD date string';
+  }
   return null;
 }
 
