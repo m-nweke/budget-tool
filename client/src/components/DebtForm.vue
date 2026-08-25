@@ -4,10 +4,12 @@ import type { Debt, CreateDebtDto } from '../types';
 
 const props = defineProps<{
   debt: Debt | null;
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   submit: [data: CreateDebtDto];
   cancel: [];
+  edit: [];
 }>();
 
 const name = ref('');
@@ -41,6 +43,7 @@ function handleSubmit() {
 
 <template>
   <form class="debt-form" @submit.prevent="handleSubmit">
+    <fieldset class="fieldset-reset" :disabled="readonly">
     <label class="field">
       Name
       <input v-model="name" type="text" placeholder="e.g. Credit Card" required />
@@ -61,9 +64,14 @@ function handleSubmit() {
       Due Day of Month
       <input v-model="dueDay" type="number" step="1" min="1" max="31" placeholder="15" required />
     </label>
-    <div class="actions">
+    </fieldset>
+    <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">{{ debt ? 'Save Changes' : 'Create Debt' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
+    </div>
+    <div v-else class="actions">
+      <button type="button" class="btn btn-primary" @click="$emit('edit')">Edit</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Close</button>
     </div>
   </form>
 </template>

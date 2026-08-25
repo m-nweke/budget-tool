@@ -6,10 +6,12 @@ import type { Category, CreateCategoryDto, Department } from '../types';
 
 const props = defineProps<{
   category: Category | null;
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   submit: [data: CreateCategoryDto];
   cancel: [];
+  edit: [];
 }>();
 
 const { user } = useAuth();
@@ -91,6 +93,7 @@ function handleSubmit() {
 
 <template>
   <form class="category-form" @submit.prevent="handleSubmit">
+    <fieldset class="fieldset-reset" :disabled="readonly">
     <label class="field">
       Name
       <input v-model="name" type="text" placeholder="e.g. Office Supplies" required />
@@ -159,9 +162,14 @@ function handleSubmit() {
     <p class="field-hint">
       The month this budget takes effect from — the dashboard only shows this category for months on or after this date. Backdate it if you're logging older transactions against it.
     </p>
-    <div class="actions">
+    </fieldset>
+    <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">{{ category ? 'Save Changes' : 'Create Category' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
+    </div>
+    <div v-else class="actions">
+      <button type="button" class="btn btn-primary" @click="$emit('edit')">Edit</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Close</button>
     </div>
   </form>
 </template>

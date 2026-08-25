@@ -8,7 +8,7 @@ import type { Bill, CreateBillDto } from '../types';
 
 const CATEGORY_LABELS: Record<Bill['category'], string> = {
   rent: 'Rent',
-  wifi: 'Wifi',
+  wifi: 'WiFi',
   electric: 'Electric',
   water: 'Water',
   insurance: 'Insurance',
@@ -18,6 +18,7 @@ const CATEGORY_LABELS: Record<Bill['category'], string> = {
 const bills = ref<Bill[]>([]);
 const showForm = ref(false);
 const editingBill = ref<Bill | null>(null);
+const formReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -33,12 +34,21 @@ async function loadBills() {
 
 function openCreateForm() {
   editingBill.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditForm(bill: Bill) {
   editingBill.value = bill;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+function openViewForm(bill: Bill) {
+  editingBill.value = bill;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
@@ -88,8 +98,14 @@ onMounted(loadBills);
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="showForm" class="panel form-panel">
-    <h2>{{ editingBill ? 'Edit Bill' : 'New Bill' }}</h2>
-    <BillForm :bill="editingBill" @submit="handleSubmit" @cancel="closeForm" />
+    <h2>{{ !editingBill ? 'New Bill' : formReadonly ? 'View Bill' : 'Edit Bill' }}</h2>
+    <BillForm
+      :bill="editingBill"
+      :readonly="formReadonly"
+      @submit="handleSubmit"
+      @cancel="closeForm"
+      @edit="formReadonly = false"
+    />
   </div>
 
   <div v-if="loaded && !bills.length && !showForm" class="empty-state">
@@ -99,7 +115,7 @@ onMounted(loadBills);
   </div>
 
   <ul v-else class="bill-list">
-    <li v-for="bill in bills" :key="bill.id" class="card bill-row">
+    <li v-for="bill in bills" :key="bill.id" class="card bill-row clickable" @click="openViewForm(bill)">
       <div>
         <div class="bill-name">
           {{ bill.name }}
@@ -108,7 +124,7 @@ onMounted(loadBills);
         </div>
         <div class="bill-meta">{{ formatCurrency(bill.amount) }}/mo · due on the {{ bill.due_day }}</div>
       </div>
-      <KebabMenu>
+      <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(bill)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(bill)">Delete</button>
       </KebabMenu>
@@ -151,6 +167,14 @@ onMounted(loadBills);
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
+}
+
+.bill-row.clickable {
+  cursor: pointer;
+}
+
+.bill-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .bill-name {

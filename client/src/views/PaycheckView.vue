@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import PaycheckForm from '../components/PaycheckForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, capitalize } from '../utils/format';
 import type { Paycheck, CreatePaycheckDto, BankAccount, Category, PaycheckFrequency } from '../types';
 
 const paychecks = ref<Paycheck[]>([]);
@@ -11,6 +11,7 @@ const accounts = ref<BankAccount[]>([]);
 const categories = ref<Category[]>([]);
 const showForm = ref(false);
 const editingPaycheck = ref<Paycheck | null>(null);
+const formReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -70,12 +71,21 @@ async function loadPaychecks() {
 
 function openCreateForm() {
   editingPaycheck.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditForm(paycheck: Paycheck) {
   editingPaycheck.value = paycheck;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+function openViewForm(paycheck: Paycheck) {
+  editingPaycheck.value = paycheck;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
@@ -132,8 +142,14 @@ onMounted(loadPaychecks);
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="showForm" class="panel form-panel">
-    <h2>{{ editingPaycheck ? 'Edit Paycheck' : 'New Paycheck' }}</h2>
-    <PaycheckForm :paycheck="editingPaycheck" @submit="handleSubmit" @cancel="closeForm" />
+    <h2>{{ !editingPaycheck ? 'New Paycheck' : formReadonly ? 'View Paycheck' : 'Edit Paycheck' }}</h2>
+    <PaycheckForm
+      :paycheck="editingPaycheck"
+      :readonly="formReadonly"
+      @submit="handleSubmit"
+      @cancel="closeForm"
+      @edit="formReadonly = false"
+    />
   </div>
 
   <div v-if="loaded && !paychecks.length && !showForm" class="empty-state">
@@ -143,11 +159,16 @@ onMounted(loadPaychecks);
   </div>
 
   <ul v-else class="paycheck-list">
-    <li v-for="paycheck in paychecks" :key="paycheck.id" class="card paycheck-row">
+    <li
+      v-for="paycheck in paychecks"
+      :key="paycheck.id"
+      class="card paycheck-row clickable"
+      @click="openViewForm(paycheck)"
+    >
       <div class="paycheck-info">
         <div class="paycheck-name">
           {{ paycheck.label }}
-          <span class="badge badge-department">{{ paycheck.frequency }}</span>
+          <span class="badge badge-department">{{ capitalize(paycheck.frequency) }}</span>
         </div>
         <div class="paycheck-meta">
           {{ formatCurrency(paycheck.amount) }} next on {{ paycheck.next_pay_date }}
@@ -159,7 +180,7 @@ onMounted(loadPaychecks);
           v-if="categories.length"
           type="button"
           class="allocation-toggle"
-          @click="toggleAllocation(paycheck.id)"
+          @click.stop="toggleAllocation(paycheck.id)"
         >
           {{ expandedAllocationId === paycheck.id ? 'Hide' : 'Show' }} budget allocation
           <span class="chevron">{{ expandedAllocationId === paycheck.id ? '▴' : '▾' }}</span>
@@ -181,7 +202,7 @@ onMounted(loadPaychecks);
           </ul>
         </div>
       </div>
-      <KebabMenu>
+      <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(paycheck)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(paycheck)">Delete</button>
       </KebabMenu>
@@ -225,6 +246,14 @@ onMounted(loadPaychecks);
   justify-content: space-between;
   padding: var(--space-4);
   gap: var(--space-4);
+}
+
+.paycheck-row.clickable {
+  cursor: pointer;
+}
+
+.paycheck-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .paycheck-info {

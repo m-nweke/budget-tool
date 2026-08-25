@@ -23,8 +23,10 @@ const recurringTransactions = ref<RecurringTransaction[]>([]);
 const departments = ref<Department[]>([]);
 const showForm = ref(false);
 const editingTransaction = ref<Transaction | null>(null);
+const formReadonly = ref(false);
 const showRecurringForm = ref(false);
 const editingRecurringTransaction = ref<RecurringTransaction | null>(null);
+const recurringFormReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -99,6 +101,7 @@ async function loadData() {
 
 function openCreateForm() {
   editingTransaction.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
@@ -117,12 +120,40 @@ function openEditForm(transaction: Transaction) {
     }
   }
   editingTransaction.value = transaction;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+// Row click — same "locked to an active series redirects to the series
+// form" logic as openEditForm, just landing in view mode instead of
+// straight into edit.
+function openViewForm(transaction: Transaction) {
+  if (transaction.recurring_transaction_id) {
+    const template = recurringTransactions.value.find(
+      (rt) => rt.id === transaction.recurring_transaction_id
+    );
+    if (template) {
+      openViewRecurringForm(template);
+      return;
+    }
+  }
+  editingTransaction.value = transaction;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditRecurringForm(recurringTransaction: RecurringTransaction) {
   editingRecurringTransaction.value = recurringTransaction;
+  recurringFormReadonly.value = false;
+  showRecurringForm.value = true;
+  scrollToForm();
+}
+
+function openViewRecurringForm(recurringTransaction: RecurringTransaction) {
+  editingRecurringTransaction.value = recurringTransaction;
+  recurringFormReadonly.value = true;
   showRecurringForm.value = true;
   scrollToForm();
 }
@@ -220,22 +251,26 @@ onMounted(loadData);
 
   <template v-else>
     <div v-if="showForm" class="panel form-panel">
-      <h2>{{ editingTransaction ? 'Edit Transaction' : 'New Transaction' }}</h2>
+      <h2>{{ !editingTransaction ? 'New Transaction' : formReadonly ? 'View Transaction' : 'Edit Transaction' }}</h2>
       <TransactionForm
         :transaction="editingTransaction"
         :categories="categories"
+        :readonly="formReadonly"
         @submit="handleSubmit"
         @cancel="closeForm"
+        @edit="formReadonly = false"
       />
     </div>
 
     <div v-if="showRecurringForm && editingRecurringTransaction" class="panel form-panel">
-      <h2>Edit Recurring Series</h2>
+      <h2>{{ recurringFormReadonly ? 'View Recurring Series' : 'Edit Recurring Series' }}</h2>
       <RecurringTransactionForm
         :recurring-transaction="editingRecurringTransaction"
         :categories="categories"
+        :readonly="recurringFormReadonly"
         @submit="handleRecurringSubmit"
         @cancel="closeForm"
+        @edit="recurringFormReadonly = false"
       />
     </div>
 
@@ -276,12 +311,17 @@ onMounted(loadData);
             </tr>
           </thead>
           <tbody>
-            <tr v-for="transaction in filteredTransactions" :key="transaction.id">
+            <tr
+              v-for="transaction in filteredTransactions"
+              :key="transaction.id"
+              class="clickable"
+              @click="openViewForm(transaction)"
+            >
               <td>{{ transaction.date }}</td>
               <td>
                 {{ transaction.description || '—' }}
                 <span v-if="transaction.recurring_transaction_id" class="badge badge-recurring">↻ Recurring</span>
-                <span v-if="transaction.needs_approval" class="badge badge-pending">Pending approval</span>
+                <span v-if="transaction.needs_approval" class="badge badge-pending">Pending Approval</span>
               </td>
               <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
               <td>
@@ -291,7 +331,7 @@ onMounted(loadData);
                 </span>
               </td>
               <td class="table-row-actions">
-                <KebabMenu v-if="!isLockedToActiveSeries(transaction)">
+                <KebabMenu v-if="!isLockedToActiveSeries(transaction)" @click.stop>
                   <button type="button" @click="openEditForm(transaction)">Edit</button>
                   <button v-if="canManageBudget" type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
                 </KebabMenu>
@@ -305,7 +345,12 @@ onMounted(loadData);
     <div v-if="recurringTransactions.length" class="recurring-section">
       <h2>Recurring</h2>
       <ul class="recurring-list">
-        <li v-for="rt in recurringTransactions" :key="rt.id" class="card recurring-row">
+        <li
+          v-for="rt in recurringTransactions"
+          :key="rt.id"
+          class="card recurring-row clickable"
+          @click="openViewRecurringForm(rt)"
+        >
           <div>
             <div class="recurring-description">{{ rt.description || categoryNameById[rt.category_id] }}</div>
             <div class="recurring-meta">
@@ -313,7 +358,7 @@ onMounted(loadData);
               <template v-if="rt.end_date">· ends {{ rt.end_date }}</template>
             </div>
           </div>
-          <KebabMenu>
+          <KebabMenu @click.stop>
             <button type="button" @click="openEditRecurringForm(rt)">Edit</button>
             <button type="button" class="danger" @click="handleCancelRecurring(rt)">Cancel</button>
           </KebabMenu>
@@ -385,6 +430,10 @@ onMounted(loadData);
   border-bottom: none;
 }
 
+.transactions-table tbody tr.clickable {
+  cursor: pointer;
+}
+
 .transactions-table tbody tr:hover {
   background: var(--color-bg);
 }
@@ -420,6 +469,14 @@ onMounted(loadData);
   align-items: center;
   justify-content: space-between;
   padding: var(--space-3) var(--space-4);
+}
+
+.recurring-row.clickable {
+  cursor: pointer;
+}
+
+.recurring-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .recurring-description {

@@ -5,10 +5,12 @@ import type { Category, RecurringTransaction, UpdateRecurringTransactionDto, Rec
 const props = defineProps<{
   recurringTransaction: RecurringTransaction;
   categories: Category[];
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   submit: [data: UpdateRecurringTransactionDto];
   cancel: [];
+  edit: [];
 }>();
 
 const amount = ref<number | string>('');
@@ -45,6 +47,7 @@ function handleSubmit() {
 
 <template>
   <form class="recurring-form" @submit.prevent="handleSubmit">
+    <fieldset class="fieldset-reset" :disabled="readonly">
     <p class="scope-note">
       By default, editing this series only affects future occurrences — transactions already generated stay as they
       are, unless you check the option below.
@@ -90,9 +93,14 @@ function handleSubmit() {
       new amount, category, and interval — e.g. switching weekly → monthly replaces the weekly-spaced history with
       monthly-spaced history. This cannot be undone.
     </p>
-    <div class="actions">
+    </fieldset>
+    <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">Save Series</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
+    </div>
+    <div v-else class="actions">
+      <button type="button" class="btn btn-primary" @click="$emit('edit')">Edit</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Close</button>
     </div>
   </form>
 </template>

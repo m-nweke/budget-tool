@@ -4,10 +4,12 @@ import type { Bill, BillCategory, CreateBillDto } from '../types';
 
 const props = defineProps<{
   bill: Bill | null;
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   submit: [data: CreateBillDto];
   cancel: [];
+  edit: [];
 }>();
 
 const name = ref('');
@@ -41,6 +43,7 @@ function handleSubmit() {
 
 <template>
   <form class="bill-form" @submit.prevent="handleSubmit">
+    <fieldset class="fieldset-reset" :disabled="readonly">
     <label class="field">
       Name
       <input v-model="name" type="text" placeholder="e.g. Rent" required />
@@ -49,7 +52,7 @@ function handleSubmit() {
       Category
       <select v-model="category" required>
         <option value="rent">Rent</option>
-        <option value="wifi">Wifi</option>
+        <option value="wifi">WiFi</option>
         <option value="electric">Electric</option>
         <option value="water">Water</option>
         <option value="insurance">Insurance</option>
@@ -68,9 +71,14 @@ function handleSubmit() {
       <input v-model="active" type="checkbox" />
       Include in cash-flow simulation
     </label>
-    <div class="actions">
+    </fieldset>
+    <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">{{ bill ? 'Save Changes' : 'Add Bill' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
+    </div>
+    <div v-else class="actions">
+      <button type="button" class="btn btn-primary" @click="$emit('edit')">Edit</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Close</button>
     </div>
   </form>
 </template>

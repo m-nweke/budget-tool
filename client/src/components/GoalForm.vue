@@ -5,10 +5,12 @@ import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
 
 const props = defineProps<{
   goal: SavingsGoal | null;
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   submit: [data: CreateSavingsGoalDto];
   cancel: [];
+  edit: [];
 }>();
 
 const name = ref('');
@@ -50,6 +52,7 @@ function handleSubmit() {
 
 <template>
   <form class="goal-form" @submit.prevent="handleSubmit">
+    <fieldset class="fieldset-reset" :disabled="readonly">
     <label class="field">
       Name
       <input v-model="name" type="text" placeholder="e.g. Emergency Fund" required />
@@ -81,9 +84,14 @@ function handleSubmit() {
       Target Date (optional)
       <input v-model="targetDate" type="date" />
     </label>
-    <div class="actions">
+    </fieldset>
+    <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">{{ goal ? 'Save Changes' : 'Create Goal' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
+    </div>
+    <div v-else class="actions">
+      <button type="button" class="btn btn-primary" @click="$emit('edit')">Edit</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Close</button>
     </div>
   </form>
 </template>

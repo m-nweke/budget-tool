@@ -116,7 +116,7 @@ onMounted(() => {
     >
       <div class="budget-card-header">
         <h2>{{ row.name }}</h2>
-        <span v-if="row.actual_spend > row.budgeted_amount" class="badge badge-danger">Over budget</span>
+        <span v-if="row.actual_spend > row.budgeted_amount" class="badge badge-danger">Over Budget</span>
       </div>
 
       <span

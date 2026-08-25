@@ -9,6 +9,7 @@ import type { Debt, CreateDebtDto } from '../types';
 const debts = ref<Debt[]>([]);
 const showForm = ref(false);
 const editingDebt = ref<Debt | null>(null);
+const formReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -24,12 +25,21 @@ async function loadDebts() {
 
 function openCreateForm() {
   editingDebt.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditForm(debt: Debt) {
   editingDebt.value = debt;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+function openViewForm(debt: Debt) {
+  editingDebt.value = debt;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
@@ -79,8 +89,14 @@ onMounted(loadDebts);
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="showForm" class="panel form-panel">
-    <h2>{{ editingDebt ? 'Edit Debt' : 'New Debt' }}</h2>
-    <DebtForm :debt="editingDebt" @submit="handleSubmit" @cancel="closeForm" />
+    <h2>{{ !editingDebt ? 'New Debt' : formReadonly ? 'View Debt' : 'Edit Debt' }}</h2>
+    <DebtForm
+      :debt="editingDebt"
+      :readonly="formReadonly"
+      @submit="handleSubmit"
+      @cancel="closeForm"
+      @edit="formReadonly = false"
+    />
   </div>
 
   <div v-if="loaded && !debts.length && !showForm" class="empty-state">
@@ -90,14 +106,14 @@ onMounted(loadDebts);
   </div>
 
   <ul v-else class="debt-list">
-    <li v-for="debt in debts" :key="debt.id" class="card debt-row">
+    <li v-for="debt in debts" :key="debt.id" class="card debt-row clickable" @click="openViewForm(debt)">
       <div>
         <div class="debt-name">{{ debt.name }}</div>
         <div class="debt-meta">
           {{ formatCurrency(debt.balance) }} balance · {{ debt.interest_rate }}% APR · {{ formatCurrency(debt.minimum_payment) }}/mo due on the {{ debt.due_day }}
         </div>
       </div>
-      <KebabMenu>
+      <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(debt)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(debt)">Delete</button>
       </KebabMenu>
@@ -140,6 +156,14 @@ onMounted(loadDebts);
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
+}
+
+.debt-row.clickable {
+  cursor: pointer;
+}
+
+.debt-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .debt-name {

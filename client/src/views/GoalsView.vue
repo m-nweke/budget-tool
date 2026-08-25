@@ -12,6 +12,7 @@ const goals = ref<SavingsGoal[]>([]);
 const accounts = ref<BankAccount[]>([]);
 const showForm = ref(false);
 const editingGoal = ref<SavingsGoal | null>(null);
+const formReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -59,12 +60,21 @@ async function loadGoals() {
 
 function openCreateForm() {
   editingGoal.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditForm(goal: SavingsGoal) {
   editingGoal.value = goal;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+function openViewForm(goal: SavingsGoal) {
+  editingGoal.value = goal;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
@@ -128,8 +138,14 @@ onMounted(loadGoals);
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="showForm" class="panel form-panel">
-    <h2>{{ editingGoal ? 'Edit Goal' : 'New Goal' }}</h2>
-    <GoalForm :goal="editingGoal" @submit="handleSubmit" @cancel="closeForm" />
+    <h2>{{ !editingGoal ? 'New Goal' : formReadonly ? 'View Goal' : 'Edit Goal' }}</h2>
+    <GoalForm
+      :goal="editingGoal"
+      :readonly="formReadonly"
+      @submit="handleSubmit"
+      @cancel="closeForm"
+      @edit="formReadonly = false"
+    />
   </div>
 
   <div v-if="loaded && !goals.length && !showForm" class="empty-state">
@@ -139,7 +155,7 @@ onMounted(loadGoals);
   </div>
 
   <ul v-else class="goal-list">
-    <li v-for="goal in goals" :key="goal.id" class="card goal-row">
+    <li v-for="goal in goals" :key="goal.id" class="card goal-row clickable" @click="openViewForm(goal)">
       <div class="goal-body">
         <div class="goal-name">
           {{ goal.name }}
@@ -159,7 +175,7 @@ onMounted(loadGoals);
         </div>
         <div v-else-if="progressFor(goal) >= 1" class="goal-pace goal-pace-done">Goal reached</div>
       </div>
-      <KebabMenu>
+      <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(goal)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(goal)">Delete</button>
       </KebabMenu>
@@ -236,6 +252,14 @@ onMounted(loadGoals);
   justify-content: space-between;
   padding: var(--space-4);
   gap: var(--space-4);
+}
+
+.goal-row.clickable {
+  cursor: pointer;
+}
+
+.goal-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .goal-body {
