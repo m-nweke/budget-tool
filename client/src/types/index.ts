@@ -20,7 +20,18 @@ export type {
   CreatePaycheckSplitDto,
 } from './paycheck';
 export type { SavingsGoal, CreateSavingsGoalDto } from './savingsGoal';
-export type { Debt, CreateDebtDto } from './debt';
+export type {
+  Debt,
+  CreateDebtDto,
+  DebtPayoffSettings,
+  PayoffStrategy,
+  UpdateDebtPayoffSettingsDto,
+  DebtSnapshot,
+  DebtPayoffResult,
+  InsufficientMinimums,
+  AvalancheComparison,
+  DebtPayoffPlanResponse,
+} from './debt';
 export type { Bill, BillCategory, CreateBillDto } from './bill';
 export type {
   CashflowProjection,

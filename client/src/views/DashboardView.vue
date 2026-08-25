@@ -2,7 +2,13 @@
 import { ref, computed, onMounted, watch } from 'vue';
 import { api } from '../api';
 import { formatCurrency } from '../utils/format';
+import { buildDebtSnapshot, type PageSnapshotProps } from '../utils/snapshots';
+import { useAuth } from '../composables/useAuth';
+import PageSnapshot from '../components/PageSnapshot.vue';
 import type { DashboardRow, Department } from '../types';
+
+const { user } = useAuth();
+const isPersonal = computed(() => user.value?.tenant_type === 'personal');
 
 const rows = ref<DashboardRow[]>([]);
 const error = ref('');
@@ -19,6 +25,39 @@ const selectedDepartmentId = ref('');
 // one department to distinguish — a single-department head, an employee,
 // and a personal-tenant owner all resolve to exactly one implicit scope.
 const showDepartmentFilter = computed(() => departments.value.length > 1);
+
+// Personal tenants only — enterprise has no snapshot-worthy pages (Debts,
+// Goals, etc. don't exist for that tenant type), so the toggle and
+// snapshot row never render there and the dashboard stays exactly as it
+// was before this feature. 'both' is the default so the new snapshot row
+// is actually visible rather than hidden behind an extra click; persisted
+// to localStorage (client-only, per-browser) so the choice survives a
+// reload without needing any server-side settings row.
+type ViewMode = 'budgets' | 'snapshots' | 'both';
+const viewMode = ref<ViewMode>((localStorage.getItem('dashboardViewMode') as ViewMode | null) ?? 'both');
+watch(viewMode, (value) => {
+  try {
+    localStorage.setItem('dashboardViewMode', value);
+  } catch {
+    // Best-effort — a private-browsing/storage-disabled context just means
+    // the choice doesn't survive a reload, not worth surfacing as an error.
+  }
+});
+
+const snapshots = ref<PageSnapshotProps[]>([]);
+
+async function loadSnapshots() {
+  if (!isPersonal.value) return;
+  try {
+    // Each entry here is one buildXSnapshot(...) call over that page's own
+    // API response — the list grows as more personal-budget pages get a
+    // snapshot, with no change needed to this function's shape.
+    const debtPlan = await api.getDebtPayoffPlan();
+    snapshots.value = [buildDebtSnapshot(debtPlan)].filter((s): s is PageSnapshotProps => s !== null);
+  } catch (e) {
+    error.value = (e as Error).message;
+  }
+}
 
 async function loadDashboard() {
   // Keep the range from ever inverting rather than surfacing a 400 for
@@ -79,6 +118,7 @@ watch([fromMonth, toMonth, selectedDepartmentId], loadDashboard);
 onMounted(() => {
   loadDashboard();
   loadDepartments();
+  loadSnapshots();
 });
 </script>
 
@@ -89,6 +129,18 @@ onMounted(() => {
       <p>Budget vs. actual spend by category.</p>
     </div>
     <div class="range-picker">
+      <div v-if="isPersonal" class="view-mode-toggle">
+        <button
+          v-for="mode in (['budgets', 'snapshots', 'both'] as const)"
+          :key="mode"
+          type="button"
+          class="view-mode-option"
+          :class="{ active: viewMode === mode }"
+          @click="viewMode = mode"
+        >
+          {{ mode === 'budgets' ? 'Budgets' : mode === 'snapshots' ? 'Snapshots' : 'Both' }}
+        </button>
+      </div>
       <select v-if="showDepartmentFilter" v-model="selectedDepartmentId" class="month-picker">
         <option value="">All departments</option>
         <option v-for="dept in departments" :key="dept.id" :value="String(dept.id)">{{ dept.name }}</option>
@@ -101,13 +153,18 @@ onMounted(() => {
 
   <p v-if="error" class="alert">{{ error }}</p>
 
-  <div v-if="loaded && !rows.length" class="empty-state">
-    <h3>Nothing to show yet</h3>
-    <p>Create a category and log a transaction to see your budget summary here.</p>
-    <RouterLink to="/categories" class="btn btn-primary">Get started</RouterLink>
+  <div v-if="isPersonal && viewMode !== 'budgets' && snapshots.length" class="snapshot-row">
+    <PageSnapshot v-for="snap in snapshots" :key="snap.title" :title="snap.title" :to="snap.to" :stats="snap.stats" />
   </div>
 
-  <div v-else class="card-grid">
+  <template v-if="!isPersonal || viewMode !== 'snapshots'">
+    <div v-if="loaded && !rows.length" class="empty-state">
+      <h3>Nothing to show yet</h3>
+      <p>Create a category and log a transaction to see your budget summary here.</p>
+      <RouterLink to="/categories" class="btn btn-primary">Get started</RouterLink>
+    </div>
+
+    <div v-else class="card-grid">
     <div
       v-for="row in rows"
       :key="row.category_id"
@@ -142,7 +199,8 @@ onMounted(() => {
         {{ row.difference >= 0 ? `${formatCurrency(row.difference)} remaining` : `${formatCurrency(Math.abs(row.difference))} over` }}
       </p>
     </div>
-  </div>
+    </div>
+  </template>
 </template>
 
 <style scoped>
@@ -179,10 +237,41 @@ onMounted(() => {
   padding: 8px 10px;
 }
 
+.view-mode-toggle {
+  display: flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.view-mode-option {
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  border: none;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.view-mode-option + .view-mode-option {
+  border-left: 1px solid var(--color-border);
+}
+
+.view-mode-option.active {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.snapshot-row,
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: var(--space-4);
+}
+
+.snapshot-row {
+  margin-bottom: var(--space-5);
 }
 
 .budget-card {

@@ -193,6 +193,10 @@ db.exec(`
     saved_amount REAL NOT NULL DEFAULT 0
   );
 
+  -- promo_apr/promo_expires_on are a matched pair (both null or both set) —
+  -- a promotional-APR debt (e.g. a 0% intro card) accrues interest at
+  -- promo_apr until promo_expires_on, then interest_rate applies as normal.
+  -- Added via migrateColumn below since this table already has real rows.
   CREATE TABLE IF NOT EXISTS debts (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tenant_id INTEGER NOT NULL REFERENCES tenants(id),
@@ -201,6 +205,21 @@ db.exec(`
     interest_rate REAL NOT NULL,
     minimum_payment REAL NOT NULL,
     due_day INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31)
+  );
+
+  -- One row per tenant: the user-settable "how much toward debt per month"
+  -- plus which order to attack debts in. custom_order is a JSON-encoded
+  -- array of debt ids (nullable, only meaningful when strategy='custom')
+  -- rather than a payoff_priority column on debts — self-healing at read
+  -- time against a deleted/added debt instead of needing a reorder
+  -- transaction (see decision 26). UNIQUE on tenant_id gives an implicit
+  -- index, same reasoning as department_access/tenant_memberships above.
+  CREATE TABLE IF NOT EXISTS debt_payoff_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL UNIQUE REFERENCES tenants(id),
+    monthly_amount REAL NOT NULL,
+    strategy TEXT NOT NULL CHECK (strategy IN ('snowball', 'avalanche', 'custom')),
+    custom_order TEXT
   );
 
   -- Recurring monthly household bills (rent, wifi, electric, water,
@@ -258,6 +277,8 @@ db.exec('CREATE INDEX IF NOT EXISTS idx_categories_tenant_id ON categories(tenan
 db.exec('CREATE INDEX IF NOT EXISTS idx_departments_tenant_id ON departments(tenant_id)');
 migrateColumn('ALTER TABLE bank_accounts ADD COLUMN apy REAL');
 migrateColumn('ALTER TABLE savings_goals ADD COLUMN saved_amount REAL NOT NULL DEFAULT 0');
+migrateColumn('ALTER TABLE debts ADD COLUMN promo_apr REAL');
+migrateColumn('ALTER TABLE debts ADD COLUMN promo_expires_on TEXT');
 
 // Like migrateColumn, but for a column being removed rather than added —
 // dropping a column that was never there (a database created fresh, after
