@@ -34,7 +34,7 @@ const showDepartmentFilter = computed(() => departments.value.length > 1);
 // to localStorage (client-only, per-browser) so the choice survives a
 // reload without needing any server-side settings row.
 type ViewMode = 'budgets' | 'snapshots' | 'both';
-const viewMode = ref<ViewMode>((localStorage.getItem('dashboardViewMode') as ViewMode | null) ?? 'both');
+const viewMode = ref<ViewMode>((() => { try { return (localStorage.getItem('dashboardViewMode') as ViewMode | null) ?? 'both'; } catch { return 'both'; } })());
 watch(viewMode, (value) => {
   try {
     localStorage.setItem('dashboardViewMode', value);
