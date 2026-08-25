@@ -23,8 +23,11 @@ function validateBody(body: UpdateDebtPayoffSettingsDto): string | null {
   if (!STRATEGIES.includes(strategy)) {
     return `strategy must be one of: ${STRATEGIES.join(', ')}`;
   }
-  if (strategy === 'custom' && (!Array.isArray(order) || order.length === 0)) {
-    return 'order is required and must be a non-empty array when strategy is custom';
+  if (
+    strategy === 'custom' &&
+    (!Array.isArray(order) || order.length === 0 || !order.every((id) => typeof id === 'number' && Number.isInteger(id)))
+  ) {
+    return 'order is required and must be a non-empty array of debt ids (numbers) when strategy is custom';
   }
   return null;
 }
