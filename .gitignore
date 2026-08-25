@@ -11,6 +11,4 @@ docs/*
 *.md
 !/README.md
 !/CLAUDE.md
-!/MULTI_TENANCY_PROGRESS.md
-!/MULTI_TENANCY_FRONTEND_HANDOFF.md
 .idea/
