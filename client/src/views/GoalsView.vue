@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import GoalForm from '../components/GoalForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { useConfirmDelete } from '../composables/useConfirmDelete';
 import { formatCurrency } from '../utils/format';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
 
@@ -109,6 +111,9 @@ async function handleDelete(goal: SavingsGoal) {
   }
 }
 
+const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
+  useConfirmDelete(handleDelete);
+
 onMounted(loadGoals);
 </script>
 
@@ -177,10 +182,18 @@ onMounted(loadGoals);
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(goal)">Edit</button>
-        <button type="button" class="danger" @click="handleDelete(goal)">Delete</button>
+        <button type="button" class="danger" @click="requestDelete(goal)">Delete</button>
       </KebabMenu>
     </li>
   </ul>
+
+  <ConfirmDialog
+    :open="!!pendingDelete"
+    title="Delete goal?"
+    :message="`This will permanently delete '${pendingDelete?.name}'. This can't be undone.`"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <style scoped>

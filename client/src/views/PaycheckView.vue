@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import PaycheckForm from '../components/PaycheckForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { useConfirmDelete } from '../composables/useConfirmDelete';
 import { formatCurrency, capitalize } from '../utils/format';
 import type { Paycheck, CreatePaycheckDto, BankAccount, Category, PaycheckFrequency } from '../types';
 
@@ -120,6 +122,9 @@ async function handleDelete(paycheck: Paycheck) {
   }
 }
 
+const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
+  useConfirmDelete(handleDelete);
+
 function formatSplit(split: Paycheck['splits'][number]): string {
   const amount = split.split_type === 'percentage' ? `${split.value}%` : formatCurrency(split.value);
   return `${amount} → ${accountNameById.value[split.bank_account_id] ?? 'Unknown account'}`;
@@ -204,10 +209,18 @@ onMounted(loadPaychecks);
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(paycheck)">Edit</button>
-        <button type="button" class="danger" @click="handleDelete(paycheck)">Delete</button>
+        <button type="button" class="danger" @click="requestDelete(paycheck)">Delete</button>
       </KebabMenu>
     </li>
   </ul>
+
+  <ConfirmDialog
+    :open="!!pendingDelete"
+    title="Delete paycheck?"
+    :message="`This will permanently delete '${pendingDelete?.label}'. This can't be undone.`"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <style scoped>

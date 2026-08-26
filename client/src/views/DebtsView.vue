@@ -5,6 +5,8 @@ import DebtForm from '../components/DebtForm.vue';
 import DebtPayoffPlanner from '../components/DebtPayoffPlanner.vue';
 import PageSnapshot from '../components/PageSnapshot.vue';
 import KebabMenu from '../components/KebabMenu.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { useConfirmDelete } from '../composables/useConfirmDelete';
 import { formatCurrency } from '../utils/format';
 import { buildDebtSnapshot } from '../utils/snapshots';
 import type { Debt, CreateDebtDto, DebtPayoffPlanResponse } from '../types';
@@ -82,6 +84,9 @@ async function handleDelete(debt: Debt) {
   }
 }
 
+const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
+  useConfirmDelete(handleDelete);
+
 onMounted(loadDebts);
 </script>
 
@@ -134,10 +139,18 @@ onMounted(loadDebts);
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(debt)">Edit</button>
-        <button type="button" class="danger" @click="handleDelete(debt)">Delete</button>
+        <button type="button" class="danger" @click="requestDelete(debt)">Delete</button>
       </KebabMenu>
     </li>
   </ul>
+
+  <ConfirmDialog
+    :open="!!pendingDelete"
+    title="Delete debt?"
+    :message="`This will permanently delete '${pendingDelete?.name}'. This can't be undone.`"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <style scoped>

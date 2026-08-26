@@ -3,6 +3,8 @@ import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import AccountForm from '../components/AccountForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { useConfirmDelete } from '../composables/useConfirmDelete';
 import { formatCurrency, capitalize } from '../utils/format';
 import type { BankAccount, CreateBankAccountDto } from '../types';
 
@@ -74,6 +76,9 @@ async function handleDelete(account: BankAccount) {
   }
 }
 
+const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
+  useConfirmDelete(handleDelete);
+
 onMounted(loadAccounts);
 </script>
 
@@ -117,10 +122,18 @@ onMounted(loadAccounts);
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(account)">Edit</button>
-        <button type="button" class="danger" @click="handleDelete(account)">Delete</button>
+        <button type="button" class="danger" @click="requestDelete(account)">Delete</button>
       </KebabMenu>
     </li>
   </ul>
+
+  <ConfirmDialog
+    :open="!!pendingDelete"
+    title="Delete account?"
+    :message="`This will permanently delete '${pendingDelete?.name}'. This can't be undone.`"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <style scoped>
