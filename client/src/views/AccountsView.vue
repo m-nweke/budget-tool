@@ -3,12 +3,13 @@ import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import AccountForm from '../components/AccountForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, capitalize } from '../utils/format';
 import type { BankAccount, CreateBankAccountDto } from '../types';
 
 const accounts = ref<BankAccount[]>([]);
 const showForm = ref(false);
 const editingAccount = ref<BankAccount | null>(null);
+const formReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -24,12 +25,21 @@ async function loadAccounts() {
 
 function openCreateForm() {
   editingAccount.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditForm(account: BankAccount) {
   editingAccount.value = account;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+function openViewForm(account: BankAccount) {
+  editingAccount.value = account;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
@@ -79,8 +89,14 @@ onMounted(loadAccounts);
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="showForm" class="panel form-panel">
-    <h2>{{ editingAccount ? 'Edit Account' : 'New Account' }}</h2>
-    <AccountForm :account="editingAccount" @submit="handleSubmit" @cancel="closeForm" />
+    <h2>{{ !editingAccount ? 'New Account' : formReadonly ? 'View Account' : 'Edit Account' }}</h2>
+    <AccountForm
+      :account="editingAccount"
+      :readonly="formReadonly"
+      @submit="handleSubmit"
+      @cancel="closeForm"
+      @edit="formReadonly = false"
+    />
   </div>
 
   <div v-if="loaded && !accounts.length && !showForm" class="empty-state">
@@ -90,16 +106,16 @@ onMounted(loadAccounts);
   </div>
 
   <ul v-else class="account-list">
-    <li v-for="account in accounts" :key="account.id" class="card account-row">
+    <li v-for="account in accounts" :key="account.id" class="card account-row clickable" @click="openViewForm(account)">
       <div>
         <div class="account-name">
           {{ account.name }}
-          <span class="badge badge-department">{{ account.type }}</span>
+          <span class="badge badge-department">{{ capitalize(account.type) }}</span>
           <span v-if="account.apy != null" class="badge badge-recurring">{{ account.apy }}% APY</span>
         </div>
         <div class="account-balance">{{ formatCurrency(account.current_balance) }}</div>
       </div>
-      <KebabMenu>
+      <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(account)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(account)">Delete</button>
       </KebabMenu>
@@ -142,6 +158,14 @@ onMounted(loadAccounts);
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
+}
+
+.account-row.clickable {
+  cursor: pointer;
+}
+
+.account-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .account-name {

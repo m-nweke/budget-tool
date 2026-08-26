@@ -12,6 +12,9 @@ const categories = ref<Category[]>([]);
 const departments = ref<Department[]>([]);
 const showForm = ref(false);
 const editingCategory = ref<Category | null>(null);
+// Read-only until "Edit" is clicked inside the form — a row click opens
+// this view mode; the kebab menu's "Edit" jumps straight past it.
+const formReadonly = ref(false);
 const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
@@ -39,12 +42,25 @@ async function loadCategories() {
 
 function openCreateForm() {
   editingCategory.value = null;
+  formReadonly.value = false;
   showForm.value = true;
   scrollToForm();
 }
 
 function openEditForm(category: Category) {
   editingCategory.value = category;
+  formReadonly.value = false;
+  showForm.value = true;
+  scrollToForm();
+}
+
+// Row click — only when there's actually an Edit affordance to view toward
+// (mirrors the KebabMenu's own canManageBudget gate below); otherwise a
+// row click would open a view with no way to reach edit mode from it.
+function openViewForm(category: Category) {
+  if (!canManageBudget.value) return;
+  editingCategory.value = category;
+  formReadonly.value = true;
   showForm.value = true;
   scrollToForm();
 }
@@ -96,8 +112,14 @@ onMounted(loadCategories);
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="canManageBudget && showForm" class="panel form-panel">
-    <h2>{{ editingCategory ? 'Edit Category' : 'New Category' }}</h2>
-    <CategoryForm :category="editingCategory" @submit="handleSubmit" @cancel="closeForm" />
+    <h2>{{ !editingCategory ? 'New Category' : formReadonly ? 'View Category' : 'Edit Category' }}</h2>
+    <CategoryForm
+      :category="editingCategory"
+      :readonly="formReadonly"
+      @submit="handleSubmit"
+      @cancel="closeForm"
+      @edit="formReadonly = false"
+    />
   </div>
 
   <div v-if="loaded && !categories.length && !showForm" class="empty-state">
@@ -108,7 +130,13 @@ onMounted(loadCategories);
   </div>
 
   <ul v-else class="category-list">
-    <li v-for="category in categories" :key="category.id" class="card category-row">
+    <li
+      v-for="category in categories"
+      :key="category.id"
+      class="card category-row"
+      :class="{ clickable: canManageBudget }"
+      @click="openViewForm(category)"
+    >
       <div>
         <div class="category-name">
           {{ category.name }}
@@ -118,7 +146,7 @@ onMounted(loadCategories);
         </div>
         <div class="category-amount">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
       </div>
-      <KebabMenu v-if="canManageBudget">
+      <KebabMenu v-if="canManageBudget" @click.stop>
         <button type="button" @click="openEditForm(category)">Edit</button>
         <button type="button" class="danger" @click="handleDelete(category)">Delete</button>
       </KebabMenu>
@@ -161,6 +189,14 @@ onMounted(loadCategories);
   align-items: center;
   justify-content: space-between;
   padding: var(--space-4);
+}
+
+.category-row.clickable {
+  cursor: pointer;
+}
+
+.category-row.clickable:hover {
+  border-color: var(--color-primary);
 }
 
 .category-name {

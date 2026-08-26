@@ -87,7 +87,7 @@ const cashflowRepository = {
           date: occurrence.date,
           source: 'recurring_transaction',
           id: template.id,
-          label: template.description || 'Recurring transaction',
+          label: template.description || 'Recurring Transaction',
           amount: occurrence.amount,
         });
       }

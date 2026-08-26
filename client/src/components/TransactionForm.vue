@@ -5,6 +5,7 @@ import type { Category, Transaction, CreateTransactionDto, RecurrenceInterval } 
 const props = defineProps<{
   transaction: Transaction | null;
   categories: Category[];
+  readonly?: boolean;
 }>();
 const emit = defineEmits<{
   submit: [
@@ -12,6 +13,7 @@ const emit = defineEmits<{
     recurrence: { recurring: boolean; interval: RecurrenceInterval; end_date: string | null }
   ];
   cancel: [];
+  edit: [];
 }>();
 
 const amount = ref<number | string>('');
@@ -49,6 +51,7 @@ function handleSubmit() {
 
 <template>
   <form class="transaction-form" @submit.prevent="handleSubmit">
+    <fieldset class="fieldset-reset" :disabled="readonly">
     <div class="form-row">
       <label class="field">
         Amount
@@ -96,9 +99,14 @@ function handleSubmit() {
       </div>
     </template>
 
-    <div class="actions">
+    </fieldset>
+    <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">{{ transaction ? 'Save Changes' : 'Create Transaction' }}</button>
       <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Cancel</button>
+    </div>
+    <div v-else class="actions">
+      <button type="button" class="btn btn-primary" @click="$emit('edit')">Edit</button>
+      <button type="button" class="btn btn-secondary" @click="$emit('cancel')">Close</button>
     </div>
   </form>
 </template>

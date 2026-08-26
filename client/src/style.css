@@ -241,7 +241,8 @@ a {
 }
 
 .field input,
-.field select {
+.field select,
+.form-control {
   font: inherit;
   font-size: 0.95rem;
   color: var(--color-text);
@@ -251,7 +252,8 @@ a {
   padding: 9px 10px;
 }
 
-.field select {
+.field select,
+select.form-control {
   appearance: none;
   -webkit-appearance: none;
   padding-right: 34px;
@@ -262,16 +264,39 @@ a {
 }
 
 @media (prefers-color-scheme: dark) {
-  .field select {
+  .field select,
+  select.form-control {
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%239fada7' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
   }
 }
 
 .field input:focus,
-.field select:focus {
+.field select:focus,
+.form-control:focus {
   outline: none;
   border-color: var(--color-primary);
   box-shadow: 0 0 0 3px var(--color-primary-bg);
+}
+
+.field input:disabled,
+.field select:disabled,
+.form-control:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Wraps a form's fields so a single `disabled` attribute (view-mode,
+   before "Edit" is clicked) disables every descendant input/select/button
+   at once, native-HTML-fieldset-style, without listing each control
+   individually. `display: contents` removes the fieldset from layout
+   entirely — its default browser border/padding/margin never appears, and
+   its children flow directly into the parent flex/grid as if it weren't
+   there. */
+.fieldset-reset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: contents;
 }
 
 /* Surfaces */
