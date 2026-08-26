@@ -166,6 +166,51 @@ describe('debtPayoffPlanRepository.buildPlan — promo APR', () => {
   });
 });
 
+describe('debtPayoffPlanRepository.buildPlan — non-convergent plans', () => {
+  it('flags did_not_converge when a debt never pays off within the MAX_MONTHS cap', () => {
+    // 24% APR = 2%/mo. A $1000 balance accrues $20/mo interest; a $15
+    // minimum payment doesn't even cover that, so the balance grows every
+    // month forever regardless of how long we simulate.
+    debtRepository.create({ name: 'Underwater', balance: 1000, interest_rate: 24, minimum_payment: 15, due_day: 1 }, tenantId);
+    // extra = 0 (monthly_amount === sum_minimums), so nothing but the
+    // minimum ever touches this debt.
+    debtPayoffSettingsRepository.upsert(tenantId, { monthly_amount: 15, strategy: 'snowball' });
+
+    const { plan } = debtPayoffPlanRepository.buildPlan(tenantId);
+    if (!plan || 'insufficient_minimums' in plan) throw new Error('expected a real plan');
+    expect(plan.did_not_converge).toBe(true);
+    expect(plan.months).toBe(600);
+    expect(plan.per_debt[0].payoff_date).toBeNull();
+  });
+
+  it('leaves did_not_converge false for an ordinary plan that pays off well within the cap', () => {
+    debtRepository.create({ name: 'Card', balance: 1200, interest_rate: 12, minimum_payment: 1200, due_day: 1 }, tenantId);
+    debtPayoffSettingsRepository.upsert(tenantId, { monthly_amount: 1200, strategy: 'snowball' });
+
+    const { plan } = debtPayoffPlanRepository.buildPlan(tenantId);
+    if (!plan || 'insufficient_minimums' in plan) throw new Error('expected a real plan');
+    expect(plan.did_not_converge).toBe(false);
+  });
+});
+
+describe('debtPayoffPlanRepository.buildPlan — month-stepping clamps instead of rolling over', () => {
+  it('steps from Jan 31 to Feb 28 to Mar 28, not rolling over into early March/April', () => {
+    vi.setSystemTime(new Date('2026-01-31T00:00:00Z'));
+    // balance 1200, 12% APR (1%/mo), minimum 600, monthlyAmount 600 (no extra).
+    // Month 1 (Jan 31 -> Feb 28): interest = 12 -> balance 1212; payment 600 -> balance 612.
+    // Month 2 (Feb 28 -> Mar 28): interest = 6.12 -> balance 618.12; payment min(600,618.12) -> balance 18.12.
+    // Month 3 (Mar 28 -> Apr 28): interest = 0.1812 -> balance 18.3012; payment clears it -> paid off Apr 28.
+    // The old unclamped addOneMonth would instead land on Mar 3, Apr 3, May 3.
+    debtRepository.create({ name: 'Card', balance: 1200, interest_rate: 12, minimum_payment: 600, due_day: 1 }, tenantId);
+    debtPayoffSettingsRepository.upsert(tenantId, { monthly_amount: 600, strategy: 'snowball' });
+
+    const { plan } = debtPayoffPlanRepository.buildPlan(tenantId);
+    if (!plan || 'insufficient_minimums' in plan) throw new Error('expected a real plan');
+    expect(plan.debt_free_date).toBe('2026-04-28');
+    expect(plan.per_debt[0].payoff_date).toBe('2026-04-28');
+  });
+});
+
 describe('debtPayoffPlanRepository.buildPlan — avalanche comparison', () => {
   it('is null when the selected strategy is already avalanche', () => {
     debtRepository.create({ name: 'A', balance: 500, interest_rate: 10, minimum_payment: 20, due_day: 1 }, tenantId);

@@ -139,7 +139,12 @@ const payoffResult = computed<DebtPayoffResult | null>(() => {
     </div>
 
     <div v-else-if="payoffResult" class="plan-results">
-      <div class="result-headline">
+      <div v-if="payoffResult.did_not_converge" class="alert plan-warning">
+        At this monthly amount, at least one debt isn't projected to pay off within 50 years —
+        see which one below. Increase your monthly amount or check that it covers each debt's
+        interest, not just its minimum payment.
+      </div>
+      <div v-else class="result-headline">
         <div>
           <span class="result-label">Debt-free by</span>
           <span class="result-value">{{ payoffResult.debt_free_date }}</span>

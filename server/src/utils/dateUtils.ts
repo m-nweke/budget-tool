@@ -17,6 +17,19 @@ export function addOneMonth(dateStr: string): string {
   return next.toISOString().slice(0, 10);
 }
 
+// Clamping variant of addOneMonth (e.g. Jan 31 -> Feb 28/29, not Mar 3).
+// Reach for this over addOneMonth for any loop that steps forward many
+// times in succession (debt payoff simulation, etc.) — addOneMonth's
+// unclamped rollover is a one-off cosmetic quirk for a single step, but
+// compounds into a real date error over dozens of repeated steps.
+export function addOneMonthClamped(dateStr: string): string {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const nextMonthIndex = month - 1 + 1;
+  const nextYear = year + Math.floor(nextMonthIndex / 12);
+  const nextMonth = (nextMonthIndex % 12) + 1;
+  return formatDate(nextYear, nextMonth, Math.min(day, lastDayOfMonth(nextYear, nextMonth)));
+}
+
 export function addByInterval(dateStr: string, interval: RecurrenceInterval): string {
   switch (interval) {
     case 'daily':

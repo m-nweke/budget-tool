@@ -1,7 +1,7 @@
 import debtRepository from './debtRepository';
 import debtPayoffSettingsRepository from './debtPayoffSettingsRepository';
 import bankAccountRepository from './bankAccountRepository';
-import { addOneMonth, todayISO, stepMonthlyDueDates } from '../utils/dateUtils';
+import { addOneMonth, addOneMonthClamped, todayISO, stepMonthlyDueDates } from '../utils/dateUtils';
 import type {
   Debt,
   PayoffStrategy,
@@ -70,7 +70,7 @@ function simulate(debts: Debt[], monthlyAmount: number, order: Debt[]): DebtPayo
   let months = 0;
   while ([...balances.values()].some((b) => b > 0) && months < MAX_MONTHS) {
     months++;
-    currentDate = addOneMonth(currentDate);
+    currentDate = addOneMonthClamped(currentDate);
 
     for (const debt of debts) {
       const balance = balances.get(debt.id)!;
@@ -104,10 +104,12 @@ function simulate(debts: Debt[], monthlyAmount: number, order: Debt[]): DebtPayo
   }
 
   const totalInterest = [...interestPaid.values()].reduce((sum, v) => sum + v, 0);
+  const didNotConverge = months >= MAX_MONTHS && [...balances.values()].some((b) => b > 0);
   return {
     months,
     total_interest: totalInterest,
     debt_free_date: currentDate,
+    did_not_converge: didNotConverge,
     per_debt: debts.map((d) => ({
       debt_id: d.id,
       name: d.name,

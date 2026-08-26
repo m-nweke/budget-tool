@@ -10,6 +10,12 @@ export interface DebtPayoffResult {
   months: number;
   total_interest: number;
   debt_free_date: string;
+  // True when the simulation hit its MAX_MONTHS safety cap with at least one
+  // debt still unpaid — debt_free_date and total_interest reflect the
+  // capped horizon, not an actual payoff, so callers must not present them
+  // as a solved plan (see per_debt's null payoff_date for which debt(s)
+  // never clear).
+  did_not_converge: boolean;
   per_debt: {
     debt_id: number;
     name: string;
