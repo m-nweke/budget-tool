@@ -1,6 +1,7 @@
 import path from 'path';
 import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
+import morgan from 'morgan';
 
 import authRouter from './routes/auth';
 import departmentsRouter from './routes/departments';
@@ -25,6 +26,18 @@ import { authenticate } from './middleware/authenticate';
 // exercise routes directly via supertest instead of over a real socket.
 // server.ts stays a thin entrypoint that imports this and calls listen().
 const app = express();
+
+// Request logging: 'combined' (Apache-style, includes remote addr/referrer/
+// user-agent — useful for after-the-fact incident analysis) in production,
+// 'dev' (concise, colored, includes response time) everywhere else. Skipped
+// entirely under NODE_ENV=test, same convention as the auth rate limiter
+// (server/src/routes/auth.ts) — otherwise every one of the 300+ existing
+// tests would spam stdout on every request.
+app.use(
+  morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev', {
+    skip: () => process.env.NODE_ENV === 'test',
+  })
+);
 
 app.use(express.json());
 app.use(cookieParser());
