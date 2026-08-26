@@ -40,7 +40,8 @@ async function createOwner(name: string, email: string) {
 
 beforeEach(() => {
   db.exec(
-    'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; DELETE FROM debts; ' +
+    'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; ' +
+      'DELETE FROM debt_payoff_settings; DELETE FROM debts; ' +
       'DELETE FROM bills; DELETE FROM bank_accounts; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
   );
   enterpriseTenantId = tenantRepository.create('Acme Co', 'enterprise').id;
@@ -211,6 +212,96 @@ describe('CRUD /api/debts', () => {
       .post('/api/debts')
       .send({ name: 'Credit Card', balance: 2000, interest_rate: 19.99, minimum_payment: 50, due_day: 32 });
     expect(res.status).toBe(400);
+  });
+
+  it('rejects a promo_apr with no matching promo_expires_on', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/debts')
+      .send({ name: 'Promo Card', balance: 1000, interest_rate: 24.99, minimum_payment: 25, due_day: 10, promo_apr: 0 });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts a matched promo_apr/promo_expires_on pair', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/debts').send({
+      name: 'Promo Card',
+      balance: 1000,
+      interest_rate: 24.99,
+      minimum_payment: 25,
+      due_day: 10,
+      promo_apr: 0,
+      promo_expires_on: '2027-01-01',
+    });
+    expect(res.status).toBe(201);
+    expect(res.body).toMatchObject({ promo_apr: 0, promo_expires_on: '2027-01-01' });
+  });
+});
+
+describe('GET /api/debt-payoff-plan and PUT /api/debt-payoff-plan/settings', () => {
+  it('is owner-only', async () => {
+    await createHead('Dana', 'dana@example.com');
+    const headAgent = await loginAs('dana@example.com');
+    expect((await headAgent.get('/api/debt-payoff-plan')).status).toBe(403);
+    expect((await headAgent.put('/api/debt-payoff-plan/settings').send({ monthly_amount: 100, strategy: 'snowball' })).status).toBe(403);
+  });
+
+  it('returns a null plan and snapshot before any debts/settings exist', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.get('/api/debt-payoff-plan');
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ snapshot: null, settings: null, plan: null, avalanche_comparison: null });
+  });
+
+  it('rejects an invalid strategy', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.put('/api/debt-payoff-plan/settings').send({ monthly_amount: 100, strategy: 'bogus' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a negative monthly_amount', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.put('/api/debt-payoff-plan/settings').send({ monthly_amount: -50, strategy: 'snowball' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects strategy=custom with no order', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.put('/api/debt-payoff-plan/settings').send({ monthly_amount: 100, strategy: 'custom' });
+    expect(res.status).toBe(400);
+  });
+
+  it('persists settings and returns the recomputed plan in the same response', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    await agent.post('/api/debts').send({ name: 'Credit Card', balance: 1000, interest_rate: 12, minimum_payment: 1000, due_day: 15 });
+
+    const putRes = await agent.put('/api/debt-payoff-plan/settings').send({ monthly_amount: 1000, strategy: 'snowball' });
+    expect(putRes.status).toBe(200);
+    expect(putRes.body.settings).toMatchObject({ monthly_amount: 1000, strategy: 'snowball' });
+    expect(putRes.body.plan).not.toBeNull();
+
+    // Confirms it's actually persisted, not just returned once.
+    const getRes = await agent.get('/api/debt-payoff-plan');
+    expect(getRes.body.settings).toMatchObject({ monthly_amount: 1000, strategy: 'snowball' });
+  });
+
+  it('is scoped to the caller\'s own tenant', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const patAgent = await loginAs('pat@example.com');
+    await patAgent.post('/api/debts').send({ name: 'Pat Card', balance: 1000, interest_rate: 12, minimum_payment: 50, due_day: 1 });
+    await patAgent.put('/api/debt-payoff-plan/settings').send({ monthly_amount: 200, strategy: 'snowball' });
+
+    await createOwner('Quinn', 'quinn@example.com');
+    const quinnAgent = await loginAs('quinn@example.com');
+    const res = await quinnAgent.get('/api/debt-payoff-plan');
+    expect(res.body).toMatchObject({ snapshot: null, settings: null });
   });
 });
 

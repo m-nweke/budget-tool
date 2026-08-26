@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { api } from '../api';
 import DebtForm from '../components/DebtForm.vue';
+import DebtPayoffPlanner from '../components/DebtPayoffPlanner.vue';
+import PageSnapshot from '../components/PageSnapshot.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import { formatCurrency } from '../utils/format';
-import type { Debt, CreateDebtDto } from '../types';
+import { buildDebtSnapshot } from '../utils/snapshots';
+import type { Debt, CreateDebtDto, DebtPayoffPlanResponse } from '../types';
 
 const debts = ref<Debt[]>([]);
+const payoffPlan = ref<DebtPayoffPlanResponse | null>(null);
 const showForm = ref(false);
 const editingDebt = ref<Debt | null>(null);
 const formReadonly = ref(false);
@@ -14,12 +18,16 @@ const error = ref('');
 const loaded = ref(false);
 const viewTop = ref<HTMLElement | null>(null);
 
+const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan.value) : null));
+
 function scrollToForm() {
   viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function loadDebts() {
-  debts.value = await api.getDebts();
+  const [debtsResult, planResult] = await Promise.all([api.getDebts(), api.getDebtPayoffPlan()]);
+  debts.value = debtsResult;
+  payoffPlan.value = planResult;
   loaded.value = true;
 }
 
@@ -88,6 +96,17 @@ onMounted(loadDebts);
 
   <p v-if="error" class="alert">{{ error }}</p>
 
+  <div v-if="snapshot" class="snapshot-row">
+    <PageSnapshot :title="snapshot.title" :to="snapshot.to" :stats="snapshot.stats" />
+  </div>
+
+  <DebtPayoffPlanner
+    v-if="debts.length && payoffPlan"
+    :debts="debts"
+    :plan="payoffPlan"
+    @updated="payoffPlan = $event"
+  />
+
   <div v-if="showForm" class="panel form-panel">
     <h2>{{ !editingDebt ? 'New Debt' : formReadonly ? 'View Debt' : 'Edit Debt' }}</h2>
     <DebtForm
@@ -132,6 +151,13 @@ onMounted(loadDebts);
 
 .view-header p {
   margin-top: var(--space-1);
+}
+
+.snapshot-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .form-panel {

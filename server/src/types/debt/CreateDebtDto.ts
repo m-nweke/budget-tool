@@ -4,4 +4,6 @@ export interface CreateDebtDto {
   interest_rate: number;
   minimum_payment: number;
   due_day: number;
+  promo_apr?: number | null;
+  promo_expires_on?: string | null;
 }

@@ -46,6 +46,41 @@ describe('debtRepository', () => {
     expect(updated).toMatchObject({ balance: 1800, minimum_payment: 60 });
   });
 
+  it('creates and updates a promo-APR debt', () => {
+    const created = debtRepository.create(
+      {
+        name: 'Promo Card',
+        balance: 1000,
+        interest_rate: 24.99,
+        minimum_payment: 25,
+        due_day: 10,
+        promo_apr: 0,
+        promo_expires_on: '2027-01-01',
+      },
+      tenantId
+    );
+    expect(created).toMatchObject({ promo_apr: 0, promo_expires_on: '2027-01-01' });
+
+    const updated = debtRepository.update(created.id, {
+      name: 'Promo Card',
+      balance: 1000,
+      interest_rate: 24.99,
+      minimum_payment: 25,
+      due_day: 10,
+      promo_apr: null,
+      promo_expires_on: null,
+    });
+    expect(updated).toMatchObject({ promo_apr: null, promo_expires_on: null });
+  });
+
+  it('defaults promo fields to null when omitted', () => {
+    const created = debtRepository.create(
+      { name: 'Credit Card', balance: 2000, interest_rate: 19.99, minimum_payment: 50, due_day: 15 },
+      tenantId
+    );
+    expect(created).toMatchObject({ promo_apr: null, promo_expires_on: null });
+  });
+
   it('remove deletes the debt', () => {
     const created = debtRepository.create(
       { name: 'Credit Card', balance: 2000, interest_rate: 19.99, minimum_payment: 50, due_day: 15 },

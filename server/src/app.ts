@@ -16,6 +16,7 @@ import savingsGoalsRouter from './routes/savingsGoals';
 import debtsRouter from './routes/debts';
 import billsRouter from './routes/bills';
 import cashflowRouter from './routes/cashflow';
+import debtPayoffPlanRouter from './routes/debtPayoffPlan';
 import recurringTransactionRepository from './repositories/recurringTransactionRepository';
 import { errorHandler } from './middleware/errorHandler';
 import { authenticate } from './middleware/authenticate';
@@ -68,6 +69,7 @@ app.use('/api/bills', authenticate, billsRouter);
 // occurrences forward from next_run_date — needs materializeDueTransactions
 // first so that value is current, not stale backlog (story 18).
 app.use('/api/cash-flow', authenticate, materializeDueTransactions, cashflowRouter);
+app.use('/api/debt-payoff-plan', authenticate, debtPayoffPlanRouter);
 
 // Any /api/* path that didn't match a router above is a real 404, not a
 // SPA route — return JSON instead of falling through to index.html.

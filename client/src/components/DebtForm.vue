@@ -17,6 +17,9 @@ const balance = ref<number | string>('');
 const interestRate = ref<number | string>('');
 const minimumPayment = ref<number | string>('');
 const dueDay = ref<number | string>('');
+const hasPromoApr = ref(false);
+const promoApr = ref<number | string>('');
+const promoExpiresOn = ref('');
 
 watch(
   () => props.debt,
@@ -26,6 +29,9 @@ watch(
     interestRate.value = debt ? debt.interest_rate : '';
     minimumPayment.value = debt ? debt.minimum_payment : '';
     dueDay.value = debt ? debt.due_day : '';
+    hasPromoApr.value = !!(debt?.promo_apr !== null && debt?.promo_apr !== undefined);
+    promoApr.value = debt?.promo_apr ?? '';
+    promoExpiresOn.value = debt?.promo_expires_on ?? '';
   },
   { immediate: true }
 );
@@ -37,6 +43,8 @@ function handleSubmit() {
     interest_rate: Number(interestRate.value),
     minimum_payment: Number(minimumPayment.value),
     due_day: Number(dueDay.value),
+    promo_apr: hasPromoApr.value ? Number(promoApr.value) : null,
+    promo_expires_on: hasPromoApr.value ? promoExpiresOn.value : null,
   });
 }
 </script>
@@ -64,6 +72,20 @@ function handleSubmit() {
       Due Day of Month
       <input v-model="dueDay" type="number" step="1" min="1" max="31" placeholder="15" required />
     </label>
+    <label class="promo-toggle">
+      <input v-model="hasPromoApr" type="checkbox" />
+      This has a promotional APR period (e.g. 0% intro rate)
+    </label>
+    <template v-if="hasPromoApr">
+      <label class="field">
+        Promotional APR (%)
+        <input v-model="promoApr" type="number" step="0.01" min="0" placeholder="0.00" required />
+      </label>
+      <label class="field">
+        Promo Expires On
+        <input v-model="promoExpiresOn" type="date" required />
+      </label>
+    </template>
     </fieldset>
     <div v-if="!readonly" class="actions">
       <button type="submit" class="btn btn-primary">{{ debt ? 'Save Changes' : 'Create Debt' }}</button>
@@ -82,6 +104,15 @@ function handleSubmit() {
   flex-direction: column;
   gap: var(--space-4);
   max-width: 360px;
+}
+
+.promo-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
 }
 
 .actions {
