@@ -39,7 +39,13 @@ watch(
     const savedOrder = settings?.custom_order ? (JSON.parse(settings.custom_order) as number[]) : [];
     const validIds = new Set(debts.map((d) => d.id));
     const healed = savedOrder.filter((id) => validIds.has(id));
-    const missing = debts.filter((d) => !healed.includes(d.id)).map((d) => d.id);
+    // Smallest balance first, matching orderDebts()'s server-side healing
+    // (debtPayoffPlanRepository.ts) — otherwise the order shown/re-saved
+    // here wouldn't match what the server actually simulates.
+    const missing = debts
+      .filter((d) => !healed.includes(d.id))
+      .sort((a, b) => a.balance - b.balance)
+      .map((d) => d.id);
     customOrder.value = [...healed, ...missing];
   },
   { immediate: true }
