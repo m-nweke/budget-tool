@@ -51,7 +51,11 @@ router.post('/', (req: Request<{}, {}, CreateRecurringTransactionDto>, res: Resp
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
   const recurringTransaction = recurringTransactionRepository.create(req.body);
-  recurringTransactionRepository.generateDue();
+  // Scoped to this tenant, same rationale as app.ts's materializeDueTransactions
+  // middleware — this call runs after create() specifically to materialize the
+  // brand-new template's own due occurrence immediately (the middleware's pass
+  // ran before this template existed, so it couldn't have caught it).
+  recurringTransactionRepository.generateDue((req.user as AuthUser).tenant_id);
   res.status(201).json(recurringTransaction);
 });
 

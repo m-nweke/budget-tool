@@ -41,8 +41,15 @@ app.use('/api/auth', authRouter);
 // Scoped to only the routers whose data can actually be affected by newly
 // materialized transactions — running this full-table scan/transaction on
 // every request (static assets, categories CRUD, 404s, ...) was pure waste.
+//
+// generateDue(req.user.tenant_id) scopes the pass to the requesting user's
+// own tenant — this middleware runs after authenticate, so req.user is
+// always set here. Without the tenant scope, one tenant's request would
+// materialize (and write) every other tenant's due recurring transactions
+// too, an unscoped cross-tenant cost that grows with total platform tenant
+// count, not this tenant's own data (see recurringTransactionRepository.generateDue).
 function materializeDueTransactions(req: Request, res: Response, next: NextFunction): void {
-  recurringTransactionRepository.generateDue();
+  recurringTransactionRepository.generateDue(req.user?.tenant_id);
   next();
 }
 
