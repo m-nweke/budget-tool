@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import BillForm from '../components/BillForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
-import { useConfirmDelete } from '../composables/useConfirmDelete';
+import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency } from '../utils/format';
 import type { Bill, CreateBillDto } from '../types';
 
@@ -17,78 +16,27 @@ const CATEGORY_LABELS: Record<Bill['category'], string> = {
   other: 'Other',
 };
 
-const bills = ref<Bill[]>([]);
-const showForm = ref(false);
-const editingBill = ref<Bill | null>(null);
-const formReadonly = ref(false);
-const error = ref('');
-const loaded = ref(false);
-const viewTop = ref<HTMLElement | null>(null);
-
-function scrollToForm() {
-  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function loadBills() {
-  bills.value = await api.getBills();
-  loaded.value = true;
-}
-
-function openCreateForm() {
-  editingBill.value = null;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openEditForm(bill: Bill) {
-  editingBill.value = bill;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openViewForm(bill: Bill) {
-  editingBill.value = bill;
-  formReadonly.value = true;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function closeForm() {
-  showForm.value = false;
-  editingBill.value = null;
-}
-
-async function handleSubmit(data: CreateBillDto) {
-  error.value = '';
-  try {
-    if (editingBill.value) {
-      await api.updateBill(editingBill.value.id, data);
-    } else {
-      await api.createBill(data);
-    }
-    closeForm();
-    await loadBills();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-async function handleDelete(bill: Bill) {
-  error.value = '';
-  try {
-    await api.deleteBill(bill.id);
-    await loadBills();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
-  useConfirmDelete(handleDelete);
-
-onMounted(loadBills);
+const {
+  items: bills,
+  showForm,
+  editingItem: editingBill,
+  formReadonly,
+  error,
+  loaded,
+  viewTop,
+  openCreateForm,
+  openEditForm,
+  openViewForm,
+  closeForm,
+  handleSubmit,
+  pendingDelete,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+} = useCrudListView<Bill, CreateBillDto>(
+  () => api.getBills(),
+  { create: api.createBill, update: api.updateBill, remove: api.deleteBill }
+);
 </script>
 
 <template>

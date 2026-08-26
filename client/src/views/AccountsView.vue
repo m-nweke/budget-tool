@@ -1,85 +1,33 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
 import { api } from '../api';
 import AccountForm from '../components/AccountForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
-import { useConfirmDelete } from '../composables/useConfirmDelete';
+import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency, capitalize } from '../utils/format';
 import type { BankAccount, CreateBankAccountDto } from '../types';
 
-const accounts = ref<BankAccount[]>([]);
-const showForm = ref(false);
-const editingAccount = ref<BankAccount | null>(null);
-const formReadonly = ref(false);
-const error = ref('');
-const loaded = ref(false);
-const viewTop = ref<HTMLElement | null>(null);
-
-function scrollToForm() {
-  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function loadAccounts() {
-  accounts.value = await api.getBankAccounts();
-  loaded.value = true;
-}
-
-function openCreateForm() {
-  editingAccount.value = null;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openEditForm(account: BankAccount) {
-  editingAccount.value = account;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openViewForm(account: BankAccount) {
-  editingAccount.value = account;
-  formReadonly.value = true;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function closeForm() {
-  showForm.value = false;
-  editingAccount.value = null;
-}
-
-async function handleSubmit(data: CreateBankAccountDto) {
-  error.value = '';
-  try {
-    if (editingAccount.value) {
-      await api.updateBankAccount(editingAccount.value.id, data);
-    } else {
-      await api.createBankAccount(data);
-    }
-    closeForm();
-    await loadAccounts();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-async function handleDelete(account: BankAccount) {
-  error.value = '';
-  try {
-    await api.deleteBankAccount(account.id);
-    await loadAccounts();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
-  useConfirmDelete(handleDelete);
-
-onMounted(loadAccounts);
+const {
+  items: accounts,
+  showForm,
+  editingItem: editingAccount,
+  formReadonly,
+  error,
+  loaded,
+  viewTop,
+  openCreateForm,
+  openEditForm,
+  openViewForm,
+  closeForm,
+  handleSubmit,
+  pendingDelete,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+} = useCrudListView<BankAccount, CreateBankAccountDto>(
+  () => api.getBankAccounts(),
+  { create: api.createBankAccount, update: api.updateBankAccount, remove: api.deleteBankAccount }
+);
 </script>
 
 <template>

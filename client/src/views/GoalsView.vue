@@ -1,24 +1,43 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { api } from '../api';
 import GoalForm from '../components/GoalForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
-import { useConfirmDelete } from '../composables/useConfirmDelete';
+import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency } from '../utils/format';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
 
 type Interval = 'week' | 'month' | 'quarter';
 
-const goals = ref<SavingsGoal[]>([]);
 const accounts = ref<BankAccount[]>([]);
-const showForm = ref(false);
-const editingGoal = ref<SavingsGoal | null>(null);
-const formReadonly = ref(false);
-const error = ref('');
-const loaded = ref(false);
-const viewTop = ref<HTMLElement | null>(null);
 const interval = ref<Interval>('month');
+
+const {
+  items: goals,
+  showForm,
+  editingItem: editingGoal,
+  formReadonly,
+  error,
+  loaded,
+  viewTop,
+  openCreateForm,
+  openEditForm,
+  openViewForm,
+  closeForm,
+  handleSubmit,
+  pendingDelete,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+} = useCrudListView<SavingsGoal, CreateSavingsGoalDto>(
+  async () => {
+    const [goalsResult, accountsResult] = await Promise.all([api.getSavingsGoals(), api.getBankAccounts()]);
+    accounts.value = accountsResult;
+    return goalsResult;
+  },
+  { create: api.createSavingsGoal, update: api.updateSavingsGoal, remove: api.deleteSavingsGoal }
+);
 
 const accountNameById = computed(() => {
   const map: Record<number, string> = {};
@@ -51,70 +70,6 @@ function paceFor(goal: SavingsGoal): number | null {
   return remaining / periodsLeft;
 }
 
-function scrollToForm() {
-  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function loadGoals() {
-  [goals.value, accounts.value] = await Promise.all([api.getSavingsGoals(), api.getBankAccounts()]);
-  loaded.value = true;
-}
-
-function openCreateForm() {
-  editingGoal.value = null;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openEditForm(goal: SavingsGoal) {
-  editingGoal.value = goal;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openViewForm(goal: SavingsGoal) {
-  editingGoal.value = goal;
-  formReadonly.value = true;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function closeForm() {
-  showForm.value = false;
-  editingGoal.value = null;
-}
-
-async function handleSubmit(data: CreateSavingsGoalDto) {
-  error.value = '';
-  try {
-    if (editingGoal.value) {
-      await api.updateSavingsGoal(editingGoal.value.id, data);
-    } else {
-      await api.createSavingsGoal(data);
-    }
-    closeForm();
-    await loadGoals();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-async function handleDelete(goal: SavingsGoal) {
-  error.value = '';
-  try {
-    await api.deleteSavingsGoal(goal.id);
-    await loadGoals();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
-  useConfirmDelete(handleDelete);
-
-onMounted(loadGoals);
 </script>
 
 <template>

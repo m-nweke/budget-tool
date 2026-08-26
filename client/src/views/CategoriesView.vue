@@ -1,25 +1,44 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { api } from '../api';
 import { useAuth } from '../composables/useAuth';
 import CategoryForm from '../components/CategoryForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
-import { useConfirmDelete } from '../composables/useConfirmDelete';
+import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency } from '../utils/format';
 import type { Category, CreateCategoryDto, Department } from '../types';
 
 const { canManageBudget } = useAuth();
-const categories = ref<Category[]>([]);
 const departments = ref<Department[]>([]);
-const showForm = ref(false);
-const editingCategory = ref<Category | null>(null);
-// Read-only until "Edit" is clicked inside the form — a row click opens
-// this view mode; the kebab menu's "Edit" jumps straight past it.
-const formReadonly = ref(false);
-const error = ref('');
-const loaded = ref(false);
-const viewTop = ref<HTMLElement | null>(null);
+
+const {
+  items: categories,
+  showForm,
+  editingItem: editingCategory,
+  // Read-only until "Edit" is clicked inside the form — a row click opens
+  // this view mode; the kebab menu's "Edit" jumps straight past it.
+  formReadonly,
+  error,
+  loaded,
+  viewTop,
+  openCreateForm,
+  openEditForm,
+  openViewForm: openViewFormRaw,
+  closeForm,
+  handleSubmit,
+  pendingDelete,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+} = useCrudListView<Category, CreateCategoryDto>(
+  async () => {
+    const [categoriesResult, departmentsResult] = await Promise.all([api.getCategories(), api.getDepartments()]);
+    departments.value = departmentsResult;
+    return categoriesResult;
+  },
+  { create: api.createCategory, update: api.updateCategory, remove: api.deleteCategory }
+);
 
 // Only worth labeling categories by department when there's more than one
 // in view — a head scoped to a single department gets no extra info from
@@ -33,74 +52,14 @@ const departmentNameById = computed(() => {
   return map;
 });
 
-function scrollToForm() {
-  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function loadCategories() {
-  [categories.value, departments.value] = await Promise.all([api.getCategories(), api.getDepartments()]);
-  loaded.value = true;
-}
-
-function openCreateForm() {
-  editingCategory.value = null;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openEditForm(category: Category) {
-  editingCategory.value = category;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
 // Row click — only when there's actually an Edit affordance to view toward
 // (mirrors the KebabMenu's own canManageBudget gate below); otherwise a
 // row click would open a view with no way to reach edit mode from it.
 function openViewForm(category: Category) {
   if (!canManageBudget.value) return;
-  editingCategory.value = category;
-  formReadonly.value = true;
-  showForm.value = true;
-  scrollToForm();
+  openViewFormRaw(category);
 }
 
-function closeForm() {
-  showForm.value = false;
-  editingCategory.value = null;
-}
-
-async function handleSubmit(data: CreateCategoryDto) {
-  error.value = '';
-  try {
-    if (editingCategory.value) {
-      await api.updateCategory(editingCategory.value.id, data);
-    } else {
-      await api.createCategory(data);
-    }
-    closeForm();
-    await loadCategories();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-async function handleDelete(category: Category) {
-  error.value = '';
-  try {
-    await api.deleteCategory(category.id);
-    await loadCategories();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
-  useConfirmDelete(handleDelete);
-
-onMounted(loadCategories);
 </script>
 
 <template>

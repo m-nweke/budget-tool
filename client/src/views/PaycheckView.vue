@@ -1,23 +1,47 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed } from 'vue';
 import { api } from '../api';
 import PaycheckForm from '../components/PaycheckForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
-import { useConfirmDelete } from '../composables/useConfirmDelete';
+import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency, capitalize } from '../utils/format';
 import type { Paycheck, CreatePaycheckDto, BankAccount, Category, PaycheckFrequency } from '../types';
 
-const paychecks = ref<Paycheck[]>([]);
 const accounts = ref<BankAccount[]>([]);
 const categories = ref<Category[]>([]);
-const showForm = ref(false);
-const editingPaycheck = ref<Paycheck | null>(null);
-const formReadonly = ref(false);
-const error = ref('');
-const loaded = ref(false);
-const viewTop = ref<HTMLElement | null>(null);
 const expandedAllocationId = ref<number | null>(null);
+
+const {
+  items: paychecks,
+  showForm,
+  editingItem: editingPaycheck,
+  formReadonly,
+  error,
+  loaded,
+  viewTop,
+  openCreateForm,
+  openEditForm,
+  openViewForm,
+  closeForm,
+  handleSubmit,
+  pendingDelete,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+} = useCrudListView<Paycheck, CreatePaycheckDto>(
+  async () => {
+    const [paychecksResult, accountsResult, categoriesResult] = await Promise.all([
+      api.getPaychecks(),
+      api.getBankAccounts(),
+      api.getCategories(),
+    ]);
+    accounts.value = accountsResult;
+    categories.value = categoriesResult;
+    return paychecksResult;
+  },
+  { create: api.createPaycheck, update: api.updatePaycheck, remove: api.deletePaycheck }
+);
 
 // How many times a paycheck on this cadence lands per month — used to
 // prorate categories.budgeted_amount (a monthly figure) down to "how much
@@ -58,79 +82,10 @@ const accountNameById = computed(() => {
   return map;
 });
 
-function scrollToForm() {
-  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function loadPaychecks() {
-  [paychecks.value, accounts.value, categories.value] = await Promise.all([
-    api.getPaychecks(),
-    api.getBankAccounts(),
-    api.getCategories(),
-  ]);
-  loaded.value = true;
-}
-
-function openCreateForm() {
-  editingPaycheck.value = null;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openEditForm(paycheck: Paycheck) {
-  editingPaycheck.value = paycheck;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openViewForm(paycheck: Paycheck) {
-  editingPaycheck.value = paycheck;
-  formReadonly.value = true;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function closeForm() {
-  showForm.value = false;
-  editingPaycheck.value = null;
-}
-
-async function handleSubmit(data: CreatePaycheckDto) {
-  error.value = '';
-  try {
-    if (editingPaycheck.value) {
-      await api.updatePaycheck(editingPaycheck.value.id, data);
-    } else {
-      await api.createPaycheck(data);
-    }
-    closeForm();
-    await loadPaychecks();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-async function handleDelete(paycheck: Paycheck) {
-  error.value = '';
-  try {
-    await api.deletePaycheck(paycheck.id);
-    await loadPaychecks();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
-  useConfirmDelete(handleDelete);
-
 function formatSplit(split: Paycheck['splits'][number]): string {
   const amount = split.split_type === 'percentage' ? `${split.value}%` : formatCurrency(split.value);
   return `${amount} → ${accountNameById.value[split.bank_account_id] ?? 'Unknown account'}`;
 }
-
-onMounted(loadPaychecks);
 </script>
 
 <template>
