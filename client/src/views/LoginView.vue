@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
+import PasswordField from '../components/PasswordField.vue';
 
 const { login, selectTenant, memberships } = useAuth();
 const router = useRouter();
@@ -77,7 +78,7 @@ async function handleSelectTenant(tenantId: number) {
       </label>
       <label class="field">
         Password
-        <input v-model="password" type="password" autocomplete="current-password" required />
+        <PasswordField v-model="password" autocomplete="current-password" />
       </label>
 
       <button type="submit" class="btn btn-primary" :disabled="submitting">
