@@ -18,6 +18,8 @@ import type {
   CreateSavingsGoalDto,
   Debt,
   CreateDebtDto,
+  DebtPayoffPlanResponse,
+  UpdateDebtPayoffSettingsDto,
   Bill,
   CreateBillDto,
   CashflowProjection,
@@ -134,6 +136,10 @@ export const api = {
   updateDebt: (id: number, data: CreateDebtDto) =>
     request<Debt>(`/debts/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteDebt: (id: number) => request<null>(`/debts/${id}`, { method: 'DELETE' }),
+
+  getDebtPayoffPlan: () => request<DebtPayoffPlanResponse>('/debt-payoff-plan'),
+  updateDebtPayoffSettings: (data: UpdateDebtPayoffSettingsDto) =>
+    request<DebtPayoffPlanResponse>('/debt-payoff-plan/settings', { method: 'PUT', body: JSON.stringify(data) }),
 
   getBills: () => request<Bill[]>('/bills'),
   createBill: (data: CreateBillDto) => request<Bill>('/bills', { method: 'POST', body: JSON.stringify(data) }),

@@ -11,7 +11,7 @@ router.get('/', requireRole('owner'), (req: Request, res: Response) => {
 });
 
 function validateBody(body: CreateDebtDto): string | null {
-  const { name, balance, interest_rate, minimum_payment, due_day } = body;
+  const { name, balance, interest_rate, minimum_payment, due_day, promo_apr, promo_expires_on } = body;
   if (!name || balance === undefined || balance === null) {
     return 'name and balance are required';
   }
@@ -23,6 +23,16 @@ function validateBody(body: CreateDebtDto): string | null {
   }
   if (due_day === undefined || due_day === null || due_day < 1 || due_day > 31) {
     return 'due_day is required and must be between 1 and 31';
+  }
+  // A matched pair — a promo rate with no expiry (or vice versa) has no
+  // sensible meaning for the payoff simulation to act on.
+  const hasPromoApr = promo_apr !== undefined && promo_apr !== null;
+  const hasPromoExpiresOn = promo_expires_on !== undefined && promo_expires_on !== null;
+  if (hasPromoApr !== hasPromoExpiresOn) {
+    return 'promo_apr and promo_expires_on must both be set, or both omitted';
+  }
+  if (hasPromoExpiresOn && (typeof promo_expires_on !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(promo_expires_on))) {
+    return 'promo_expires_on must be a YYYY-MM-DD date string';
   }
   return null;
 }
