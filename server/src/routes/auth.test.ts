@@ -88,6 +88,30 @@ describe('POST /api/auth/login', () => {
   });
 });
 
+describe('rate limiting', () => {
+  // The rate limiter skips itself under NODE_ENV=test (see routes/auth.ts)
+  // so the rest of this file's login/register calls aren't throttled by
+  // their own test suite — toggle it off just for this test, restoring it
+  // in a finally so no other test in this file is affected.
+  it('returns 429 after exceeding the login attempt limit outside test mode', async () => {
+    await seedUser();
+    const originalEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'development';
+    try {
+      let lastStatus = 0;
+      for (let i = 0; i < 11; i++) {
+        const res = await request(app)
+          .post('/api/auth/login')
+          .send({ email: 'dana@example.com', password: 'wrong-password' });
+        lastStatus = res.status;
+      }
+      expect(lastStatus).toBe(429);
+    } finally {
+      process.env.NODE_ENV = originalEnv;
+    }
+  });
+});
+
 describe('POST /api/auth/select-tenant', () => {
   it('switches an authenticated multi-membership session to the chosen tenant', async () => {
     const { user, tenant } = await seedUser();
