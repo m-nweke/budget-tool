@@ -45,9 +45,16 @@ function validateBody(body: CreateInvestmentDto): string | null {
 }
 
 // A linked bank_account_id must belong to the caller's own tenant — same
-// reasoning as savingsGoals.ts/bills.ts's validateLinkedAccount.
-function validateLinkedAccount(user: AuthUser, bankAccountId: number | null | undefined): { error: string } | null {
+// reasoning as savingsGoals.ts/bills.ts's validateLinkedAccount. The
+// `typeof` guard matters beyond type-safety theater: a malformed request
+// body (e.g. an object or array where a number is expected) would otherwise
+// reach bankAccountRepository.findById and throw when better-sqlite3 tries
+// to bind it as a query parameter, 500ing instead of cleanly 400ing.
+function validateLinkedAccount(user: AuthUser, bankAccountId: unknown): { error: string } | null {
   if (bankAccountId === null || bankAccountId === undefined) return null;
+  if (typeof bankAccountId !== 'number') {
+    return { error: 'bank_account_id must be a number' };
+  }
   const account = bankAccountRepository.findById(bankAccountId);
   if (!account || account.tenant_id !== user.tenant_id) {
     return { error: 'bank_account_id does not reference an account in this tenant' };

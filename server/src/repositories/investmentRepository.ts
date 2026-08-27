@@ -14,8 +14,11 @@ const investmentRepository = {
   },
 
   // Cash-flow simulation only (cashflowRepository) — every active
-  // investment with a recurring contribution, same shape as
-  // billRepository.findAllActive.
+  // investment, same shape as billRepository.findAllActive. Not filtered to
+  // rows with a recurring contribution configured — cashflowRepository
+  // itself skips any investment whose monthly_contribution/contribution_day
+  // pair is null, since that decision is about what to *project*, not what
+  // counts as "active."
   findAllActive(tenantId: number): Investment[] {
     return db
       .prepare(`SELECT ${COLUMNS} FROM investments WHERE tenant_id = ? AND active = 1`)

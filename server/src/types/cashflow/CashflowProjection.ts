@@ -23,10 +23,12 @@ export interface AccountProjection {
   daily: AccountDailyBalance[];
 }
 
-// Recurring transactions, debt minimum payments, bills, and investment
-// contributions have no bank_account_id (transactions were never wired to
-// accounts — see story 18's decision doc), so they can't be attributed to
-// any one account's balance. Surfaced instead as a tenant-wide,
+// Recurring transactions and debt minimum payments have no bank_account_id
+// at all (transactions were never wired to accounts — see story 18's
+// decision doc). Bills and investment contributions *can* carry an optional
+// bank_account_id now, but it's informational only — cashflowRepository
+// doesn't yet attribute either one against that account's own projected
+// balance. All four sources are surfaced the same way: a tenant-wide,
 // unattributed list of expected outflows.
 export interface ProjectedOutflow {
   date: string;

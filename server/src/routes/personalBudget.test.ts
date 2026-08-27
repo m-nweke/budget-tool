@@ -363,6 +363,41 @@ describe('CRUD /api/bills', () => {
     const deleteRes = await agent.delete(`/api/bills/${otherBillId}`);
     expect(deleteRes.status).toBe(403);
   });
+
+  it('rejects a malformed start_on/end_date instead of a lexicographic comparison on garbage input', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const badStart = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, start_on: 'not-a-date' });
+    expect(badStart.status).toBe(400);
+
+    const badEnd = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, end_date: '12/31/2026' });
+    expect(badEnd.status).toBe(400);
+  });
+
+  it('rejects an end_date before the effective start even when start_on is omitted from the request', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    // start_on omitted -> defaults to today, so an end_date of 2020-01-01
+    // must be rejected even though the request never sent a start_on to
+    // compare against directly.
+    const res = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, end_date: '2020-01-01' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed bank_account_id instead of 500ing on a DB param-binding error', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, bank_account_id: { not: 'a number' } });
+    expect(res.status).toBe(400);
+  });
 });
 
 describe('CRUD /api/investments', () => {
@@ -420,6 +455,15 @@ describe('CRUD /api/investments', () => {
     const res = await agent
       .post('/api/investments')
       .send({ name: 'Vanguard', type: 'brokerage', bank_account_id: otherAccountId });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed bank_account_id instead of 500ing on a DB param-binding error', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', bank_account_id: ['not', 'a', 'number'] });
     expect(res.status).toBe(400);
   });
 
