@@ -1,4 +1,5 @@
 import express, { Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { COOKIE_NAME, COOKIE_SECURE } from '../config';
 import { hashPassword, verifyPassword } from '../utils/password';
 import { signToken, signPreTenantToken, verifyToken } from '../utils/jwt';
@@ -52,7 +53,23 @@ const COOKIE_OPTIONS = {
 // keep sending a token past the point the server would reject it anyway).
 const PRE_TENANT_COOKIE_OPTIONS = { ...COOKIE_OPTIONS, maxAge: 10 * 60 * 1000 };
 
-router.post('/login', async (req: Request<{}, {}, LoginRequest>, res: Response) => {
+// Guards the two endpoints that run bcrypt.compare against a real password
+// hash: /login (an existing user's own password) and /register's "join"
+// path (re-registering against an already-used email re-checks that
+// email's password the same way — see below). Without this, either is an
+// unlimited password-guessing oracle. Skipped under NODE_ENV=test, since
+// the existing test suite legitimately calls these routes many times per
+// run from the same test client — throttling them would make the tests
+// flaky, not the app safer.
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
+});
+
+router.post('/login', authRateLimiter, async (req: Request<{}, {}, LoginRequest>, res: Response) => {
   const { email, password } = req.body;
   if (typeof email !== 'string' || typeof password !== 'string' || !email || !password) {
     return res.status(400).json({ error: 'email and password are required' });
@@ -131,7 +148,7 @@ router.post('/select-tenant', (req: Request<{}, {}, SelectTenantRequest>, res: R
   res.json(body);
 });
 
-router.post('/register', async (req: Request<{}, {}, RegisterRequest>, res: Response) => {
+router.post('/register', authRateLimiter, async (req: Request<{}, {}, RegisterRequest>, res: Response) => {
   const { name, email, password, accountType, joinCode } = req.body;
   if (
     typeof name !== 'string' || !name ||

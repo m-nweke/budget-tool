@@ -1,88 +1,45 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { api } from '../api';
 import DebtForm from '../components/DebtForm.vue';
 import DebtPayoffPlanner from '../components/DebtPayoffPlanner.vue';
 import PageSnapshot from '../components/PageSnapshot.vue';
 import KebabMenu from '../components/KebabMenu.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency } from '../utils/format';
 import { buildDebtSnapshot } from '../utils/snapshots';
 import type { Debt, CreateDebtDto, DebtPayoffPlanResponse } from '../types';
 
-const debts = ref<Debt[]>([]);
 const payoffPlan = ref<DebtPayoffPlanResponse | null>(null);
-const showForm = ref(false);
-const editingDebt = ref<Debt | null>(null);
-const formReadonly = ref(false);
-const error = ref('');
-const loaded = ref(false);
-const viewTop = ref<HTMLElement | null>(null);
+
+const {
+  items: debts,
+  showForm,
+  editingItem: editingDebt,
+  formReadonly,
+  error,
+  loaded,
+  viewTop,
+  openCreateForm,
+  openEditForm,
+  openViewForm,
+  closeForm,
+  handleSubmit,
+  pendingDelete,
+  requestDelete,
+  cancelDelete,
+  confirmDelete,
+} = useCrudListView<Debt, CreateDebtDto>(
+  async () => {
+    const [debtsResult, planResult] = await Promise.all([api.getDebts(), api.getDebtPayoffPlan()]);
+    payoffPlan.value = planResult;
+    return debtsResult;
+  },
+  { create: api.createDebt, update: api.updateDebt, remove: api.deleteDebt }
+);
 
 const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan.value) : null));
-
-function scrollToForm() {
-  viewTop.value?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-async function loadDebts() {
-  const [debtsResult, planResult] = await Promise.all([api.getDebts(), api.getDebtPayoffPlan()]);
-  debts.value = debtsResult;
-  payoffPlan.value = planResult;
-  loaded.value = true;
-}
-
-function openCreateForm() {
-  editingDebt.value = null;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openEditForm(debt: Debt) {
-  editingDebt.value = debt;
-  formReadonly.value = false;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function openViewForm(debt: Debt) {
-  editingDebt.value = debt;
-  formReadonly.value = true;
-  showForm.value = true;
-  scrollToForm();
-}
-
-function closeForm() {
-  showForm.value = false;
-  editingDebt.value = null;
-}
-
-async function handleSubmit(data: CreateDebtDto) {
-  error.value = '';
-  try {
-    if (editingDebt.value) {
-      await api.updateDebt(editingDebt.value.id, data);
-    } else {
-      await api.createDebt(data);
-    }
-    closeForm();
-    await loadDebts();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-async function handleDelete(debt: Debt) {
-  error.value = '';
-  try {
-    await api.deleteDebt(debt.id);
-    await loadDebts();
-  } catch (e) {
-    error.value = (e as Error).message;
-  }
-}
-
-onMounted(loadDebts);
 </script>
 
 <template>
@@ -134,10 +91,18 @@ onMounted(loadDebts);
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(debt)">Edit</button>
-        <button type="button" class="danger" @click="handleDelete(debt)">Delete</button>
+        <button type="button" class="danger" @click="requestDelete(debt)">Delete</button>
       </KebabMenu>
     </li>
   </ul>
+
+  <ConfirmDialog
+    :open="!!pendingDelete"
+    title="Delete debt?"
+    :message="`This will permanently delete '${pendingDelete?.name}'. This can't be undone.`"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <style scoped>

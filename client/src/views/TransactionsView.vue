@@ -5,6 +5,8 @@ import { useAuth } from '../composables/useAuth';
 import TransactionForm from '../components/TransactionForm.vue';
 import RecurringTransactionForm from '../components/RecurringTransactionForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
+import ConfirmDialog from '../components/ConfirmDialog.vue';
+import { useConfirmDelete } from '../composables/useConfirmDelete';
 import { formatCurrency } from '../utils/format';
 import type {
   Category,
@@ -223,6 +225,15 @@ async function handleCancelRecurring(recurringTransaction: RecurringTransaction)
   }
 }
 
+const { pending: pendingDelete, requestDelete, cancel: cancelDelete, confirm: confirmDelete } =
+  useConfirmDelete(handleDelete);
+const {
+  pending: pendingCancelRecurring,
+  requestDelete: requestCancelRecurring,
+  cancel: cancelCancelRecurring,
+  confirm: confirmCancelRecurring,
+} = useConfirmDelete(handleCancelRecurring);
+
 onMounted(loadData);
 </script>
 
@@ -333,7 +344,7 @@ onMounted(loadData);
               <td class="table-row-actions">
                 <KebabMenu v-if="!isLockedToActiveSeries(transaction)" @click.stop>
                   <button type="button" @click="openEditForm(transaction)">Edit</button>
-                  <button v-if="canManageBudget" type="button" class="danger" @click="handleDelete(transaction)">Delete</button>
+                  <button v-if="canManageBudget" type="button" class="danger" @click="requestDelete(transaction)">Delete</button>
                 </KebabMenu>
               </td>
             </tr>
@@ -360,12 +371,28 @@ onMounted(loadData);
           </div>
           <KebabMenu @click.stop>
             <button type="button" @click="openEditRecurringForm(rt)">Edit</button>
-            <button type="button" class="danger" @click="handleCancelRecurring(rt)">Cancel</button>
+            <button type="button" class="danger" @click="requestCancelRecurring(rt)">Cancel</button>
           </KebabMenu>
         </li>
       </ul>
     </div>
   </template>
+
+  <ConfirmDialog
+    :open="!!pendingDelete"
+    title="Delete transaction?"
+    :message="`This will permanently delete this transaction (${pendingDelete ? formatCurrency(pendingDelete.amount) : ''}). This can't be undone.`"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
+  <ConfirmDialog
+    :open="!!pendingCancelRecurring"
+    title="Cancel recurring series?"
+    message="This will stop future occurrences from being generated. Transactions already created from this series are kept."
+    confirm-label="Cancel series"
+    @confirm="confirmCancelRecurring"
+    @cancel="cancelCancelRecurring"
+  />
 </template>
 
 <style scoped>

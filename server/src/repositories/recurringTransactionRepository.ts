@@ -52,6 +52,40 @@ function generateDueForTemplate(template: RecurringTransaction): void {
   }
 }
 
+// Existence-only check for generateDue()'s short-circuit — same tenant-scoping
+// shape as findAllActive (tenantId given = one tenant via the categories
+// join, omitted = every tenant), but a single indexed LIMIT 1 lookup instead
+// of materializing every active template's full row.
+function hasDueTemplates(tenantId?: number): boolean {
+  const today = todayISO();
+  if (tenantId !== undefined) {
+    const row = db
+      .prepare(
+        `SELECT 1 FROM recurring_transactions rt
+         JOIN categories c ON c.id = rt.category_id
+         WHERE rt.active = 1 AND c.tenant_id = ? AND rt.next_run_date <= ?
+         LIMIT 1`
+      )
+      .get(tenantId, today);
+    return row !== undefined;
+  }
+  const row = db
+    .prepare('SELECT 1 FROM recurring_transactions WHERE active = 1 AND next_run_date <= ? LIMIT 1')
+    .get(today);
+  return row !== undefined;
+}
+
+// Wrapped in a single transaction: a multi-month backfill can mean many
+// inserts in one call, and without this each one commits (and fsyncs)
+// individually — batching them is both faster and makes the whole
+// generation pass atomic (a crash mid-backfill can't leave next_run_date
+// out of sync with which transactions actually got created).
+const generateDueTransaction = db.transaction((tenantId?: number) => {
+  for (const template of recurringTransactionRepository.findAllActive(undefined, tenantId)) {
+    generateDueForTemplate(template);
+  }
+});
+
 const recurringTransactionRepository = {
   // departmentIds (enterprise) wins when given; tenantId (personal) is the
   // fallback. Omitting both returns every active template, unscoped — used
@@ -162,18 +196,29 @@ const recurringTransactionRepository = {
   },
 
   // Materializes any due occurrences into real transactions. Called before
-  // reads (transactions/dashboard) rather than on a schedule, since there's
-  // no background job runner in this deployment (see decisions.md #18).
-  // Wrapped in a single transaction: a multi-month backfill can mean many
-  // inserts in one call, and without this each one commits (and fsyncs)
-  // individually — batching them is both faster and makes the whole
-  // generation pass atomic (a crash mid-backfill can't leave next_run_date
-  // out of sync with which transactions actually got created).
-  generateDue: db.transaction(() => {
-    for (const template of recurringTransactionRepository.findAllActive()) {
-      generateDueForTemplate(template);
-    }
-  }),
+  // reads (transactions/dashboard/cash-flow) and after creating a new
+  // template, rather than on a schedule, since there's no background job
+  // runner in this deployment (see decisions.md #18).
+  //
+  // tenantId scopes the pass to one tenant — every production call site
+  // passes the requesting user's tenant_id (see app.ts's
+  // materializeDueTransactions middleware and routes/recurringTransactions.ts's
+  // POST /) so one tenant's request can't pay the cost of, or write into,
+  // every other tenant's due transactions. Deliberately scoped by tenant_id
+  // rather than the requester's accessible department_ids (resolveScope) —
+  // an enterprise head with partial department_access grants would
+  // otherwise never materialize occurrences for departments outside their
+  // own grants, silently starving them. Omitting tenantId keeps the old
+  // unscoped (all-tenants) behavior, used by tests seeding a single tenant
+  // in an isolated in-memory DB.
+  //
+  // hasDueTemplates is a cheap indexed-ish existence check run before the
+  // write transaction, so the common case (nothing due) costs one SELECT
+  // instead of a db.transaction() + full generation pass on every request.
+  generateDue(tenantId?: number): void {
+    if (!hasDueTemplates(tenantId)) return;
+    generateDueTransaction(tenantId);
+  },
 
   // Cash-flow simulation only (story 18) — same date-stepping shape as
   // generateDueForTemplate, but purely additive: no createGenerated,

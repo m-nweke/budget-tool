@@ -140,6 +140,97 @@ describe('generateDue', () => {
   });
 });
 
+describe('generateDue tenant scoping', () => {
+  it('generateDue(tenantId) only materializes the given tenant, leaving other tenants untouched', () => {
+    const otherTenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Globex', 'enterprise')").run()
+      .lastInsertRowid as number;
+    const otherDeptId = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run(
+      'Engineering',
+      otherTenantId
+    ).lastInsertRowid as number;
+    const otherCategoryId = categoryRepository.create(
+      { name: 'Software', budgeted_amount: 500, department_id: otherDeptId },
+      otherTenantId
+    ).id;
+
+    recurringTransactionRepository.create({
+      amount: 49.99,
+      description: 'Acme SaaS',
+      category_id: categoryId,
+      start_date: '2026-08-01',
+      interval: 'weekly',
+    });
+    recurringTransactionRepository.create({
+      amount: 19.99,
+      description: 'Globex SaaS',
+      category_id: otherCategoryId,
+      start_date: '2026-08-01',
+      interval: 'weekly',
+    });
+
+    recurringTransactionRepository.generateDue(tenantId);
+
+    const acmeDates = transactionRepository.findAll(undefined, tenantId).map((t) => t.date);
+    expect(acmeDates).toEqual(['2026-08-01', '2026-08-08']);
+    // The other tenant's due template is untouched — no transactions
+    // materialized, next_run_date still at its original start date.
+    expect(transactionRepository.findAll(undefined, otherTenantId)).toHaveLength(0);
+    const otherTemplate = recurringTransactionRepository.findAllActive(undefined, otherTenantId)[0];
+    expect(otherTemplate.next_run_date).toBe('2026-08-01');
+  });
+
+  it('generateDue() with no tenantId keeps the old unscoped (all-tenants) behavior', () => {
+    const otherTenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Globex', 'enterprise')").run()
+      .lastInsertRowid as number;
+    const otherDeptId = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run(
+      'Engineering',
+      otherTenantId
+    ).lastInsertRowid as number;
+    const otherCategoryId = categoryRepository.create(
+      { name: 'Software', budgeted_amount: 500, department_id: otherDeptId },
+      otherTenantId
+    ).id;
+
+    recurringTransactionRepository.create({
+      amount: 49.99,
+      description: 'Acme SaaS',
+      category_id: categoryId,
+      start_date: '2026-08-01',
+      interval: 'weekly',
+    });
+    recurringTransactionRepository.create({
+      amount: 19.99,
+      description: 'Globex SaaS',
+      category_id: otherCategoryId,
+      start_date: '2026-08-01',
+      interval: 'weekly',
+    });
+
+    recurringTransactionRepository.generateDue();
+
+    expect(transactionRepository.findAll(undefined, tenantId)).toHaveLength(2);
+    expect(transactionRepository.findAll(undefined, otherTenantId)).toHaveLength(2);
+  });
+
+  it('short-circuits without writing when nothing is due for the given tenant', () => {
+    recurringTransactionRepository.create({
+      amount: 25,
+      description: 'Future',
+      category_id: categoryId,
+      start_date: '2026-09-01', // after the fixed "today" of 2026-08-13
+      interval: 'monthly',
+    });
+
+    recurringTransactionRepository.generateDue(tenantId);
+
+    expect(transactionRepository.findAll()).toHaveLength(0);
+    const template = recurringTransactionRepository.findAllActive(undefined, tenantId)[0];
+    // next_run_date untouched — hasDueTemplates skipped the write pass
+    // entirely rather than running the transaction and finding nothing due.
+    expect(template.next_run_date).toBe('2026-09-01');
+  });
+});
+
 describe('projectOccurrences', () => {
   it('walks forward without persisting any transactions or mutating the template', () => {
     const template = recurringTransactionRepository.create({
