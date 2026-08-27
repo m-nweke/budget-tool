@@ -5,7 +5,7 @@ import PaycheckForm from '../components/PaycheckForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
-import { formatCurrency, capitalize } from '../utils/format';
+import { formatCurrency, capitalize, accountLabel } from '../utils/format';
 import type { Paycheck, CreatePaycheckDto, BankAccount, Category, PaycheckFrequency } from '../types';
 
 const accounts = ref<BankAccount[]>([]);
@@ -16,13 +16,11 @@ const {
   items: paychecks,
   showForm,
   editingItem: editingPaycheck,
-  formReadonly,
   error,
   loaded,
   viewTop,
   openCreateForm,
   openEditForm,
-  openViewForm,
   closeForm,
   handleSubmit,
   pendingDelete,
@@ -77,7 +75,7 @@ function allocationFor(paycheck: Paycheck) {
 const accountNameById = computed(() => {
   const map: Record<number, string> = {};
   for (const account of accounts.value) {
-    map[account.id] = account.name;
+    map[account.id] = accountLabel(account);
   }
   return map;
 });
@@ -102,14 +100,8 @@ function formatSplit(split: Paycheck['splits'][number]): string {
   <p v-if="error" class="alert">{{ error }}</p>
 
   <div v-if="showForm" class="panel form-panel">
-    <h2>{{ !editingPaycheck ? 'New Paycheck' : formReadonly ? 'View Paycheck' : 'Edit Paycheck' }}</h2>
-    <PaycheckForm
-      :paycheck="editingPaycheck"
-      :readonly="formReadonly"
-      @submit="handleSubmit"
-      @cancel="closeForm"
-      @edit="formReadonly = false"
-    />
+    <h2>{{ !editingPaycheck ? 'New Paycheck' : 'Edit Paycheck' }}</h2>
+    <PaycheckForm :paycheck="editingPaycheck" @submit="handleSubmit" @cancel="closeForm" />
   </div>
 
   <div v-if="loaded && !paychecks.length && !showForm" class="empty-state">
@@ -119,12 +111,7 @@ function formatSplit(split: Paycheck['splits'][number]): string {
   </div>
 
   <ul v-else class="paycheck-list">
-    <li
-      v-for="paycheck in paychecks"
-      :key="paycheck.id"
-      class="card paycheck-row clickable"
-      @click="openViewForm(paycheck)"
-    >
+    <li v-for="paycheck in paychecks" :key="paycheck.id" class="card paycheck-row">
       <div class="paycheck-info">
         <div class="paycheck-name">
           {{ paycheck.label }}
@@ -214,14 +201,6 @@ function formatSplit(split: Paycheck['splits'][number]): string {
   justify-content: space-between;
   padding: var(--space-4);
   gap: var(--space-4);
-}
-
-.paycheck-row.clickable {
-  cursor: pointer;
-}
-
-.paycheck-row.clickable:hover {
-  border-color: var(--color-primary);
 }
 
 .paycheck-info {

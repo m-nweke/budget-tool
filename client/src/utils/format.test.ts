@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatCurrency, capitalize } from './format';
+import { formatCurrency, capitalize, accountLabel } from './format';
 
 describe('formatCurrency', () => {
   it('formats a positive number as USD', () => {
@@ -30,5 +30,12 @@ describe('capitalize', () => {
 
   it('handles an empty string without throwing', () => {
     expect(capitalize('')).toBe('');
+  });
+});
+
+describe('accountLabel', () => {
+  it('appends the capitalized type so same-named accounts of different types are distinguishable', () => {
+    expect(accountLabel({ name: 'Chase', type: 'checking' })).toBe('Chase (Checking)');
+    expect(accountLabel({ name: 'Chase', type: 'savings' })).toBe('Chase (Savings)');
   });
 });

@@ -5,6 +5,24 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>client</title>
+    <!--
+      Paints the last-known personal/enterprise palette before the app even
+      mounts, using the (non-httpOnly) tenant_type cookie the server sets on
+      login/register/select-tenant — see server/src/routes/auth.ts. Without
+      this, a returning user's browser shows the default neutral/enterprise-
+      green :root palette for one frame while main.ts's router guard + the
+      session fetch are still in flight. App.vue's own data-mode watcher
+      still runs once the real session resolves and overrides this if the
+      cookie is stale (a different account signed in, or a fresh logout) —
+      this script is a paint hint, not a source of truth.
+    -->
+    <script>
+      (function () {
+        var match = document.cookie.match(/(?:^|; )tenant_type=([^;]*)/);
+        var mode = match ? decodeURIComponent(match[1]) : null;
+        document.documentElement.dataset.mode = mode === 'personal' || mode === 'enterprise' ? mode : 'neutral';
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

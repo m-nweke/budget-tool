@@ -5,7 +5,7 @@ import billRepository from './billRepository';
 let tenantId: number;
 
 beforeEach(() => {
-  db.exec('DELETE FROM bills; DELETE FROM tenants;');
+  db.exec('DELETE FROM bills; DELETE FROM bank_accounts; DELETE FROM tenants;');
   tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Pat''s Budget', 'personal')").run()
     .lastInsertRowid as number;
 });
@@ -62,5 +62,57 @@ describe('billRepository', () => {
     const created = billRepository.create({ name: 'Water', category: 'water', amount: 30, due_day: 12 }, tenantId);
     billRepository.remove(created.id);
     expect(billRepository.findById(created.id)).toBeUndefined();
+  });
+
+  it('defaults start_on to today and bank_account_id/end_date to null when omitted', () => {
+    const created = billRepository.create({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1 }, tenantId);
+    expect(created.bank_account_id).toBeNull();
+    expect(created.end_date).toBeNull();
+    expect(created.start_on).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('stores an explicit bank_account_id, start_on, and end_date', () => {
+    db.exec('DELETE FROM bank_accounts;');
+    const accountId = db
+      .prepare("INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, 'Checking', 'checking', 0)")
+      .run(tenantId).lastInsertRowid as number;
+
+    const created = billRepository.create(
+      {
+        name: 'Rent',
+        category: 'rent',
+        amount: 1500,
+        due_day: 1,
+        bank_account_id: accountId,
+        start_on: '2026-01-01',
+        end_date: '2026-12-01',
+      },
+      tenantId
+    );
+    expect(created).toMatchObject({ bank_account_id: accountId, start_on: '2026-01-01', end_date: '2026-12-01' });
+  });
+
+  it('update leaves bank_account_id/end_date untouched when omitted, but clears them on explicit null', () => {
+    db.exec('DELETE FROM bank_accounts;');
+    const accountId = db
+      .prepare("INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, 'Checking', 'checking', 0)")
+      .run(tenantId).lastInsertRowid as number;
+    const created = billRepository.create(
+      { name: 'Rent', category: 'rent', amount: 1500, due_day: 1, bank_account_id: accountId, end_date: '2026-12-01' },
+      tenantId
+    );
+
+    const untouched = billRepository.update(created.id, { name: 'Rent', category: 'rent', amount: 1500, due_day: 1 });
+    expect(untouched).toMatchObject({ bank_account_id: accountId, end_date: '2026-12-01' });
+
+    const cleared = billRepository.update(created.id, {
+      name: 'Rent',
+      category: 'rent',
+      amount: 1500,
+      due_day: 1,
+      bank_account_id: null,
+      end_date: null,
+    });
+    expect(cleared).toMatchObject({ bank_account_id: null, end_date: null });
   });
 });

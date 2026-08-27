@@ -3,6 +3,7 @@ import paycheckRepository from './paycheckRepository';
 import recurringTransactionRepository from './recurringTransactionRepository';
 import debtRepository from './debtRepository';
 import billRepository from './billRepository';
+import investmentRepository from './investmentRepository';
 import { addDays, stepPaycheckDates, stepMonthlyDueDates } from '../utils/dateUtils';
 import type {
   CashflowProjection,
@@ -73,6 +74,7 @@ const cashflowRepository = {
       return {
         bank_account_id: account.id,
         name: account.name,
+        type: account.type,
         starting_balance: account.current_balance,
         daily,
       };
@@ -105,17 +107,39 @@ const cashflowRepository = {
       }
     }
 
-    // Same monthly-due-date shape as debts above — a bill has no
-    // bank_account_id either (see ProjectedOutflow), so it lands in the
-    // same tenant-wide unattributed outflow list.
+    // Same monthly-due-date shape as debts above — a bill's bank_account_id
+    // (when set) is informational only for now, not yet attributed against
+    // that account's own balance here (see ProjectedOutflow), so every bill
+    // still lands in the same tenant-wide unattributed outflow list.
+    // start_on/end_date bound which occurrences count, same as
+    // recurringTransactionRepository.projectOccurrences' end_date check.
     for (const bill of billRepository.findAllActive(tenantId)) {
       for (const dueDate of stepMonthlyDueDates(bill.due_day, from, to)) {
+        if (dueDate < bill.start_on) continue;
+        if (bill.end_date && dueDate > bill.end_date) continue;
         outflows.push({
           date: dueDate,
           source: 'bill',
           id: bill.id,
           label: bill.name,
           amount: bill.amount,
+        });
+      }
+    }
+
+    // Only investments with a recurring contribution show up here — one
+    // with just a manually-tracked current_value and no monthly_contribution/
+    // contribution_day (the matched-optional pair) has nothing periodic to
+    // project. Same unattributed-outflow shape as bills above.
+    for (const investment of investmentRepository.findAllActive(tenantId)) {
+      if (investment.monthly_contribution === null || investment.contribution_day === null) continue;
+      for (const dueDate of stepMonthlyDueDates(investment.contribution_day, from, to)) {
+        outflows.push({
+          date: dueDate,
+          source: 'investment',
+          id: investment.id,
+          label: investment.name,
+          amount: investment.monthly_contribution,
         });
       }
     }

@@ -345,6 +345,16 @@ select.form-control {
   margin-left: var(--space-2);
 }
 
+/* Green accent, distinct from the mode's primary — used to call out
+   money-growing stats (e.g. APY) so they read as "earning" rather than
+   just "brand blue." Derives from --color-success so it automatically
+   picks up each mode's own green (SoFi mint in personal mode). */
+.badge-accent {
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: var(--color-success);
+  margin-left: var(--space-2);
+}
+
 .badge-department {
   background: var(--color-bg);
   color: var(--color-text-muted);

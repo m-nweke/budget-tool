@@ -37,9 +37,10 @@ const decisions = [
     title: 'Denormalized-by-design outflow attribution',
     body:
       'Paycheck splits are the only inflow tied to a specific bank account; recurring transactions, debts, ' +
-      'and bills never were. Rather than force an artificial account link onto data that genuinely applies at ' +
-      "the tenant level, the projection surfaces them as a separate unattributed outflow list — an explicit " +
-      'modeling choice, not a gap.',
+      'bills, and investment contributions never were. A bill or investment can optionally link a ' +
+      "bank_account_id for display, but the cash-flow simulation still surfaces all of them as a separate " +
+      "unattributed outflow list rather than subtracting from that account's own projected balance — an " +
+      'explicit modeling choice, not a gap.',
   },
   {
     title: 'Delete-and-reinsert over diffing for owned child rows',
@@ -64,7 +65,8 @@ const decisions = [
       <h1>Budget Tool</h1>
       <p class="tagline">
         A multi-tenant budgeting app supporting both enterprise department budgets with an approval workflow, and
-        an individual's personal budget with paychecks, bills, savings goals, debts, and a cash-flow simulation.
+        an individual's personal budget with paychecks, bills, investments, savings goals, debts, and a cash-flow
+        simulation.
       </p>
     </div>
 

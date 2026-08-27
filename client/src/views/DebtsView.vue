@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import { api } from '../api';
 import DebtForm from '../components/DebtForm.vue';
 import DebtPayoffPlanner from '../components/DebtPayoffPlanner.vue';
-import PageSnapshot from '../components/PageSnapshot.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
@@ -53,17 +52,6 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
 
   <p v-if="error" class="alert">{{ error }}</p>
 
-  <div v-if="snapshot" class="snapshot-row">
-    <PageSnapshot :title="snapshot.title" :to="snapshot.to" :stats="snapshot.stats" />
-  </div>
-
-  <DebtPayoffPlanner
-    v-if="debts.length && payoffPlan"
-    :debts="debts"
-    :plan="payoffPlan"
-    @updated="payoffPlan = $event"
-  />
-
   <div v-if="showForm" class="panel form-panel">
     <h2>{{ !editingDebt ? 'New Debt' : formReadonly ? 'View Debt' : 'Edit Debt' }}</h2>
     <DebtForm
@@ -74,6 +62,20 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
       @edit="formReadonly = false"
     />
   </div>
+
+  <div v-if="!showForm && snapshot" class="snapshot-row">
+    <div v-for="stat in snapshot.stats" :key="stat.label" class="card snapshot-card">
+      <span class="snapshot-label">{{ stat.label }}</span>
+      <span class="snapshot-value" :class="stat.tone ? `tone-${stat.tone}` : ''">{{ stat.value }}</span>
+    </div>
+  </div>
+
+  <DebtPayoffPlanner
+    v-if="!showForm && debts.length && payoffPlan"
+    :debts="debts"
+    :plan="payoffPlan"
+    @updated="payoffPlan = $event"
+  />
 
   <div v-if="loaded && !debts.length && !showForm" class="empty-state">
     <h3>No debts yet</h3>
@@ -120,9 +122,39 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
 
 .snapshot-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: var(--space-4);
   margin-bottom: var(--space-5);
+}
+
+.snapshot-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-4);
+}
+
+.snapshot-label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.snapshot-value {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.snapshot-value.tone-danger {
+  color: var(--color-danger);
+}
+
+.snapshot-value.tone-warning {
+  color: var(--color-warning);
+}
+
+.snapshot-value.tone-success {
+  color: var(--color-success);
 }
 
 .form-panel {

@@ -22,7 +22,7 @@ const workspaceMenuOpen = ref(false);
 const workspaceMenuRoot = ref<HTMLElement | null>(null);
 const switching = ref(false);
 
-// The personal-only links (6, with Bills) collapse into this one
+// The personal-only links (7, with Bills and Investments) collapse into this one
 // "Budget ▾" trigger on desktop instead of sitting inline — same dropdown
 // idiom as the workspace switcher below, just for route links instead of
 // tenant switching. Keeps Dashboard/Transactions/Categories as the only
@@ -149,6 +149,7 @@ async function handleLogout() {
             <li><RouterLink to="/accounts">Accounts</RouterLink></li>
             <li><RouterLink to="/paycheck">Paycheck</RouterLink></li>
             <li><RouterLink to="/bills">Bills</RouterLink></li>
+            <li><RouterLink to="/investments">Investments</RouterLink></li>
             <li><RouterLink to="/cash-flow">Cash Flow</RouterLink></li>
             <li><RouterLink to="/goals">Goals</RouterLink></li>
             <li><RouterLink to="/debts">Debts</RouterLink></li>
@@ -209,6 +210,7 @@ async function handleLogout() {
         <RouterLink to="/accounts">Accounts</RouterLink>
         <RouterLink to="/paycheck">Paycheck</RouterLink>
         <RouterLink to="/bills">Bills</RouterLink>
+        <RouterLink to="/investments">Investments</RouterLink>
         <RouterLink to="/cash-flow">Cash Flow</RouterLink>
         <RouterLink to="/goals">Goals</RouterLink>
         <RouterLink to="/debts">Debts</RouterLink>

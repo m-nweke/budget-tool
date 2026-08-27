@@ -33,13 +33,13 @@ function handleSubmit() {
     name: name.value,
     type: type.value,
     current_balance: currentBalance.value === '' ? undefined : Number(currentBalance.value),
-    // The APY field only renders for type === 'savings' (see template) — an
-    // apy.value of '' while some other type is selected doesn't mean "the
-    // user cleared it," it means the field was never shown. Sending an
+    // The APY field only renders for type 'savings'/'checking' (see
+    // template) — an apy.value of '' while 'other' is selected doesn't mean
+    // "the user cleared it," it means the field was never shown. Sending an
     // explicit null there would clear an existing APY the account might
     // still carry (see bankAccountRepository.update's null-vs-undefined
     // handling); undefined tells the server to leave it untouched instead.
-    apy: type.value !== 'savings' ? undefined : apy.value === '' ? null : Number(apy.value),
+    apy: type.value === 'other' ? undefined : apy.value === '' ? null : Number(apy.value),
   });
 }
 </script>
@@ -63,7 +63,7 @@ function handleSubmit() {
       Current Balance
       <input v-model="currentBalance" type="number" step="0.01" placeholder="0.00" />
     </label>
-    <label v-if="type === 'savings'" class="field">
+    <label v-if="type === 'savings' || type === 'checking'" class="field">
       APY % (optional)
       <input v-model="apy" type="number" step="0.01" min="0" max="100" placeholder="e.g. 4.50" />
     </label>

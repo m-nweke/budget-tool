@@ -235,7 +235,19 @@ db.exec(`
     category TEXT NOT NULL CHECK (category IN ('rent', 'wifi', 'electric', 'water', 'insurance', 'other')),
     amount REAL NOT NULL,
     due_day INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31),
-    active INTEGER NOT NULL DEFAULT 1
+    active INTEGER NOT NULL DEFAULT 1,
+    -- Same "which account does this actually draw from" link as
+    -- savings_goals.bank_account_id — optional (a bill doesn't need a
+    -- linked account to exist), informational for now rather than wired
+    -- into cashflowRepository's per-account balances yet.
+    bank_account_id INTEGER REFERENCES bank_accounts(id),
+    -- Same start_on/end_date shape as categories.start_on and
+    -- recurring_transactions.end_date — when this bill starts/stops being
+    -- due, so cashflowRepository's monthly-due-date stepping can skip
+    -- occurrences outside that window (a bill that ended, or hasn't
+    -- started yet, shouldn't show up in the projection).
+    start_on TEXT NOT NULL DEFAULT (date('now')),
+    end_date TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_bank_accounts_tenant_id ON bank_accounts(tenant_id);
@@ -245,7 +257,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_savings_goals_tenant_id ON savings_goals(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_savings_goals_bank_account_id ON savings_goals(bank_account_id);
   CREATE INDEX IF NOT EXISTS idx_debts_tenant_id ON debts(tenant_id);
+  -- Investment tracking (brokerage, retirement, crypto, etc.) — current_value
+  -- is manually updated by the owner, same convention as
+  -- savings_goals.saved_amount rather than derived from any live feed.
+  -- monthly_contribution/contribution_day are a matched-optional pair (same
+  -- shape as debts.promo_apr/promo_expires_on): when set, cashflowRepository
+  -- folds the contribution into the simulation as a recurring outflow the
+  -- same way it does bills, via stepMonthlyDueDates.
+  CREATE TABLE IF NOT EXISTS investments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('brokerage', 'retirement', 'crypto', 'other')),
+    current_value REAL NOT NULL DEFAULT 0,
+    monthly_contribution REAL,
+    contribution_day INTEGER CHECK (contribution_day BETWEEN 1 AND 31),
+    -- Which account funds the contribution — same optional-link shape as
+    -- bills.bank_account_id, informational for now.
+    bank_account_id INTEGER REFERENCES bank_accounts(id),
+    active INTEGER NOT NULL DEFAULT 1
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bills_tenant_id ON bills(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_bills_bank_account_id ON bills(bank_account_id);
+  CREATE INDEX IF NOT EXISTS idx_investments_tenant_id ON investments(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_investments_bank_account_id ON investments(bank_account_id);
 `);
 
 // Lightweight migration for columns added after a database already existed.
@@ -279,6 +315,10 @@ migrateColumn('ALTER TABLE bank_accounts ADD COLUMN apy REAL');
 migrateColumn('ALTER TABLE savings_goals ADD COLUMN saved_amount REAL NOT NULL DEFAULT 0');
 migrateColumn('ALTER TABLE debts ADD COLUMN promo_apr REAL');
 migrateColumn('ALTER TABLE debts ADD COLUMN promo_expires_on TEXT');
+migrateColumn('ALTER TABLE bills ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id)');
+migrateColumn('ALTER TABLE bills ADD COLUMN start_on TEXT');
+db.exec("UPDATE bills SET start_on = date('now') WHERE start_on IS NULL");
+migrateColumn('ALTER TABLE bills ADD COLUMN end_date TEXT');
 
 // Like migrateColumn, but for a column being removed rather than added —
 // dropping a column that was never there (a database created fresh, after

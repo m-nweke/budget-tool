@@ -42,7 +42,8 @@ beforeEach(() => {
   db.exec(
     'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; ' +
       'DELETE FROM debt_payoff_settings; DELETE FROM debts; ' +
-      'DELETE FROM bills; DELETE FROM bank_accounts; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
+      'DELETE FROM bills; DELETE FROM investments; DELETE FROM bank_accounts; ' +
+      'DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
   );
   enterpriseTenantId = tenantRepository.create('Acme Co', 'enterprise').id;
 });
@@ -360,6 +361,125 @@ describe('CRUD /api/bills', () => {
     expect(updateRes.status).toBe(403);
 
     const deleteRes = await agent.delete(`/api/bills/${otherBillId}`);
+    expect(deleteRes.status).toBe(403);
+  });
+
+  it('rejects a malformed start_on/end_date instead of a lexicographic comparison on garbage input', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const badStart = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, start_on: 'not-a-date' });
+    expect(badStart.status).toBe(400);
+
+    const badEnd = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, end_date: '12/31/2026' });
+    expect(badEnd.status).toBe(400);
+  });
+
+  it('rejects an end_date before the effective start even when start_on is omitted from the request', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    // start_on omitted -> defaults to today, so an end_date of 2020-01-01
+    // must be rejected even though the request never sent a start_on to
+    // compare against directly.
+    const res = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, end_date: '2020-01-01' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed bank_account_id instead of 500ing on a DB param-binding error', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/bills')
+      .send({ name: 'Rent', category: 'rent', amount: 1500, due_day: 1, bank_account_id: { not: 'a number' } });
+    expect(res.status).toBe(400);
+  });
+});
+
+describe('CRUD /api/investments', () => {
+  it('is owner-only and tenant-scoped', async () => {
+    await createHead('Dana', 'dana@example.com');
+    const headAgent = await loginAs('dana@example.com');
+    expect((await headAgent.get('/api/investments')).status).toBe(403);
+
+    await createOwner('Pat', 'pat@example.com');
+    const ownerAgent = await loginAs('pat@example.com');
+    const created = await ownerAgent.post('/api/investments').send({ name: 'Vanguard', type: 'brokerage' });
+    expect(created.status).toBe(201);
+
+    const res = await ownerAgent.get('/api/investments');
+    expect(res.body).toHaveLength(1);
+  });
+
+  it('rejects an invalid type', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/investments').send({ name: 'Vanguard', type: 'stocks' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a negative current_value', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/investments').send({ name: 'Vanguard', type: 'brokerage', current_value: -1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects monthly_contribution without contribution_day, and vice versa', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+
+    const missingDay = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', monthly_contribution: 200 });
+    expect(missingDay.status).toBe(400);
+
+    const missingAmount = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', contribution_day: 5 });
+    expect(missingAmount.status).toBe(400);
+  });
+
+  it('rejects a bank_account_id belonging to another tenant', async () => {
+    const other = tenantRepository.create("Alex's Budget", 'personal');
+    const otherAccountId = db
+      .prepare("INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, 'Checking', 'checking', 0)")
+      .run(other.id).lastInsertRowid as number;
+
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', bank_account_id: otherAccountId });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a malformed bank_account_id instead of 500ing on a DB param-binding error', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', bank_account_id: ['not', 'a', 'number'] });
+    expect(res.status).toBe(400);
+  });
+
+  it("an owner cannot update or delete another tenant's investment", async () => {
+    const other = tenantRepository.create("Alex's Budget", 'personal');
+    const otherInvestmentId = db
+      .prepare('INSERT INTO investments (tenant_id, name, type) VALUES (?, ?, ?)')
+      .run(other.id, 'Vanguard', 'brokerage').lastInsertRowid as number;
+
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+
+    const updateRes = await agent.put(`/api/investments/${otherInvestmentId}`).send({ name: 'Hijacked', type: 'brokerage' });
+    expect(updateRes.status).toBe(403);
+
+    const deleteRes = await agent.delete(`/api/investments/${otherInvestmentId}`);
     expect(deleteRes.status).toBe(403);
   });
 });

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { api } from '../api';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, accountLabel } from '../utils/format';
 import type { CashflowProjection } from '../types';
 
 const days = ref(14);
@@ -27,9 +27,10 @@ watch(days, load);
 
 onMounted(load);
 
-function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill'): string {
+function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'investment'): string {
   if (source === 'recurring_transaction') return 'Recurring';
   if (source === 'bill') return 'Bill';
+  if (source === 'investment') return 'Investment';
   return 'Debt';
 }
 </script>
@@ -56,7 +57,7 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill'): string 
   <template v-else-if="projection">
     <div class="account-grid">
       <div v-for="account in projection.accounts" :key="account.bank_account_id" class="card account-card">
-        <h2>{{ account.name }}</h2>
+        <h2>{{ accountLabel(account) }}</h2>
         <p class="starting-balance">Starting balance: {{ formatCurrency(account.starting_balance) }}</p>
         <ul class="daily-list">
           <li
@@ -83,7 +84,7 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill'): string 
 
     <h2 class="outflows-heading">Upcoming outflows</h2>
     <p class="field-hint">
-      Recurring transactions, debt payments, and bills aren't linked to a specific account yet, so they're listed here rather than subtracted from any one balance above.
+      Recurring transactions, debt payments, bills, and investment contributions aren't linked to a specific account yet, so they're listed here rather than subtracted from any one balance above.
     </p>
     <div v-if="!projection.outflows.length" class="empty-state">
       <p>Nothing scheduled in this window.</p>

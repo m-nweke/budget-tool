@@ -9,6 +9,7 @@ import GoalsView from '../views/GoalsView.vue';
 import DebtsView from '../views/DebtsView.vue';
 import CashFlowView from '../views/CashFlowView.vue';
 import BillsView from '../views/BillsView.vue';
+import InvestmentsView from '../views/InvestmentsView.vue';
 import LoginView from '../views/LoginView.vue';
 import RegisterView from '../views/RegisterView.vue';
 import AboutView from '../views/AboutView.vue';
@@ -33,6 +34,7 @@ const router = createRouter({
     { path: '/debts', name: 'debts', component: DebtsView, meta: { personalOnly: true } },
     { path: '/cash-flow', name: 'cash-flow', component: CashFlowView, meta: { personalOnly: true } },
     { path: '/bills', name: 'bills', component: BillsView, meta: { personalOnly: true } },
+    { path: '/investments', name: 'investments', component: InvestmentsView, meta: { personalOnly: true } },
     // meta.public follows the same generic-flag pattern as meta.headOnly
     // below — any future public route (a password-reset page, etc.) just
     // needs the same flag, not a new name check in the guard.

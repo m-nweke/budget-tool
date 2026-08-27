@@ -5,7 +5,7 @@ import GoalForm from '../components/GoalForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, accountLabel } from '../utils/format';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
 
 type Interval = 'week' | 'month' | 'quarter';
@@ -42,7 +42,7 @@ const {
 const accountNameById = computed(() => {
   const map: Record<number, string> = {};
   for (const account of accounts.value) {
-    map[account.id] = account.name;
+    map[account.id] = accountLabel(account);
   }
   return map;
 });
@@ -58,16 +58,58 @@ function progressFor(goal: SavingsGoal): number {
   return Math.min(1, Math.max(0, goal.saved_amount / goal.target_amount));
 }
 
+// Same 3-tier percentage-based coloring as DashboardView's budget usage bar
+// (level-low/medium/high), but inverted: there, high % means "over budget,
+// bad." Here, high % means "close to the goal, great" — so the color
+// progression runs warning (early, needs momentum) -> primary (steady) ->
+// success (almost there), not success -> warning -> danger.
+function progressLevel(goal: SavingsGoal): 'low' | 'medium' | 'high' {
+  const pct = progressFor(goal) * 100;
+  if (pct >= 75) return 'high';
+  if (pct >= 40) return 'medium';
+  return 'low';
+}
+
+// A stable per-account color so every goal vaulted into the same account
+// shows a matching badge at a glance — hashed by account id into a fixed
+// hue palette rather than computed from the name (two accounts can share a
+// name, see accountLabel), and rendered as a translucent hsl() tint so it
+// reads correctly over both the light and dark surface color without a
+// separate dark-mode palette.
+const ACCOUNT_HUES = [210, 150, 280, 25, 340, 190, 60, 320];
+function accountBadgeStyle(accountId: number) {
+  const hue = ACCOUNT_HUES[accountId % ACCOUNT_HUES.length];
+  return {
+    color: `hsl(${hue} 70% 40%)`,
+    background: `hsl(${hue} 70% 45% / 0.15)`,
+    border: `1px solid hsl(${hue} 70% 45% / 0.35)`,
+  };
+}
+
+// When a goal has no target_date, there's nothing for paceFor to compute a
+// per-interval number against — but "no deadline" shouldn't mean "no sense
+// of pace" either. Projects a default end-of-year target date instead, so
+// the goal still shows a concrete "save $X/interval" number rather than
+// silently falling through to the plain "on track" state.
+function endOfYearISO(): string {
+  return `${new Date().getFullYear()}-12-31`;
+}
+
 // How much to set aside each `interval` to hit target_date, based on what's
-// left to save today. Returns null when there's nothing to compute (no
-// target date, or the goal is already fully funded) so the template can
-// show a plain "on track" state instead of a pace.
+// left to save today. Returns null only when the goal is already fully
+// funded, so the template can show a plain "on track" state — a missing
+// target_date no longer suppresses this: it falls back to endOfYearISO()
+// so there's always a concrete pace to show (see effectiveTargetDate).
 function paceFor(goal: SavingsGoal): number | null {
   const remaining = goal.target_amount - goal.saved_amount;
-  if (remaining <= 0 || !goal.target_date) return null;
-  const daysLeft = (new Date(goal.target_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  if (remaining <= 0) return null;
+  const daysLeft = (new Date(effectiveTargetDate(goal)).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
   const periodsLeft = Math.max(1, daysLeft / DAYS_PER_INTERVAL[interval.value]);
   return remaining / periodsLeft;
+}
+
+function effectiveTargetDate(goal: SavingsGoal): string {
+  return goal.target_date ?? endOfYearISO();
 }
 
 </script>
@@ -119,19 +161,21 @@ function paceFor(goal: SavingsGoal): number | null {
       <div class="goal-body">
         <div class="goal-name">
           {{ goal.name }}
-          <span v-if="goal.bank_account_id" class="badge badge-department">
+          <span v-if="goal.bank_account_id" class="badge" :style="accountBadgeStyle(goal.bank_account_id)">
             Vault of {{ accountNameById[goal.bank_account_id] }}
           </span>
         </div>
         <div class="goal-amount">
           {{ formatCurrency(goal.saved_amount) }} of {{ formatCurrency(goal.target_amount) }} saved
           <span v-if="goal.target_date"> · target {{ goal.target_date }}</span>
+          <span v-else> · projected end-of-year target {{ endOfYearISO() }}</span>
         </div>
-        <div class="progress-track">
-          <div class="progress-fill" :style="{ width: `${progressFor(goal) * 100}%` }" />
+        <div class="progress-track" :title="`${Math.round(progressFor(goal) * 100)}% saved`">
+          <div class="progress-fill" :class="`level-${progressLevel(goal)}`" :style="{ width: `${progressFor(goal) * 100}%` }" />
         </div>
         <div v-if="paceFor(goal) !== null" class="goal-pace">
-          Save {{ formatCurrency(paceFor(goal)!) }} per {{ INTERVAL_LABELS[interval] }} to hit your target date
+          Save {{ formatCurrency(paceFor(goal)!) }} per {{ INTERVAL_LABELS[interval] }} to hit
+          {{ goal.target_date ? 'your target date' : `the projected ${endOfYearISO()} date` }}
         </div>
         <div v-else-if="progressFor(goal) >= 1" class="goal-pace goal-pace-done">Goal reached</div>
       </div>
@@ -255,9 +299,20 @@ function paceFor(goal: SavingsGoal): number | null {
 
 .progress-fill {
   height: 100%;
-  background: var(--color-primary);
   border-radius: 999px;
-  transition: width 0.25s ease-out;
+  transition: width 0.25s ease-out, background-color 0.2s;
+}
+
+.progress-fill.level-low {
+  background: var(--color-warning);
+}
+
+.progress-fill.level-medium {
+  background: var(--color-primary);
+}
+
+.progress-fill.level-high {
+  background: var(--color-success);
 }
 
 .goal-pace {

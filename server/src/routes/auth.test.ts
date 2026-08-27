@@ -42,6 +42,17 @@ describe('POST /api/auth/login', () => {
     expect(res.headers['set-cookie'][0]).toMatch(/auth_token=.*HttpOnly/);
   });
 
+  it('sets a non-httpOnly tenant_type cookie matching the tenant, for the index.html paint hint', async () => {
+    await seedUser();
+    const res = await request(app)
+      .post('/api/auth/login')
+      .send({ email: 'dana@example.com', password: 'correct-horse' });
+
+    const tenantTypeCookie = res.headers['set-cookie'].find((c: string) => c.startsWith('tenant_type='));
+    expect(tenantTypeCookie).toMatch(/^tenant_type=enterprise/);
+    expect(tenantTypeCookie).not.toMatch(/HttpOnly/);
+  });
+
   it('rejects an unknown email', async () => {
     const res = await request(app)
       .post('/api/auth/login')
@@ -134,6 +145,12 @@ describe('POST /api/auth/select-tenant', () => {
     const me = await agent.get('/api/auth/me');
     expect(me.body.user.tenant_id).toBe(secondTenant.id);
     void tenant;
+
+    // The paint-hint cookie follows the switch — the first login above set
+    // it to 'enterprise', this switch to a personal tenant must overwrite
+    // it, not leave the stale enterprise value in place.
+    const tenantTypeCookie = res.headers['set-cookie'].find((c: string) => c.startsWith('tenant_type='));
+    expect(tenantTypeCookie).toMatch(/^tenant_type=personal/);
   });
 
   it('rejects selecting a tenant the user has no membership in', async () => {
@@ -228,6 +245,12 @@ describe('POST /api/auth/logout', () => {
     const res = await request(app).post('/api/auth/logout');
     expect(res.status).toBe(204);
     expect(res.headers['set-cookie'][0]).toMatch(/auth_token=;/);
+  });
+
+  it('clears the tenant_type cookie too, so a shared machine loses the paint hint on sign-out', async () => {
+    const res = await request(app).post('/api/auth/logout');
+    const tenantTypeCookie = res.headers['set-cookie'].find((c: string) => c.startsWith('tenant_type='));
+    expect(tenantTypeCookie).toMatch(/^tenant_type=;/);
   });
 });
 
