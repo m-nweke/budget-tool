@@ -16,6 +16,7 @@ import paychecksRouter from './routes/paychecks';
 import savingsGoalsRouter from './routes/savingsGoals';
 import debtsRouter from './routes/debts';
 import billsRouter from './routes/bills';
+import investmentsRouter from './routes/investments';
 import cashflowRouter from './routes/cashflow';
 import debtPayoffPlanRouter from './routes/debtPayoffPlan';
 import recurringTransactionRepository from './repositories/recurringTransactionRepository';
@@ -92,6 +93,7 @@ app.use('/api/paychecks', authenticate, paychecksRouter);
 app.use('/api/savings-goals', authenticate, savingsGoalsRouter);
 app.use('/api/debts', authenticate, debtsRouter);
 app.use('/api/bills', authenticate, billsRouter);
+app.use('/api/investments', authenticate, investmentsRouter);
 // Unlike the other Phase 2 routers, cash-flow projects recurring-transaction
 // occurrences forward from next_run_date — needs materializeDueTransactions
 // first so that value is current, not stale backlog (story 18).

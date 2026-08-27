@@ -22,6 +22,8 @@ import type {
   UpdateDebtPayoffSettingsDto,
   Bill,
   CreateBillDto,
+  Investment,
+  CreateInvestmentDto,
   CashflowProjection,
 } from './types';
 
@@ -146,6 +148,13 @@ export const api = {
   updateBill: (id: number, data: CreateBillDto) =>
     request<Bill>(`/bills/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteBill: (id: number) => request<null>(`/bills/${id}`, { method: 'DELETE' }),
+
+  getInvestments: () => request<Investment[]>('/investments'),
+  createInvestment: (data: CreateInvestmentDto) =>
+    request<Investment>('/investments', { method: 'POST', body: JSON.stringify(data) }),
+  updateInvestment: (id: number, data: CreateInvestmentDto) =>
+    request<Investment>(`/investments/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteInvestment: (id: number) => request<null>(`/investments/${id}`, { method: 'DELETE' }),
 
   getCashFlow: (days?: number) => request<CashflowProjection>(`/cash-flow${days ? `?days=${days}` : ''}`),
 

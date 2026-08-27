@@ -42,7 +42,8 @@ beforeEach(() => {
   db.exec(
     'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; ' +
       'DELETE FROM debt_payoff_settings; DELETE FROM debts; ' +
-      'DELETE FROM bills; DELETE FROM bank_accounts; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
+      'DELETE FROM bills; DELETE FROM investments; DELETE FROM bank_accounts; ' +
+      'DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
   );
   enterpriseTenantId = tenantRepository.create('Acme Co', 'enterprise').id;
 });
@@ -360,6 +361,81 @@ describe('CRUD /api/bills', () => {
     expect(updateRes.status).toBe(403);
 
     const deleteRes = await agent.delete(`/api/bills/${otherBillId}`);
+    expect(deleteRes.status).toBe(403);
+  });
+});
+
+describe('CRUD /api/investments', () => {
+  it('is owner-only and tenant-scoped', async () => {
+    await createHead('Dana', 'dana@example.com');
+    const headAgent = await loginAs('dana@example.com');
+    expect((await headAgent.get('/api/investments')).status).toBe(403);
+
+    await createOwner('Pat', 'pat@example.com');
+    const ownerAgent = await loginAs('pat@example.com');
+    const created = await ownerAgent.post('/api/investments').send({ name: 'Vanguard', type: 'brokerage' });
+    expect(created.status).toBe(201);
+
+    const res = await ownerAgent.get('/api/investments');
+    expect(res.body).toHaveLength(1);
+  });
+
+  it('rejects an invalid type', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/investments').send({ name: 'Vanguard', type: 'stocks' });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects a negative current_value', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent.post('/api/investments').send({ name: 'Vanguard', type: 'brokerage', current_value: -1 });
+    expect(res.status).toBe(400);
+  });
+
+  it('rejects monthly_contribution without contribution_day, and vice versa', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+
+    const missingDay = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', monthly_contribution: 200 });
+    expect(missingDay.status).toBe(400);
+
+    const missingAmount = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', contribution_day: 5 });
+    expect(missingAmount.status).toBe(400);
+  });
+
+  it('rejects a bank_account_id belonging to another tenant', async () => {
+    const other = tenantRepository.create("Alex's Budget", 'personal');
+    const otherAccountId = db
+      .prepare("INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, 'Checking', 'checking', 0)")
+      .run(other.id).lastInsertRowid as number;
+
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/investments')
+      .send({ name: 'Vanguard', type: 'brokerage', bank_account_id: otherAccountId });
+    expect(res.status).toBe(400);
+  });
+
+  it("an owner cannot update or delete another tenant's investment", async () => {
+    const other = tenantRepository.create("Alex's Budget", 'personal');
+    const otherInvestmentId = db
+      .prepare('INSERT INTO investments (tenant_id, name, type) VALUES (?, ?, ?)')
+      .run(other.id, 'Vanguard', 'brokerage').lastInsertRowid as number;
+
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+
+    const updateRes = await agent.put(`/api/investments/${otherInvestmentId}`).send({ name: 'Hijacked', type: 'brokerage' });
+    expect(updateRes.status).toBe(403);
+
+    const deleteRes = await agent.delete(`/api/investments/${otherInvestmentId}`);
     expect(deleteRes.status).toBe(403);
   });
 });

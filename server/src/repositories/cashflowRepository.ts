@@ -3,6 +3,7 @@ import paycheckRepository from './paycheckRepository';
 import recurringTransactionRepository from './recurringTransactionRepository';
 import debtRepository from './debtRepository';
 import billRepository from './billRepository';
+import investmentRepository from './investmentRepository';
 import { addDays, stepPaycheckDates, stepMonthlyDueDates } from '../utils/dateUtils';
 import type {
   CashflowProjection,
@@ -122,6 +123,23 @@ const cashflowRepository = {
           id: bill.id,
           label: bill.name,
           amount: bill.amount,
+        });
+      }
+    }
+
+    // Only investments with a recurring contribution show up here — one
+    // with just a manually-tracked current_value and no monthly_contribution/
+    // contribution_day (the matched-optional pair) has nothing periodic to
+    // project. Same unattributed-outflow shape as bills above.
+    for (const investment of investmentRepository.findAllActive(tenantId)) {
+      if (investment.monthly_contribution === null || investment.contribution_day === null) continue;
+      for (const dueDate of stepMonthlyDueDates(investment.contribution_day, from, to)) {
+        outflows.push({
+          date: dueDate,
+          source: 'investment',
+          id: investment.id,
+          label: investment.name,
+          amount: investment.monthly_contribution,
         });
       }
     }

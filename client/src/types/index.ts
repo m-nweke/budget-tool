@@ -33,6 +33,7 @@ export type {
   DebtPayoffPlanResponse,
 } from './debt';
 export type { Bill, BillCategory, CreateBillDto } from './bill';
+export type { Investment, InvestmentType, CreateInvestmentDto } from './investment';
 export type {
   CashflowProjection,
   AccountProjection,

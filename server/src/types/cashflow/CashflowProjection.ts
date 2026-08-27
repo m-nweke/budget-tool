@@ -23,14 +23,14 @@ export interface AccountProjection {
   daily: AccountDailyBalance[];
 }
 
-// Recurring transactions, debt minimum payments, and bills have no
-// bank_account_id (transactions were never wired to accounts — see story
-// 18's decision doc), so they can't be attributed to any one account's
-// balance. Surfaced instead as a tenant-wide, unattributed list of
-// expected outflows.
+// Recurring transactions, debt minimum payments, bills, and investment
+// contributions have no bank_account_id (transactions were never wired to
+// accounts — see story 18's decision doc), so they can't be attributed to
+// any one account's balance. Surfaced instead as a tenant-wide,
+// unattributed list of expected outflows.
 export interface ProjectedOutflow {
   date: string;
-  source: 'recurring_transaction' | 'debt' | 'bill';
+  source: 'recurring_transaction' | 'debt' | 'bill' | 'investment';
   id: number;
   label: string;
   amount: number;

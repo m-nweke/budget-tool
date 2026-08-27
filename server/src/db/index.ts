@@ -257,8 +257,31 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_savings_goals_tenant_id ON savings_goals(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_savings_goals_bank_account_id ON savings_goals(bank_account_id);
   CREATE INDEX IF NOT EXISTS idx_debts_tenant_id ON debts(tenant_id);
+  -- Investment tracking (brokerage, retirement, crypto, etc.) — current_value
+  -- is manually updated by the owner, same convention as
+  -- savings_goals.saved_amount rather than derived from any live feed.
+  -- monthly_contribution/contribution_day are a matched-optional pair (same
+  -- shape as debts.promo_apr/promo_expires_on): when set, cashflowRepository
+  -- folds the contribution into the simulation as a recurring outflow the
+  -- same way it does bills, via stepMonthlyDueDates.
+  CREATE TABLE IF NOT EXISTS investments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    tenant_id INTEGER NOT NULL REFERENCES tenants(id),
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK (type IN ('brokerage', 'retirement', 'crypto', 'other')),
+    current_value REAL NOT NULL DEFAULT 0,
+    monthly_contribution REAL,
+    contribution_day INTEGER CHECK (contribution_day BETWEEN 1 AND 31),
+    -- Which account funds the contribution — same optional-link shape as
+    -- bills.bank_account_id, informational for now.
+    bank_account_id INTEGER REFERENCES bank_accounts(id),
+    active INTEGER NOT NULL DEFAULT 1
+  );
+
   CREATE INDEX IF NOT EXISTS idx_bills_tenant_id ON bills(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_bills_bank_account_id ON bills(bank_account_id);
+  CREATE INDEX IF NOT EXISTS idx_investments_tenant_id ON investments(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_investments_bank_account_id ON investments(bank_account_id);
 `);
 
 // Lightweight migration for columns added after a database already existed.
