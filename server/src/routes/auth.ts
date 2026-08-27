@@ -53,6 +53,17 @@ const COOKIE_OPTIONS = {
 // keep sending a token past the point the server would reject it anyway).
 const PRE_TENANT_COOKIE_OPTIONS = { ...COOKIE_OPTIONS, maxAge: 10 * 60 * 1000 };
 
+// Deliberately NOT httpOnly (unlike COOKIE_NAME) — carries no auth
+// authority, just which palette to paint. index.html reads it in a
+// blocking inline script before the app mounts, so a returning user's
+// browser paints the right personal/enterprise theme on first frame
+// instead of the default neutral one flashing while the session round
+// trip (App.vue's data-mode watcher) is still in flight. Cleared on
+// logout so a shared/public machine doesn't leak "was this a personal
+// budget or a company account" after signing out.
+const TENANT_TYPE_COOKIE_NAME = 'tenant_type';
+const TENANT_TYPE_COOKIE_OPTIONS = { ...COOKIE_OPTIONS, httpOnly: false };
+
 // Guards the two endpoints that run bcrypt.compare against a real password
 // hash: /login (an existing user's own password) and /register's "join"
 // path (re-registering against an already-used email re-checks that
@@ -99,6 +110,7 @@ router.post('/login', authRateLimiter, async (req: Request<{}, {}, LoginRequest>
     }
     const token = signToken(user.id, tenant.id);
     res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+    res.cookie(TENANT_TYPE_COOKIE_NAME, tenant.type, TENANT_TYPE_COOKIE_OPTIONS);
     const body: LoginResponse = { user: buildAuthUser(user, membership, tenant) };
     return res.json(body);
   }
@@ -144,6 +156,7 @@ router.post('/select-tenant', (req: Request<{}, {}, SelectTenantRequest>, res: R
 
   const newToken = signToken(user.id, tenant.id);
   res.cookie(COOKIE_NAME, newToken, COOKIE_OPTIONS);
+  res.cookie(TENANT_TYPE_COOKIE_NAME, tenant.type, TENANT_TYPE_COOKIE_OPTIONS);
   const body: LoginResponse = { user: buildAuthUser(user, membership, tenant) };
   res.json(body);
 });
@@ -220,12 +233,14 @@ router.post('/register', authRateLimiter, async (req: Request<{}, {}, RegisterRe
 
   const token = signToken(user.id, resolvedTenant.id);
   res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
+  res.cookie(TENANT_TYPE_COOKIE_NAME, resolvedTenant.type, TENANT_TYPE_COOKIE_OPTIONS);
   const body: LoginResponse = { user: buildAuthUser(user, membership, resolvedTenant) };
   res.status(201).json(body);
 });
 
 router.post('/logout', (req: Request, res: Response) => {
   res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS);
+  res.clearCookie(TENANT_TYPE_COOKIE_NAME, TENANT_TYPE_COOKIE_OPTIONS);
   res.status(204).end();
 });
 
