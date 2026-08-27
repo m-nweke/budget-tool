@@ -62,7 +62,14 @@ app.use('/api/auth', authRouter);
 // too, an unscoped cross-tenant cost that grows with total platform tenant
 // count, not this tenant's own data (see recurringTransactionRepository.generateDue).
 function materializeDueTransactions(req: Request, res: Response, next: NextFunction): void {
-  recurringTransactionRepository.generateDue(req.user?.tenant_id);
+  if (!req.user) {
+    // authenticate() always runs first and sets req.user — this guard exists
+    // so a missing tenant_id fails closed instead of silently falling through
+    // to generateDue's unscoped (cross-tenant) behavior.
+    next(new Error('materializeDueTransactions requires an authenticated request'));
+    return;
+  }
+  recurringTransactionRepository.generateDue(req.user.tenant_id);
   next();
 }
 

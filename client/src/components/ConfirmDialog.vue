@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue';
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     open: boolean;
     title: string;
@@ -18,6 +18,7 @@ withDefaults(
 const emit = defineEmits<{ confirm: []; cancel: [] }>();
 
 function handleKeydown(event: KeyboardEvent) {
+  if (!props.open) return;
   if (event.key === 'Escape') emit('cancel');
 }
 
