@@ -1,4 +1,6 @@
 // Mirrors server/src/types/cashflow/CashflowProjection.ts
+import type { BankAccountType } from '../bankAccount';
+
 export interface PaycheckCredit {
   paycheck_id: number;
   label: string;
@@ -14,6 +16,7 @@ export interface AccountDailyBalance {
 export interface AccountProjection {
   bank_account_id: number;
   name: string;
+  type: BankAccountType;
   starting_balance: number;
   daily: AccountDailyBalance[];
 }

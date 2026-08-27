@@ -26,8 +26,13 @@ function effectiveMonthlyRate(debt: Debt, currentDate: string): number {
 
 // snowball (default): smallest balance first — psychologically motivating
 // quick wins, the industry-standard "snowball" method.
-// avalanche: highest interest rate first — mathematically minimizes total
-// interest paid among any fixed-order strategy.
+// avalanche: highest *effective* interest rate first — mathematically
+// minimizes total interest paid among any fixed-order strategy. Sorts on
+// effectiveMonthlyRate (promo rate when a promo is currently active),
+// not the nominal interest_rate — a card sitting in a 0% promo window
+// isn't costing anything right now, so it must rank behind a debt that's
+// actually accruing interest today even if its regular post-promo rate
+// is higher than that debt's rate.
 // custom: the caller's own order, with two self-healing fallbacks so a
 // stale settings row never breaks the simulation: an id that no longer
 // belongs to this tenant (the debt was deleted) is silently dropped, and
@@ -35,7 +40,8 @@ function effectiveMonthlyRate(debt: Debt, currentDate: string): number {
 // appended at the end, smallest balance first.
 function orderDebts(debts: Debt[], strategy: PayoffStrategy, customOrder: number[] | null): Debt[] {
   if (strategy === 'avalanche') {
-    return [...debts].sort((a, b) => b.interest_rate - a.interest_rate);
+    const today = todayISO();
+    return [...debts].sort((a, b) => effectiveMonthlyRate(b, today) - effectiveMonthlyRate(a, today));
   }
   if (strategy === 'custom' && customOrder) {
     const byId = new Map(debts.map((d) => [d.id, d]));

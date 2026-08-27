@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue';
 import { api } from '../api';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, accountLabel } from '../utils/format';
 import type { CashflowProjection } from '../types';
 
 const days = ref(14);
@@ -56,7 +56,7 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill'): string 
   <template v-else-if="projection">
     <div class="account-grid">
       <div v-for="account in projection.accounts" :key="account.bank_account_id" class="card account-card">
-        <h2>{{ account.name }}</h2>
+        <h2>{{ accountLabel(account) }}</h2>
         <p class="starting-balance">Starting balance: {{ formatCurrency(account.starting_balance) }}</p>
         <ul class="daily-list">
           <li

@@ -235,7 +235,19 @@ db.exec(`
     category TEXT NOT NULL CHECK (category IN ('rent', 'wifi', 'electric', 'water', 'insurance', 'other')),
     amount REAL NOT NULL,
     due_day INTEGER NOT NULL CHECK (due_day BETWEEN 1 AND 31),
-    active INTEGER NOT NULL DEFAULT 1
+    active INTEGER NOT NULL DEFAULT 1,
+    -- Same "which account does this actually draw from" link as
+    -- savings_goals.bank_account_id — optional (a bill doesn't need a
+    -- linked account to exist), informational for now rather than wired
+    -- into cashflowRepository's per-account balances yet.
+    bank_account_id INTEGER REFERENCES bank_accounts(id),
+    -- Same start_on/end_date shape as categories.start_on and
+    -- recurring_transactions.end_date — when this bill starts/stops being
+    -- due, so cashflowRepository's monthly-due-date stepping can skip
+    -- occurrences outside that window (a bill that ended, or hasn't
+    -- started yet, shouldn't show up in the projection).
+    start_on TEXT NOT NULL DEFAULT (date('now')),
+    end_date TEXT
   );
 
   CREATE INDEX IF NOT EXISTS idx_bank_accounts_tenant_id ON bank_accounts(tenant_id);
@@ -246,6 +258,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_savings_goals_bank_account_id ON savings_goals(bank_account_id);
   CREATE INDEX IF NOT EXISTS idx_debts_tenant_id ON debts(tenant_id);
   CREATE INDEX IF NOT EXISTS idx_bills_tenant_id ON bills(tenant_id);
+  CREATE INDEX IF NOT EXISTS idx_bills_bank_account_id ON bills(bank_account_id);
 `);
 
 // Lightweight migration for columns added after a database already existed.
@@ -279,6 +292,10 @@ migrateColumn('ALTER TABLE bank_accounts ADD COLUMN apy REAL');
 migrateColumn('ALTER TABLE savings_goals ADD COLUMN saved_amount REAL NOT NULL DEFAULT 0');
 migrateColumn('ALTER TABLE debts ADD COLUMN promo_apr REAL');
 migrateColumn('ALTER TABLE debts ADD COLUMN promo_expires_on TEXT');
+migrateColumn('ALTER TABLE bills ADD COLUMN bank_account_id INTEGER REFERENCES bank_accounts(id)');
+migrateColumn('ALTER TABLE bills ADD COLUMN start_on TEXT');
+db.exec("UPDATE bills SET start_on = date('now') WHERE start_on IS NULL");
+migrateColumn('ALTER TABLE bills ADD COLUMN end_date TEXT');
 
 // Like migrateColumn, but for a column being removed rather than added —
 // dropping a column that was never there (a database created fresh, after

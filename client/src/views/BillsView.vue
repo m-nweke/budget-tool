@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import { ref, computed } from 'vue';
 import { api } from '../api';
 import BillForm from '../components/BillForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
-import { formatCurrency } from '../utils/format';
-import type { Bill, CreateBillDto } from '../types';
+import { formatCurrency, accountLabel } from '../utils/format';
+import type { Bill, CreateBillDto, BankAccount } from '../types';
 
 const CATEGORY_LABELS: Record<Bill['category'], string> = {
   rent: 'Rent',
@@ -15,6 +16,8 @@ const CATEGORY_LABELS: Record<Bill['category'], string> = {
   insurance: 'Insurance',
   other: 'Other',
 };
+
+const accounts = ref<BankAccount[]>([]);
 
 const {
   items: bills,
@@ -34,9 +37,21 @@ const {
   cancelDelete,
   confirmDelete,
 } = useCrudListView<Bill, CreateBillDto>(
-  () => api.getBills(),
+  async () => {
+    const [billsResult, accountsResult] = await Promise.all([api.getBills(), api.getBankAccounts()]);
+    accounts.value = accountsResult;
+    return billsResult;
+  },
   { create: api.createBill, update: api.updateBill, remove: api.deleteBill }
 );
+
+const accountLabelById = computed(() => {
+  const map: Record<number, string> = {};
+  for (const account of accounts.value) {
+    map[account.id] = accountLabel(account);
+  }
+  return map;
+});
 </script>
 
 <template>
@@ -75,7 +90,11 @@ const {
           <span class="badge badge-department">{{ CATEGORY_LABELS[bill.category] }}</span>
           <span v-if="!bill.active" class="badge badge-pending">Excluded</span>
         </div>
-        <div class="bill-meta">{{ formatCurrency(bill.amount) }}/mo · due on the {{ bill.due_day }}</div>
+        <div class="bill-meta">
+          {{ formatCurrency(bill.amount) }}/mo · due on the {{ bill.due_day }}
+          <template v-if="bill.bank_account_id">· from {{ accountLabelById[bill.bank_account_id] ?? 'Unknown account' }}</template>
+          <template v-if="bill.end_date">· ends {{ bill.end_date }}</template>
+        </div>
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(bill)">Edit</button>

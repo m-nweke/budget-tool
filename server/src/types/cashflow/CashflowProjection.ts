@@ -1,3 +1,5 @@
+import type { BankAccountType } from '../bankAccount';
+
 // A credit landing in one account on one day — currently only paychecks,
 // since paycheck_splits is the only inflow with a real bank_account_id
 // (recurring transactions/debts have no account link — see ProjectedOutflow).
@@ -16,6 +18,7 @@ export interface AccountDailyBalance {
 export interface AccountProjection {
   bank_account_id: number;
   name: string;
+  type: BankAccountType;
   starting_balance: number;
   daily: AccountDailyBalance[];
 }

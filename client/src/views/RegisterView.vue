@@ -5,7 +5,7 @@ import { useAuth } from '../composables/useAuth';
 import PasswordField from '../components/PasswordField.vue';
 import type { AccountType } from '../api';
 
-const { register } = useAuth();
+const { register, user } = useAuth();
 const router = useRouter();
 
 const name = ref('');
@@ -33,7 +33,13 @@ watch(
 );
 
 onBeforeUnmount(() => {
-  document.documentElement.dataset.mode = 'neutral';
+  // Only reset the preview when leaving without an authenticated user
+  // (e.g. back to Login). On a successful submit, `register()` already
+  // set `user.value`, which App.vue's own watcher used to apply the real
+  // mode — unmounting shouldn't clobber that back to 'neutral'.
+  if (!user.value) {
+    document.documentElement.dataset.mode = 'neutral';
+  }
 });
 
 async function handleSubmit() {

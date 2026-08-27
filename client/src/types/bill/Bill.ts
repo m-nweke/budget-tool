@@ -9,4 +9,7 @@ export interface Bill {
   amount: number;
   due_day: number;
   active: number;
+  bank_account_id: number | null;
+  start_on: string;
+  end_date: string | null;
 }

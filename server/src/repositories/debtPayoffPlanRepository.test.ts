@@ -109,6 +109,33 @@ describe('debtPayoffPlanRepository.buildPlan — strategy ordering', () => {
     expect(highRateLarge.payoff_date! < lowRateSmall.payoff_date!).toBe(false);
   });
 
+  it('avalanche routes extra to a currently-accruing debt over one in an active 0% promo, regardless of nominal rate', () => {
+    // Helzberg's nominal rate (27%) is higher than Chase's (22%), but
+    // Helzberg is in an active 0% promo right now — it costs nothing this
+    // period, so avalanche must prioritize Chase (the debt actually
+    // accruing interest today) for the extra payment.
+    debtRepository.create(
+      {
+        name: 'Helzberg',
+        balance: 2000,
+        interest_rate: 27,
+        minimum_payment: 20,
+        due_day: 1,
+        promo_apr: 0,
+        promo_expires_on: '2030-01-01',
+      },
+      tenantId
+    );
+    debtRepository.create({ name: 'Chase', balance: 2000, interest_rate: 22, minimum_payment: 20, due_day: 1 }, tenantId);
+    debtPayoffSettingsRepository.upsert(tenantId, { monthly_amount: 300, strategy: 'avalanche' });
+
+    const { plan } = debtPayoffPlanRepository.buildPlan(tenantId);
+    if (!plan || 'insufficient_minimums' in plan) throw new Error('expected a real plan');
+    const helzberg = plan.per_debt.find((d) => d.name === 'Helzberg')!;
+    const chase = plan.per_debt.find((d) => d.name === 'Chase')!;
+    expect(chase.payoff_date! <= helzberg.payoff_date!).toBe(true);
+  });
+
   it('custom order routes extra to the prioritized debt and drops a since-deleted id', () => {
     // Same balance/rate so the only thing that can make them differ is the
     // extra payment order — B would otherwise tie with A exactly.

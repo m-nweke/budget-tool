@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { api } from '../api';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, accountLabel } from '../utils/format';
 import type {
   Paycheck,
   CreatePaycheckDto,
@@ -107,15 +107,31 @@ function otherUnitHint(row: SplitRow): string {
   return `(${formatCurrency(effectiveDollar(row))})`;
 }
 
-// Re-sorts by descending dollar allocation — called on blur/change rather
-// than reactively on every keystroke, so the row a user is actively typing
-// into never jumps out from under their cursor. A row marked `useRemaining`
-// is always pinned last regardless of its (derived) size, since it's
-// definitionally "whatever's left over," not a ranked allocation.
-function resortSplits() {
+// Moves any `useRemaining` row to the end — it's definitionally "whatever's
+// left over," not a ranked allocation, so it can never sit anywhere but
+// last regardless of how the user has arranged the other rows. Called only
+// right after a row is flagged remaining (see toggleRemaining); ordinary
+// edits no longer force a re-sort — see moveSplit for user-driven ordering.
+function pinRemainingLast() {
   const remaining = splits.value.filter((s) => s.useRemaining);
-  const rest = [...splits.value.filter((s) => !s.useRemaining)].sort((a, b) => effectiveDollar(b) - effectiveDollar(a));
+  const rest = splits.value.filter((s) => !s.useRemaining);
   splits.value = [...rest, ...remaining];
+}
+
+// User-driven reordering (swap with the previous/next row) — replaces the
+// old auto-sort-by-dollar-amount behavior, which fought with any manual
+// arrangement by silently re-sorting back on every blur/change. The
+// `useRemaining` row (if any) is always last, so a row can't move past it,
+// and the remaining row itself can't move at all.
+function moveSplit(index: number, direction: -1 | 1) {
+  const row = splits.value[index];
+  if (row.useRemaining) return;
+  const target = index + direction;
+  if (target < 0 || target >= splits.value.length) return;
+  if (splits.value[target].useRemaining) return;
+  const next = [...splits.value];
+  [next[index], next[target]] = [next[target], next[index]];
+  splits.value = next;
 }
 
 onMounted(async () => {
@@ -148,7 +164,7 @@ function toggleRemaining(row: SplitRow) {
     s.useRemaining = false;
   });
   row.useRemaining = true;
-  resortSplits();
+  pinRemainingLast();
 }
 
 // Splitting requires an account to split into, but sending someone all the
@@ -269,7 +285,7 @@ function handleSubmit() {
       <template v-else>
         <p class="field-hint">
           Each split is a percentage of the paycheck or a fixed dollar amount. Splits don't need to add up to the full
-          amount — rows are ordered highest to lowest, and the last row can be set to soak up whatever's left.
+          amount — use the arrows to arrange the rows, and the last row can be set to soak up whatever's left.
         </p>
         <p v-if="amountNum > 0" class="allocation-summary" :class="{ over: overAllocated }">
           Allocated {{ formatCurrency(totalAllocated) }} of {{ formatCurrency(amountNum) }}
@@ -277,10 +293,30 @@ function handleSubmit() {
         </p>
       </template>
       <div v-for="(split, index) in splits" :key="split._key" class="split-row">
-        <select v-model="split.bank_account_id" class="form-control" @change="resortSplits">
-          <option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }}</option>
+        <div class="reorder-buttons">
+          <button
+            type="button"
+            class="btn-icon"
+            title="Move up"
+            :disabled="split.useRemaining || index === 0"
+            @click="moveSplit(index, -1)"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            class="btn-icon"
+            title="Move down"
+            :disabled="split.useRemaining || index === splits.length - 1 || splits[index + 1]?.useRemaining"
+            @click="moveSplit(index, 1)"
+          >
+            ↓
+          </button>
+        </div>
+        <select v-model="split.bank_account_id" class="form-control">
+          <option v-for="account in accounts" :key="account.id" :value="account.id">{{ accountLabel(account) }}</option>
         </select>
-        <select v-model="split.split_type" class="form-control" :disabled="split.useRemaining" @change="resortSplits">
+        <select v-model="split.split_type" class="form-control" :disabled="split.useRemaining">
           <option value="percentage">%</option>
           <option value="fixed">$</option>
         </select>
@@ -289,16 +325,7 @@ function handleSubmit() {
             <span class="remaining-value">{{ formatCurrency(remainingAmount) }}</span>
           </template>
           <template v-else>
-            <input
-              v-model="split.value"
-              type="number"
-              step="0.01"
-              min="0.01"
-              placeholder="0"
-              required
-              class="form-control"
-              @blur="resortSplits"
-            />
+            <input v-model="split.value" type="number" step="0.01" min="0.01" placeholder="0" required class="form-control" />
             <span v-if="otherUnitHint(split)" class="unit-hint">{{ otherUnitHint(split) }}</span>
           </template>
         </div>
@@ -379,9 +406,31 @@ function handleSubmit() {
      track would size differently row to row (button text on the last row,
      an empty spacer on every other row) and the Remove column after it
      would visibly drift out of alignment between rows. */
-  grid-template-columns: 1fr 64px 150px 130px auto;
+  grid-template-columns: 40px 1fr 64px 150px 130px auto;
   gap: var(--space-2);
   align-items: center;
+}
+
+.reorder-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.btn-icon {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  cursor: pointer;
+  line-height: 1;
+  padding: 1px 6px;
+  font-size: 0.75rem;
+}
+
+.btn-icon:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .split-value {

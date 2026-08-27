@@ -95,6 +95,28 @@ describe('cashflowRepository.simulate', () => {
     expect(accountProjection.daily.every((d) => d.balance === 1000)).toBe(true);
   });
 
+  it("a bill's occurrences are bounded by its start_on/end_date window", () => {
+    bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
+    // Hasn't started yet — its 2026-08-25 occurrence falls before start_on.
+    billRepository.create(
+      { name: 'Future Gym', category: 'other', amount: 40, due_day: 25, start_on: '2026-09-01' },
+      tenantId
+    );
+    // Ended before its 2026-08-25 occurrence.
+    billRepository.create(
+      { name: 'Cancelled Streaming', category: 'other', amount: 15, due_day: 25, end_date: '2026-08-01' },
+      tenantId
+    );
+    // Active for the whole window.
+    billRepository.create({ name: 'Electric', category: 'electric', amount: 90, due_day: 25 }, tenantId);
+
+    const projection = cashflowRepository.simulate(tenantId, '2026-08-19', '2026-09-10');
+
+    expect(projection.outflows.some((o) => o.label === 'Future Gym')).toBe(false);
+    expect(projection.outflows.some((o) => o.label === 'Cancelled Streaming')).toBe(false);
+    expect(projection.outflows.some((o) => o.label === 'Electric')).toBe(true);
+  });
+
   it('outflows are sorted by date', () => {
     bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
     debtRepository.create(

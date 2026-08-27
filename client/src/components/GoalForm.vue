@@ -2,6 +2,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { api } from '../api';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
+import { accountLabel } from '../utils/format';
 
 const props = defineProps<{
   goal: SavingsGoal | null;
@@ -69,7 +70,7 @@ function handleSubmit() {
       Vault of Account (optional)
       <select v-model="bankAccountId">
         <option value="">No linked account</option>
-        <option v-for="account in accounts" :key="account.id" :value="account.id">{{ account.name }}</option>
+        <option v-for="account in accounts" :key="account.id" :value="account.id">{{ accountLabel(account) }}</option>
       </select>
     </label>
     <p v-if="bankAccountId !== ''" class="field-hint">

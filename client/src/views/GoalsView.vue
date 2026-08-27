@@ -5,7 +5,7 @@ import GoalForm from '../components/GoalForm.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, accountLabel } from '../utils/format';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
 
 type Interval = 'week' | 'month' | 'quarter';
@@ -42,7 +42,7 @@ const {
 const accountNameById = computed(() => {
   const map: Record<number, string> = {};
   for (const account of accounts.value) {
-    map[account.id] = account.name;
+    map[account.id] = accountLabel(account);
   }
   return map;
 });
