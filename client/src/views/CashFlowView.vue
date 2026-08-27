@@ -2,6 +2,7 @@
 import { ref, onMounted, watch } from 'vue';
 import { api } from '../api';
 import { formatCurrency, accountLabel } from '../utils/format';
+import { emojiForOutflow } from '../utils/categoryEmoji';
 import type { CashflowProjection } from '../types';
 
 const days = ref(14);
@@ -58,7 +59,7 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
     <div class="account-grid">
       <div v-for="account in projection.accounts" :key="account.bank_account_id" class="card account-card">
         <h2>{{ accountLabel(account) }}</h2>
-        <p class="starting-balance">Starting balance: {{ formatCurrency(account.starting_balance) }}</p>
+        <p class="starting-balance">Starting balance: <span class="font-mono">{{ formatCurrency(account.starting_balance) }}</span></p>
         <ul class="daily-list">
           <li
             v-for="day in account.daily"
@@ -76,7 +77,7 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
                 +{{ formatCurrency(credit.amount) }} {{ credit.label }}
               </span>
             </span>
-            <span class="daily-balance">{{ formatCurrency(day.balance) }}</span>
+            <span class="daily-balance font-mono">{{ formatCurrency(day.balance) }}</span>
           </li>
         </ul>
       </div>
@@ -93,10 +94,11 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
       <li v-for="outflow in projection.outflows" :key="`${outflow.source}-${outflow.id}-${outflow.date}`" class="card outflow-row">
         <span class="outflow-date">{{ outflow.date }}</span>
         <span class="outflow-label">
+          <span class="outflow-emoji" aria-hidden="true">{{ emojiForOutflow(outflow.label, outflow.source) }}</span>
           {{ outflow.label }}
           <span class="badge badge-department">{{ sourceLabel(outflow.source) }}</span>
         </span>
-        <span class="outflow-amount">{{ formatCurrency(outflow.amount) }}</span>
+        <span class="outflow-amount font-mono">{{ formatCurrency(outflow.amount) }}</span>
       </li>
     </ul>
   </template>
@@ -130,8 +132,13 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
 .account-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-5);
   margin-bottom: var(--space-6);
+}
+
+.account-card {
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
 }
 
 .account-card h2 {
@@ -206,19 +213,25 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
 }
 
 .outflow-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
 }
 
 .outflow-date {
   color: var(--color-text-muted);
   font-size: 0.85rem;
+}
+
+.outflow-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .outflow-amount {
