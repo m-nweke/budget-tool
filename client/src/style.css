@@ -1,13 +1,31 @@
+/*
+  Theming has two independent axes (see docs/designs/monarch-inspired-
+  design-system-and-cash-flow.md "Theming is three independent axes"):
+
+  1. data-mode: 'enterprise' (default/bare :root) | 'personal' | 'neutral'
+     — set by App.vue from the session's tenant_type, or 'neutral' pre-auth.
+  2. data-theme: 'light' | 'dark' — set by useTheme.ts / index.html's
+     pre-mount script. Dark is the unconditional default; explicit
+     data-theme always wins (OS prefers-color-scheme is NOT consulted for
+     the default, only used as a legacy no-JS fallback below).
+
+  That's 3 modes × 2 themes = 6 concrete palettes, each defined explicitly
+  rather than relying on prefers-color-scheme cascading — a manual toggle
+  needs to be able to force either theme regardless of OS preference.
+*/
 :root {
+  /* Enterprise / light (bare :root, no data-mode or data-theme override —
+     legacy no-JS fallback only; the pre-mount script always sets
+     data-theme, so this branch is rarely what actually paints). */
   --color-bg: #f5faf8;
   --color-surface: #ffffff;
   --color-border: #e0ede8;
   --color-text: #182420;
   --color-text-muted: #64726c;
 
-  --color-primary: #21785f;
-  --color-primary-hover: #1a5f4b;
-  --color-primary-bg: #e3f5ef;
+  --color-primary: #1c6b54;
+  --color-primary-hover: #144f3d;
+  --color-primary-bg: #e2f2ec;
 
   --color-danger: #dc2626;
   --color-danger-hover: #b91c1c;
@@ -31,7 +49,15 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  font: 15px/1.5 -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  /* Origin-inspired three-typeface system: serif for large emotive figures
+     (balances, net worth), sans for everything else, mono for tabular/
+     technical data labels. System-stack only — no webfont load, no new
+     asset pipeline (design doc Constraints: "avoid a new asset pipeline"). */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+  --font-mono: ui-monospace, 'SF Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+  font: 15px/1.5 var(--font-sans);
   color-scheme: light dark;
   color: var(--color-text);
   background: var(--color-bg);
@@ -41,17 +67,46 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-bg: #121614;
-    --color-surface: #1b201d;
-    --color-border: #2d3632;
-    --color-text: #f0f4f2;
-    --color-text-muted: #9fada7;
+/* Enterprise / dark — the actual default a fresh visitor sees (dark is the
+   unconditional default per useTheme.ts). Near-black "editorial" canvas
+   (Origin-inspired) with a bolder, more saturated mint-teal accent
+   (Monarch-inspired boldness) than the old prefers-color-scheme dark did. */
+:root[data-theme='dark'] {
+  --color-bg: #0a0c0d;
+  --color-surface: #15181a;
+  --color-border: #262b2e;
+  --color-text: #f2f5f3;
+  --color-text-muted: #9aa39e;
 
-    --color-primary: #4fd8b6;
-    --color-primary-hover: #7ee4c9;
-    --color-primary-bg: rgba(79, 216, 182, 0.14);
+  --color-primary: #35d6ae;
+  --color-primary-hover: #5ee2c4;
+  --color-primary-bg: rgba(53, 214, 174, 0.14);
+
+  --color-danger: #f87171;
+  --color-danger-hover: #fca5a5;
+  --color-danger-bg: rgba(248, 113, 113, 0.12);
+  --color-danger-border: rgba(248, 113, 113, 0.35);
+
+  --color-success: #4ade80;
+  --color-warning: #fbbf24;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* No-JS fallback only: if data-theme was somehow never set (script
+   blocked), fall back to OS preference rather than staying stuck light. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-bg: #0a0c0d;
+    --color-surface: #15181a;
+    --color-border: #262b2e;
+    --color-text: #f2f5f3;
+    --color-text-muted: #9aa39e;
+
+    --color-primary: #35d6ae;
+    --color-primary-hover: #5ee2c4;
+    --color-primary-bg: rgba(53, 214, 174, 0.14);
 
     --color-danger: #f87171;
     --color-danger-hover: #fca5a5;
@@ -87,13 +142,28 @@
   --color-warning: #ff8a3d;
 }
 
+:root[data-mode='personal'][data-theme='dark'] {
+  --color-bg: #07090f;
+  --color-surface: #10141f;
+  --color-border: #202a3d;
+  --color-text: #eef1fb;
+  --color-text-muted: #8d98b8;
+
+  --color-primary: #6fa2ff;
+  --color-primary-hover: #93b9ff;
+  --color-primary-bg: rgba(111, 162, 255, 0.16);
+
+  --color-success: #33d9ab;
+  --color-warning: #ffab6b;
+}
+
 @media (prefers-color-scheme: dark) {
-  :root[data-mode='personal'] {
-    --color-bg: #0b1120;
-    --color-surface: #121b2e;
-    --color-border: #223251;
-    --color-text: #eef2fb;
-    --color-text-muted: #93a3c4;
+  :root[data-mode='personal']:not([data-theme]) {
+    --color-bg: #07090f;
+    --color-surface: #10141f;
+    --color-border: #202a3d;
+    --color-text: #eef1fb;
+    --color-text-muted: #8d98b8;
 
     --color-primary: #6fa2ff;
     --color-primary-hover: #93b9ff;
@@ -123,17 +193,29 @@
   --color-primary-bg: #eef2f6;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root[data-mode='neutral'] {
-    --color-bg: #0f172a;
-    --color-surface: #1e293b;
-    --color-border: #334155;
-    --color-text: #f1f5f9;
-    --color-text-muted: #94a3b8;
+:root[data-mode='neutral'][data-theme='dark'] {
+  --color-bg: #08090b;
+  --color-surface: #121417;
+  --color-border: #262b30;
+  --color-text: #f1f4f2;
+  --color-text-muted: #98a19c;
 
-    --color-primary: #94a3b8;
-    --color-primary-hover: #cbd5e1;
-    --color-primary-bg: rgba(148, 163, 184, 0.16);
+  --color-primary: #7c8a83;
+  --color-primary-hover: #9aa79f;
+  --color-primary-bg: rgba(124, 138, 131, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-mode='neutral']:not([data-theme]) {
+    --color-bg: #08090b;
+    --color-surface: #121417;
+    --color-border: #262b30;
+    --color-text: #f1f4f2;
+    --color-text-muted: #98a19c;
+
+    --color-primary: #7c8a83;
+    --color-primary-hover: #9aa79f;
+    --color-primary-bg: rgba(124, 138, 131, 0.16);
   }
 }
 
@@ -155,9 +237,15 @@ h3 {
   margin: 0;
 }
 
+/* Serif reserved for the "big emotive statement" role (Origin-inspired) —
+   page titles, not every heading, so it reads as editorial accent rather
+   than a wholesale font swap. h2/h3 (section headers, card titles) stay
+   on --font-sans for UI-hierarchy clarity. */
 h1 {
-  font-size: 1.75rem;
-  letter-spacing: -0.02em;
+  font-family: var(--font-serif);
+  font-weight: 500;
+  font-size: 1.85rem;
+  letter-spacing: -0.01em;
 }
 
 h2 {
@@ -171,6 +259,16 @@ p {
 
 a {
   color: var(--color-primary);
+}
+
+/* Tabular/technical data — balances, dates, IDs. Origin-inspired: monospace
+   carries the "precision" half of the typeface system, distinct from the
+   sans UI text around it. Apply directly to numeric/data figures as they're
+   built or reworked (e.g. the cash-flow chart rework); not retrofitted onto
+   every existing number in this pass — see design doc Next Steps. */
+.font-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Buttons */
