@@ -110,7 +110,13 @@ const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
 app.use(express.static(clientDist));
 
 app.use((req: Request, res: Response) => {
-  res.sendFile(path.join(clientDist, 'index.html'));
+  // Explicit root (rather than a bare absolute path) matters here: send's
+  // default dotfiles policy inspects every segment of the path being
+  // served, and any checkout living under a dotfile-prefixed directory
+  // (e.g. a .claude/worktrees/... path) makes it silently 404 without
+  // this — the same lookup succeeds via express.static above only because
+  // that call already scopes root to clientDist.
+  res.sendFile('index.html', { root: clientDist });
 });
 
 app.use(errorHandler);
