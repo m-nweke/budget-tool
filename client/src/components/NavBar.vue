@@ -274,8 +274,9 @@ async function handleLogout() {
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  font-weight: 700;
-  font-size: 1.05rem;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 1.15rem;
   letter-spacing: -0.01em;
   color: inherit;
   text-decoration: none;
