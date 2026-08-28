@@ -85,7 +85,6 @@ function handleImageLoad(event: Event) {
   letter-spacing: 0.02em;
   line-height: 1;
   vertical-align: middle;
-  margin-right: var(--space-1);
 }
 
 .bank-logo.shape-circle {

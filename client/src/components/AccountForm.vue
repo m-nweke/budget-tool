@@ -33,12 +33,13 @@ watch(
     apy.value = account?.apy ?? '';
 
     const institution = account?.institution ?? '';
-    const isKnown = BANK_INSTITUTIONS.some((b) => b.name === institution);
+    const trimmed = institution.trim();
+    const known = BANK_INSTITUTIONS.find((b) => b.name.toLowerCase() === trimmed.toLowerCase());
     if (!institution) {
       institutionSelect.value = '';
       institutionCustom.value = '';
-    } else if (isKnown) {
-      institutionSelect.value = institution;
+    } else if (known) {
+      institutionSelect.value = known.name;
       institutionCustom.value = '';
     } else {
       institutionSelect.value = OTHER_INSTITUTION;

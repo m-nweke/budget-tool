@@ -11,9 +11,10 @@ import type { AccountProjection, BankAccount, CashflowProjection } from '../type
 const days = ref(14);
 const projection = ref<CashflowProjection | null>(null);
 // AccountProjection (the simulation's per-account shape) carries no
-// institution — it's server-computed from bankAccountRepository without
-// that field. Fetched separately here, same "cross-reference by id"
-// pattern BillsView/InvestmentsView/GoalsView/PaycheckView already use.
+// institution — that field isn't part of the projection type, even though
+// the repository row it's built from now has it. Fetched separately here,
+// same "cross-reference by id" pattern BillsView/InvestmentsView/GoalsView/
+// PaycheckView already use.
 const accounts = ref<BankAccount[]>([]);
 const error = ref('');
 const loaded = ref(false);
@@ -178,6 +179,7 @@ const showBreakdown = ref(false);
 .account-card h2 {
   display: flex;
   align-items: center;
+  gap: var(--space-1);
   font-size: 1.05rem;
   margin-bottom: var(--space-1);
 }

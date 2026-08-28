@@ -65,8 +65,15 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
 </script>
 
 <template>
-  <div ref="root" class="institution-picker">
-    <button type="button" class="picker-trigger form-control" :class="{ open }" @click="toggle">
+  <div ref="root" class="institution-picker" @keydown.stop="handleKeydown">
+    <button
+      type="button"
+      class="picker-trigger form-control"
+      :class="{ open }"
+      aria-haspopup="listbox"
+      :aria-expanded="open"
+      @click="toggle"
+    >
       <span class="picker-selected">
         <BankLogo v-if="modelValue && modelValue !== OTHER_INSTITUTION" :institution="modelValue" size="1.3em" />
         {{ selectedLabel }}
@@ -80,7 +87,6 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
         type="text"
         class="picker-search"
         placeholder="Search banks…"
-        @keydown.stop="handleKeydown"
         @click.stop
       />
       <ul role="listbox">

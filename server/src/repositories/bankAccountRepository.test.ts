@@ -59,6 +59,25 @@ describe('bankAccountRepository', () => {
     expect(updated.institution).toBeNull();
   });
 
+  it('a blank/whitespace institution normalizes to null on create', () => {
+    const created = bankAccountRepository.create({ name: 'Checking', type: 'checking', institution: '   ' }, tenantId);
+    expect(created.institution).toBeNull();
+  });
+
+  it('a blank/whitespace institution on update normalizes to null instead of storing an empty string', () => {
+    const created = bankAccountRepository.create({ name: 'Checking', type: 'checking', institution: 'Chase' }, tenantId);
+    const updated = bankAccountRepository.update(created.id, { name: 'Checking', type: 'checking', institution: '' });
+    expect(updated.institution).toBeNull();
+  });
+
+  it('a surrounding-whitespace institution is trimmed on create and update', () => {
+    const created = bankAccountRepository.create({ name: 'Checking', type: 'checking', institution: '  Chase  ' }, tenantId);
+    expect(created.institution).toBe('Chase');
+
+    const updated = bankAccountRepository.update(created.id, { name: 'Checking', type: 'checking', institution: '  Ally  ' });
+    expect(updated.institution).toBe('Ally');
+  });
+
   it('remove deletes the account', () => {
     const created = bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
     bankAccountRepository.remove(created.id);

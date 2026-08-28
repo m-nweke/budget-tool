@@ -3,6 +3,15 @@ import type { BankAccount, CreateBankAccountDto } from '../types';
 
 const COLUMNS = 'id, tenant_id, name, type, current_balance, apy, institution';
 
+// Normalizes an empty/whitespace-only institution to null so storage stays
+// consistent regardless of which client sends the request (some send '' for
+// "unset" instead of omitting the field or sending null).
+function normalizeInstitution(institution: string | null | undefined): string | null | undefined {
+  if (institution == null) return institution;
+  const trimmed = institution.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 const bankAccountRepository = {
   findAll(tenantId: number): BankAccount[] {
     return db.prepare(`SELECT ${COLUMNS} FROM bank_accounts WHERE tenant_id = ?`).all(tenantId) as BankAccount[];
@@ -17,7 +26,7 @@ const bankAccountRepository = {
       .prepare(
         'INSERT INTO bank_accounts (tenant_id, name, type, current_balance, apy, institution) VALUES (?, ?, ?, ?, ?, ?)'
       )
-      .run(tenantId, name, type, current_balance ?? 0, apy ?? null, institution ?? null);
+      .run(tenantId, name, type, current_balance ?? 0, apy ?? null, normalizeInstitution(institution) ?? null);
     return bankAccountRepository.findById(result.lastInsertRowid as number) as BankAccount;
   },
 
@@ -38,7 +47,7 @@ const bankAccountRepository = {
       type,
       current_balance ?? existing?.current_balance ?? 0,
       apy === undefined ? existing?.apy ?? null : apy,
-      institution === undefined ? existing?.institution ?? null : institution,
+      institution === undefined ? existing?.institution ?? null : normalizeInstitution(institution),
       id
     );
     return bankAccountRepository.findById(id) as BankAccount;
