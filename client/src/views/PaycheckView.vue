@@ -114,11 +114,12 @@ function formatSplit(split: Paycheck['splits'][number]): string {
     <li v-for="paycheck in paychecks" :key="paycheck.id" class="card paycheck-row">
       <div class="paycheck-info">
         <div class="paycheck-name">
+          <span class="paycheck-emoji" aria-hidden="true">💵</span>
           {{ paycheck.label }}
           <span class="badge badge-department">{{ capitalize(paycheck.frequency) }}</span>
         </div>
         <div class="paycheck-meta">
-          {{ formatCurrency(paycheck.amount) }} next on {{ paycheck.next_pay_date }}
+          <span class="font-mono">{{ formatCurrency(paycheck.amount) }}</span> next on {{ paycheck.next_pay_date }}
         </div>
         <ul v-if="paycheck.splits.length" class="split-list">
           <li v-for="split in paycheck.splits" :key="split.id">{{ formatSplit(split) }}</li>
@@ -199,8 +200,14 @@ function formatSplit(split: Paycheck['splits'][number]): string {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
   gap: var(--space-4);
+}
+
+.paycheck-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .paycheck-info {

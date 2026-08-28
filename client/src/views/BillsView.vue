@@ -6,6 +6,7 @@ import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency, accountLabel } from '../utils/format';
+import { emojiForLabel } from '../utils/categoryEmoji';
 import type { Bill, CreateBillDto, BankAccount } from '../types';
 
 const CATEGORY_LABELS: Record<Bill['category'], string> = {
@@ -86,12 +87,13 @@ const accountLabelById = computed(() => {
     <li v-for="bill in bills" :key="bill.id" class="card bill-row clickable" @click="openViewForm(bill)">
       <div>
         <div class="bill-name">
+          <span class="bill-emoji" aria-hidden="true">{{ emojiForLabel(`${bill.name} ${CATEGORY_LABELS[bill.category]}`) }}</span>
           {{ bill.name }}
           <span class="badge badge-department">{{ CATEGORY_LABELS[bill.category] }}</span>
           <span v-if="!bill.active" class="badge badge-pending">Excluded</span>
         </div>
         <div class="bill-meta">
-          {{ formatCurrency(bill.amount) }}/mo · due on the {{ bill.due_day }}
+          <span class="font-mono">{{ formatCurrency(bill.amount) }}</span>/mo · due on the {{ bill.due_day }}
           <template v-if="bill.bank_account_id">· from {{ accountLabelById[bill.bank_account_id] ?? 'Unknown account' }}</template>
           <template v-if="bill.end_date">· ends {{ bill.end_date }}</template>
         </div>
@@ -146,7 +148,13 @@ const accountLabelById = computed(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.bill-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .bill-row.clickable {

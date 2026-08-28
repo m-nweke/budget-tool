@@ -160,13 +160,14 @@ function effectiveTargetDate(goal: SavingsGoal): string {
     <li v-for="goal in goals" :key="goal.id" class="card goal-row clickable" @click="openViewForm(goal)">
       <div class="goal-body">
         <div class="goal-name">
+          <span class="goal-emoji" aria-hidden="true">🎯</span>
           {{ goal.name }}
           <span v-if="goal.bank_account_id" class="badge" :style="accountBadgeStyle(goal.bank_account_id)">
             Vault of {{ accountNameById[goal.bank_account_id] }}
           </span>
         </div>
         <div class="goal-amount">
-          {{ formatCurrency(goal.saved_amount) }} of {{ formatCurrency(goal.target_amount) }} saved
+          <span class="font-mono">{{ formatCurrency(goal.saved_amount) }}</span> of <span class="font-mono">{{ formatCurrency(goal.target_amount) }}</span> saved
           <span v-if="goal.target_date"> · target {{ goal.target_date }}</span>
           <span v-else> · projected end-of-year target {{ endOfYearISO() }}</span>
         </div>
@@ -262,8 +263,14 @@ function effectiveTargetDate(goal: SavingsGoal): string {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
   gap: var(--space-4);
+}
+
+.goal-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .goal-row.clickable {

@@ -15,12 +15,28 @@
       still runs once the real session resolves and overrides this if the
       cookie is stale (a different account signed in, or a fresh logout) —
       this script is a paint hint, not a source of truth.
+
+      Also sets data-theme (light/dark) the same way, before mount, so the
+      manual theme toggle (client/src/composables/useTheme.ts) doesn't flash
+      the wrong palette either. Dark is the unconditional default absent a
+      stored choice — see that composable's header comment for why OS
+      prefers-color-scheme is deliberately not consulted here.
     -->
     <script>
       (function () {
         var match = document.cookie.match(/(?:^|; )tenant_type=([^;]*)/);
         var mode = match ? decodeURIComponent(match[1]) : null;
         document.documentElement.dataset.mode = mode === 'personal' || mode === 'enterprise' ? mode : 'neutral';
+
+        var storedTheme = null;
+        try {
+          storedTheme = localStorage.getItem('theme');
+        } catch (e) {
+          // Storage-disabled/private-browsing context — fall through to
+          // the dark default below rather than letting this throw stop
+          // the rest of this script (and leave data-theme unset).
+        }
+        document.documentElement.dataset.theme = storedTheme === 'light' ? 'light' : 'dark';
       })();
     </script>
   </head>

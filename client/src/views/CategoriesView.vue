@@ -7,6 +7,7 @@ import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency } from '../utils/format';
+import { emojiForLabel } from '../utils/categoryEmoji';
 import type { Category, CreateCategoryDto, Department } from '../types';
 
 const { canManageBudget } = useAuth();
@@ -103,12 +104,13 @@ function openViewForm(category: Category) {
     >
       <div>
         <div class="category-name">
+          <span class="category-emoji" aria-hidden="true">{{ emojiForLabel(category.name) }}</span>
           {{ category.name }}
           <span v-if="showDepartmentLabel" class="badge badge-department">
             {{ departmentNameById[category.department_id ?? -1] }}
           </span>
         </div>
-        <div class="category-amount">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
+        <div class="category-amount font-mono">{{ formatCurrency(category.budgeted_amount) }} budgeted</div>
       </div>
       <KebabMenu v-if="canManageBudget" @click.stop>
         <button type="button" @click="openEditForm(category)">Edit</button>
@@ -173,6 +175,11 @@ function openViewForm(category: Category) {
 
 .category-name {
   font-weight: 600;
+}
+
+.category-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .category-amount {

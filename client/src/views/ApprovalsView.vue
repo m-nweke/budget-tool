@@ -3,6 +3,7 @@ import { ref, onMounted, computed } from 'vue';
 import { api } from '../api';
 import { usePendingApprovals } from '../composables/usePendingApprovals';
 import { formatCurrency } from '../utils/format';
+import { emojiForLabel } from '../utils/categoryEmoji';
 import type { Category, Transaction } from '../types';
 
 const { pending, refresh } = usePendingApprovals();
@@ -86,8 +87,11 @@ onMounted(loadData);
         <tr v-for="transaction in pending" :key="transaction.id">
           <td>{{ transaction.date }}</td>
           <td>{{ transaction.description || '—' }}</td>
-          <td>{{ categoryNameById[transaction.category_id] }}</td>
-          <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
+          <td>
+            <span class="category-emoji" aria-hidden="true">{{ emojiForLabel(categoryNameById[transaction.category_id] ?? '') }}</span>
+            {{ categoryNameById[transaction.category_id] }}
+          </td>
+          <td class="amount-cell font-mono">{{ formatCurrency(transaction.amount) }}</td>
           <td class="table-row-actions">
             <div class="action-buttons">
               <button
@@ -125,6 +129,12 @@ onMounted(loadData);
 
 .table-card {
   overflow-x: auto;
+  border-radius: var(--radius-lg);
+}
+
+.category-emoji {
+  font-size: 1.05em;
+  margin-right: 2px;
 }
 
 .approvals-table {

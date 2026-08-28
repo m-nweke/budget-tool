@@ -3,9 +3,12 @@ import { ref, watch, onMounted, onBeforeUnmount, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { usePendingApprovals } from '../composables/usePendingApprovals';
+import { useTheme } from '../composables/useTheme';
+import AppLogo from './AppLogo.vue';
 
 const { user, canApprove, memberships, logout, fetchMemberships, selectTenant } = useAuth();
 const { pending, refresh } = usePendingApprovals();
+const { theme, toggleTheme } = useTheme();
 const router = useRouter();
 
 // Same idiom as CategoryForm.vue's isPersonal — swaps in the Phase 2
@@ -122,7 +125,10 @@ async function handleLogout() {
   <header class="nav-bar">
     <div class="nav-inner">
       <div class="brand-group">
-        <RouterLink to="/" class="brand">Budget Tool</RouterLink>
+        <RouterLink to="/" class="brand">
+          <AppLogo :size="20" />
+          <span>Budget Tool</span>
+        </RouterLink>
         <span v-if="user" class="mode-pill">{{ isPersonal ? 'Personal' : 'Enterprise' }}</span>
         <RouterLink to="/about" class="about-link">About</RouterLink>
       </div>
@@ -183,6 +189,15 @@ async function handleLogout() {
           </ul>
         </div>
         <span class="user-name">{{ user.name }}</span>
+        <button
+          type="button"
+          class="theme-toggle"
+          :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+          @click="toggleTheme"
+        >
+          {{ theme === 'dark' ? '☀️' : '🌙' }}
+        </button>
         <button type="button" class="btn btn-secondary btn-sm" @click="handleLogout">Log Out</button>
         <button
           type="button"
@@ -195,6 +210,16 @@ async function handleLogout() {
           <span /><span /><span />
         </button>
       </div>
+      <button
+        v-else
+        type="button"
+        class="theme-toggle theme-toggle-standalone"
+        :aria-label="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
+        @click="toggleTheme"
+      >
+        {{ theme === 'dark' ? '☀️' : '🌙' }}
+      </button>
     </div>
 
     <nav v-if="user && mobileMenuOpen" class="mobile-nav">
@@ -246,8 +271,12 @@ async function handleLogout() {
 }
 
 .brand {
-  font-weight: 700;
-  font-size: 1.05rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 1.15rem;
   letter-spacing: -0.01em;
   color: inherit;
   text-decoration: none;
@@ -255,6 +284,27 @@ async function handleLogout() {
 
 .brand:hover {
   color: var(--color-primary);
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1;
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+
+.theme-toggle:hover {
+  background: var(--color-bg);
+  border-color: var(--color-primary);
 }
 
 .mode-pill {

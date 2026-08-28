@@ -6,6 +6,7 @@ import { buildDebtSnapshot, type PageSnapshotProps } from '../utils/snapshots';
 import { useAuth } from '../composables/useAuth';
 import PageSnapshot from '../components/PageSnapshot.vue';
 import type { DashboardRow, Department } from '../types';
+import { emojiForLabel } from '../utils/categoryEmoji';
 
 const { user } = useAuth();
 const isPersonal = computed(() => user.value?.tenant_type === 'personal');
@@ -172,7 +173,7 @@ onMounted(() => {
       :class="{ over: row.actual_spend > row.budgeted_amount }"
     >
       <div class="budget-card-header">
-        <h2>{{ row.name }}</h2>
+        <h2><span class="category-emoji" aria-hidden="true">{{ emojiForLabel(row.name) }}</span>{{ row.name }}</h2>
         <span v-if="row.actual_spend > row.budgeted_amount" class="badge badge-danger">Over Budget</span>
       </div>
 
@@ -183,7 +184,7 @@ onMounted(() => {
       >
 
       <div class="budget-figures">
-        <span class="actual">{{ formatCurrency(row.actual_spend) }}</span>
+        <span class="actual font-mono">{{ formatCurrency(row.actual_spend) }}</span>
         <span class="of-budget">of {{ formatCurrency(row.budgeted_amount) }}</span>
       </div>
 
@@ -267,15 +268,16 @@ onMounted(() => {
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .snapshot-row {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
 }
 
 .budget-card {
-  padding: var(--space-5);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
 }
 
 .budget-card.over {
@@ -288,6 +290,17 @@ onMounted(() => {
   justify-content: space-between;
   gap: var(--space-2);
   margin-bottom: var(--space-3);
+}
+
+.budget-card-header h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.category-emoji {
+  font-size: 1.1em;
+  line-height: 1;
 }
 
 .budget-figures {

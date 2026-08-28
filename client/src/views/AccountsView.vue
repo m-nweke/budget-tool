@@ -7,6 +7,12 @@ import { useCrudListView } from '../composables/useCrudListView';
 import { formatCurrency, capitalize } from '../utils/format';
 import type { BankAccount, CreateBankAccountDto } from '../types';
 
+const ACCOUNT_TYPE_EMOJI: Record<string, string> = {
+  checking: '🏦',
+  savings: '🐖',
+  other: '💳',
+};
+
 const {
   items: accounts,
   showForm,
@@ -62,11 +68,12 @@ const {
     <li v-for="account in accounts" :key="account.id" class="card account-row clickable" @click="openViewForm(account)">
       <div>
         <div class="account-name">
+          <span class="account-emoji" aria-hidden="true">{{ ACCOUNT_TYPE_EMOJI[account.type] ?? '🏦' }}</span>
           {{ account.name }}
           <span class="badge badge-department">{{ capitalize(account.type) }}</span>
           <span v-if="account.apy != null" class="badge badge-accent">{{ account.apy }}% APY</span>
         </div>
-        <div class="account-balance">{{ formatCurrency(account.current_balance) }}</div>
+        <div class="account-balance font-mono">{{ formatCurrency(account.current_balance) }}</div>
       </div>
       <KebabMenu @click.stop>
         <button type="button" @click="openEditForm(account)">Edit</button>
@@ -118,7 +125,13 @@ const {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.account-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .account-row.clickable {
