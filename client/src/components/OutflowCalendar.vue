@@ -36,19 +36,25 @@ const weeks = computed(() => {
     else byDate.set(outflow.date, [outflow]);
   }
 
-  const start = new Date(`${props.from}T00:00:00`);
-  const end = new Date(`${props.to}T00:00:00`);
+  // `from`/`to`/outflow dates are plain YYYY-MM-DD calendar dates with no
+  // timezone of their own — parsed and manipulated entirely in UTC (Z
+  // suffix + UTC getters/setters) so day bucketing can't drift by ±1 for
+  // users west of UTC. Mixing local-time parsing with toISOString's UTC
+  // formatting was the bug: a local midnight can format as the previous
+  // UTC day, mis-assigning outflows to the wrong cell.
+  const start = new Date(`${props.from}T00:00:00Z`);
+  const end = new Date(`${props.to}T00:00:00Z`);
   const gridStart = new Date(start);
-  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+  gridStart.setUTCDate(gridStart.getUTCDate() - gridStart.getUTCDay());
   const gridEnd = new Date(end);
-  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
+  gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - gridEnd.getUTCDay()));
 
   const days: CalendarDay[] = [];
-  for (let d = new Date(gridStart); d <= gridEnd; d.setDate(d.getDate() + 1)) {
+  for (let d = new Date(gridStart); d <= gridEnd; d.setUTCDate(d.getUTCDate() + 1)) {
     const iso = d.toISOString().slice(0, 10);
     days.push({
       date: iso,
-      dayOfMonth: d.getDate(),
+      dayOfMonth: d.getUTCDate(),
       inRange: d >= start && d <= end,
       outflows: byDate.get(iso) ?? [],
     });

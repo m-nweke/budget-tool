@@ -28,7 +28,14 @@
         var mode = match ? decodeURIComponent(match[1]) : null;
         document.documentElement.dataset.mode = mode === 'personal' || mode === 'enterprise' ? mode : 'neutral';
 
-        var storedTheme = localStorage.getItem('theme');
+        var storedTheme = null;
+        try {
+          storedTheme = localStorage.getItem('theme');
+        } catch (e) {
+          // Storage-disabled/private-browsing context — fall through to
+          // the dark default below rather than letting this throw stop
+          // the rest of this script (and leave data-theme unset).
+        }
         document.documentElement.dataset.theme = storedTheme === 'light' ? 'light' : 'dark';
       })();
     </script>
