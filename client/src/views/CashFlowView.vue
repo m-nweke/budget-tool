@@ -75,7 +75,7 @@ const showBreakdown = ref(false);
       <h1>Cash Flow</h1>
       <p>Projected account balances and expected outflows for the next {{ days }} days.</p>
     </div>
-    <label class="days-field">
+    <label class="field days-field">
       Days
       <input v-model.number="days" type="number" min="1" max="90" />
     </label>
@@ -155,14 +155,10 @@ const showBreakdown = ref(false);
   margin-top: var(--space-1);
 }
 
-.days-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
+/* .field (style.css) supplies the label typography plus the shared
+   bordered/focus-ring input look every other form in the app uses — this
+   input was missing that class entirely, which is why it looked like a
+   bare unstyled number input next to everything else on the page. */
 .days-field input {
   width: 80px;
 }

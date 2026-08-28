@@ -28,4 +28,20 @@ describe('BankLogo', () => {
     expect(wrapper.find('img').exists()).toBe(false);
     expect(wrapper.find('span.bank-logo').text()).toBe('C');
   });
+
+  it('defaults to the circle shape and switches to squircle when requested', () => {
+    const circle = mount(BankLogo, { props: { institution: 'Chase' } });
+    expect(circle.find('img').classes()).toContain('shape-circle');
+
+    const squircle = mount(BankLogo, { props: { institution: 'Chase', shape: 'squircle' } });
+    expect(squircle.find('img').classes()).toContain('shape-squircle');
+  });
+
+  it('applies the requested size to both the image and the fallback badge', () => {
+    const withLogo = mount(BankLogo, { props: { institution: 'Chase', size: '2.25rem' } });
+    expect(withLogo.find('img').attributes('style')).toContain('width: 2.25rem');
+
+    const fallback = mount(BankLogo, { props: { institution: 'My Local Credit Union', size: '2.25rem' } });
+    expect(fallback.find('span.bank-logo').attributes('style')).toContain('width: 2.25rem');
+  });
 });

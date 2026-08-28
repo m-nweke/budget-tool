@@ -196,7 +196,7 @@ async function handleLogout() {
           :title="theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'"
           @click="toggleTheme"
         >
-          {{ theme === 'dark' ? '☀️' : '🌙' }}
+          {{ theme === 'dark' ? '🌙' : '☀️' }}
         </button>
         <button type="button" class="btn btn-secondary btn-sm" @click="handleLogout">Log Out</button>
         <button

@@ -10,6 +10,12 @@
 // institution (via "Other"), and for the rare case the logo image fails
 // to load. "Other" isn't listed here — picking it in the form reveals a
 // free-text input instead of a preset.
+// Shared sentinel for "the custom/free-text option was picked" — used by
+// both AccountForm.vue (which shows the free-text input when this is
+// selected) and InstitutionPicker.vue (the dropdown that lets you pick
+// it), so the two stay in sync without hardcoding the string twice.
+export const OTHER_INSTITUTION = '__other__';
+
 export interface BankInstitution {
   name: string;
   color: string;

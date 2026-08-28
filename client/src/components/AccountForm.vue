@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { BankAccount, BankAccountType, CreateBankAccountDto } from '../types';
-import { BANK_INSTITUTIONS } from '../data/bankInstitutions';
+import { BANK_INSTITUTIONS, OTHER_INSTITUTION } from '../data/bankInstitutions';
+import InstitutionPicker from './InstitutionPicker.vue';
 
 const props = defineProps<{
   account: BankAccount | null;
@@ -12,8 +13,6 @@ const emit = defineEmits<{
   cancel: [];
   edit: [];
 }>();
-
-const OTHER_INSTITUTION = '__other__';
 
 const name = ref('');
 const type = ref<BankAccountType>('checking');
@@ -88,11 +87,7 @@ function handleSubmit() {
     </label>
     <label class="field">
       Bank / Institution (optional)
-      <select v-model="institutionSelect">
-        <option value="">None</option>
-        <option v-for="bank in BANK_INSTITUTIONS" :key="bank.name" :value="bank.name">{{ bank.name }}</option>
-        <option :value="OTHER_INSTITUTION">Other</option>
-      </select>
+      <InstitutionPicker v-model="institutionSelect" />
     </label>
     <label v-if="institutionSelect === OTHER_INSTITUTION" class="field">
       Institution name

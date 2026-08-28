@@ -69,7 +69,7 @@ const {
     <li v-for="account in accounts" :key="account.id" class="card account-row clickable" @click="openViewForm(account)">
       <div>
         <div class="account-name">
-          <BankLogo v-if="account.institution" :institution="account.institution" />
+          <BankLogo v-if="account.institution" :institution="account.institution" size="2.25rem" shape="squircle" />
           <span v-else class="account-emoji" aria-hidden="true">{{ ACCOUNT_TYPE_EMOJI[account.type] ?? '🏦' }}</span>
           {{ account.name }}
           <span class="badge badge-department">{{ capitalize(account.type) }}</span>
@@ -133,7 +133,6 @@ const {
 
 .account-emoji {
   font-size: 1.05em;
-  margin-right: var(--space-1);
 }
 
 .account-row.clickable {
@@ -145,6 +144,9 @@ const {
 }
 
 .account-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-weight: 600;
 }
 
