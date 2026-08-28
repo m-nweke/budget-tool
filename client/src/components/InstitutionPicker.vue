@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue';
 import { BANK_INSTITUTIONS, OTHER_INSTITUTION } from '../data/bankInstitutions';
 import BankLogo from './BankLogo.vue';
 
@@ -17,6 +17,8 @@ const emit = defineEmits<{
 
 const open = ref(false);
 const root = ref<HTMLElement | null>(null);
+const search = ref('');
+const searchInput = ref<HTMLInputElement | null>(null);
 
 const selectedLabel = computed(() => {
   if (props.modelValue === OTHER_INSTITUTION) return 'Other';
@@ -24,17 +26,36 @@ const selectedLabel = computed(() => {
   return props.modelValue;
 });
 
+// BANK_INSTITUTIONS is already alphabetical (see bankInstitutions.ts) —
+// filtering preserves that order rather than re-sorting.
+const filteredBanks = computed(() => {
+  const query = search.value.trim().toLowerCase();
+  if (!query) return BANK_INSTITUTIONS;
+  return BANK_INSTITUTIONS.filter((bank) => bank.name.toLowerCase().includes(query));
+});
+
 function select(value: string) {
   emit('update:modelValue', value);
   open.value = false;
 }
 
-function toggle() {
+async function toggle() {
   open.value = !open.value;
+  if (open.value) {
+    search.value = '';
+    await nextTick();
+    searchInput.value?.focus();
+  }
 }
 
 function handleClickOutside(event: MouseEvent) {
   if (root.value && !root.value.contains(event.target as Node)) {
+    open.value = false;
+  }
+}
+
+function handleKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
     open.value = false;
   }
 }
@@ -52,27 +73,39 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
       </span>
       <span class="picker-chevron" aria-hidden="true">▾</span>
     </button>
-    <ul v-if="open" class="picker-dropdown" role="listbox">
-      <li>
-        <button type="button" role="option" :aria-selected="modelValue === ''" @click="select('')">None</button>
-      </li>
-      <li v-for="bank in BANK_INSTITUTIONS" :key="bank.name">
-        <button type="button" role="option" :aria-selected="modelValue === bank.name" @click="select(bank.name)">
-          <BankLogo :institution="bank.name" size="1.3em" />
-          {{ bank.name }}
-        </button>
-      </li>
-      <li>
-        <button
-          type="button"
-          role="option"
-          :aria-selected="modelValue === OTHER_INSTITUTION"
-          @click="select(OTHER_INSTITUTION)"
-        >
-          Other
-        </button>
-      </li>
-    </ul>
+    <div v-if="open" class="picker-dropdown">
+      <input
+        ref="searchInput"
+        v-model="search"
+        type="text"
+        class="picker-search"
+        placeholder="Search banks…"
+        @keydown.stop="handleKeydown"
+        @click.stop
+      />
+      <ul role="listbox">
+        <li>
+          <button type="button" role="option" :aria-selected="modelValue === ''" @click="select('')">None</button>
+        </li>
+        <li v-for="bank in filteredBanks" :key="bank.name">
+          <button type="button" role="option" :aria-selected="modelValue === bank.name" @click="select(bank.name)">
+            <BankLogo :institution="bank.name" size="1.3em" />
+            {{ bank.name }}
+          </button>
+        </li>
+        <li v-if="!filteredBanks.length" class="picker-empty">No banks match "{{ search }}"</li>
+        <li>
+          <button
+            type="button"
+            role="option"
+            :aria-selected="modelValue === OTHER_INSTITUTION"
+            @click="select(OTHER_INSTITUTION)"
+          >
+            Other
+          </button>
+        </li>
+      </ul>
+    </div>
   </div>
 </template>
 
@@ -117,16 +150,45 @@ onBeforeUnmount(() => document.removeEventListener('click', handleClickOutside))
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  max-height: 280px;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0;
-  padding: var(--space-1);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-md);
   z-index: 20;
+  overflow: hidden;
+}
+
+.picker-search {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  padding: 9px 10px;
+  border-radius: 0;
+}
+
+.picker-search:focus {
+  outline: none;
+  background: var(--color-bg);
+}
+
+.picker-dropdown ul {
+  max-height: 240px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: var(--space-1);
+}
+
+.picker-empty {
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
 }
 
 .picker-dropdown button {

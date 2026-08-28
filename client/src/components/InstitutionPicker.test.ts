@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mount } from '@vue/test-utils';
 import InstitutionPicker from './InstitutionPicker.vue';
-import { OTHER_INSTITUTION } from '../data/bankInstitutions';
+import { BANK_INSTITUTIONS, OTHER_INSTITUTION } from '../data/bankInstitutions';
 
 describe('InstitutionPicker', () => {
   it('shows "None" and no logo when nothing is selected', () => {
@@ -42,5 +42,44 @@ describe('InstitutionPicker', () => {
 
     expect(wrapper.emitted('update:modelValue')![0]).toEqual(['Chase']);
     expect(wrapper.find('.picker-dropdown').exists()).toBe(false);
+  });
+
+  it('lists curated banks alphabetically', () => {
+    const names = BANK_INSTITUTIONS.map((b) => b.name);
+    expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+  });
+
+  it('filters the bank list as the search box is typed into', async () => {
+    const wrapper = mount(InstitutionPicker, { props: { modelValue: '' } });
+    await wrapper.find('.picker-trigger').trigger('click');
+
+    await wrapper.find('.picker-search').setValue('cha');
+
+    const optionText = wrapper.findAll('[role="option"]').map((el) => el.text());
+    expect(optionText.some((t) => t.includes('Chase'))).toBe(true);
+    expect(optionText.some((t) => t.includes('SoFi'))).toBe(false);
+    // "None" and "Other" aren't bank-name matches but stay available regardless of the query.
+    expect(optionText).toContain('None');
+    expect(optionText).toContain('Other');
+  });
+
+  it('shows a "no matches" message when the search has no hits', async () => {
+    const wrapper = mount(InstitutionPicker, { props: { modelValue: '' } });
+    await wrapper.find('.picker-trigger').trigger('click');
+
+    await wrapper.find('.picker-search').setValue('zzz-not-a-bank');
+
+    expect(wrapper.find('.picker-empty').text()).toContain('zzz-not-a-bank');
+  });
+
+  it('clears the search and refocuses it each time the dropdown reopens', async () => {
+    const wrapper = mount(InstitutionPicker, { props: { modelValue: '' }, attachTo: document.body });
+    await wrapper.find('.picker-trigger').trigger('click');
+    await wrapper.find('.picker-search').setValue('chase');
+    await wrapper.find('.picker-trigger').trigger('click'); // close
+    await wrapper.find('.picker-trigger').trigger('click'); // reopen
+
+    expect((wrapper.find('.picker-search').element as HTMLInputElement).value).toBe('');
+    wrapper.unmount();
   });
 });
