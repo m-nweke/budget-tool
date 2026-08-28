@@ -12,31 +12,36 @@ const props = defineProps<{ outflows: ProjectedOutflow[] }>();
 // magnitude bars is the pattern Monarch's own reference screenshot used
 // for "Top Expense Categories" — it reads correctly at any bucket count,
 // unlike a Sankey that only looks right with many nodes.
-const BUCKET_LABELS: Record<string, string> = {
+// Typed against ProjectedOutflow['source'] rather than plain
+// Record<string, string> so an added/renamed source value fails the
+// build here instead of silently rendering `undefined` in the UI.
+type OutflowSource = ProjectedOutflow['source'];
+
+const BUCKET_LABELS: Record<OutflowSource, string> = {
   recurring_transaction: 'Recurring',
   bill: 'Bills',
   debt: 'Debt',
   investment: 'Investment',
 };
 
-const BUCKET_EMOJI: Record<string, string> = {
+const BUCKET_EMOJI: Record<OutflowSource, string> = {
   recurring_transaction: '🔁',
   bill: '🧾',
   debt: '💳',
   investment: '📈',
 };
 
-const BUCKET_COLOR: Record<string, string> = {
+const BUCKET_COLOR: Record<OutflowSource, string> = {
   recurring_transaction: 'var(--color-primary)',
   bill: 'var(--color-warning)',
   debt: 'var(--color-danger)',
   investment: 'var(--color-success)',
 };
 
-const BUCKET_ORDER = ['bill', 'recurring_transaction', 'debt', 'investment'] as const;
+const BUCKET_ORDER: OutflowSource[] = ['bill', 'recurring_transaction', 'debt', 'investment'];
 
 const buckets = computed(() => {
-  const totals = new Map<string, number>();
+  const totals = new Map<OutflowSource, number>();
   for (const o of props.outflows) {
     totals.set(o.source, (totals.get(o.source) ?? 0) + o.amount);
   }

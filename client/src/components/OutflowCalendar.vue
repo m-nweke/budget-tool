@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import type { ProjectedOutflow } from '../types';
 import { formatCurrency } from '../utils/format';
 import { emojiForOutflow } from '../utils/categoryEmoji';
+import { buildCalendarWeeks, type CalendarDay } from '../utils/calendarGrid';
 
 const props = defineProps<{
   outflows: ProjectedOutflow[];
@@ -16,56 +17,12 @@ const props = defineProps<{
 // the grid's row alignment.
 const MAX_PER_DAY = 3;
 
-interface CalendarDay {
-  date: string;
-  dayOfMonth: number;
-  inRange: boolean;
-  outflows: ProjectedOutflow[];
-}
-
 // Origin-inspired: outflows plotted on their due date rather than a flat
-// chronological list (design doc "Origin's cash flow feature"). Builds a
-// Sunday-first week grid spanning the whole [from, to] projection window,
-// padding the first/last week with out-of-range days so the 7-column
-// layout never breaks — those padding cells render dimmed and empty.
-const weeks = computed(() => {
-  const byDate = new Map<string, ProjectedOutflow[]>();
-  for (const outflow of props.outflows) {
-    const bucket = byDate.get(outflow.date);
-    if (bucket) bucket.push(outflow);
-    else byDate.set(outflow.date, [outflow]);
-  }
-
-  // `from`/`to`/outflow dates are plain YYYY-MM-DD calendar dates with no
-  // timezone of their own — parsed and manipulated entirely in UTC (Z
-  // suffix + UTC getters/setters) so day bucketing can't drift by ±1 for
-  // users west of UTC. Mixing local-time parsing with toISOString's UTC
-  // formatting was the bug: a local midnight can format as the previous
-  // UTC day, mis-assigning outflows to the wrong cell.
-  const start = new Date(`${props.from}T00:00:00Z`);
-  const end = new Date(`${props.to}T00:00:00Z`);
-  const gridStart = new Date(start);
-  gridStart.setUTCDate(gridStart.getUTCDate() - gridStart.getUTCDay());
-  const gridEnd = new Date(end);
-  gridEnd.setUTCDate(gridEnd.getUTCDate() + (6 - gridEnd.getUTCDay()));
-
-  const days: CalendarDay[] = [];
-  for (let d = new Date(gridStart); d <= gridEnd; d.setUTCDate(d.getUTCDate() + 1)) {
-    const iso = d.toISOString().slice(0, 10);
-    days.push({
-      date: iso,
-      dayOfMonth: d.getUTCDate(),
-      inRange: d >= start && d <= end,
-      outflows: byDate.get(iso) ?? [],
-    });
-  }
-
-  const result: CalendarDay[][] = [];
-  for (let i = 0; i < days.length; i += 7) {
-    result.push(days.slice(i, i + 7));
-  }
-  return result;
-});
+// chronological list (design doc "Origin's cash flow feature"). The grid-
+// building logic itself lives in utils/calendarGrid.ts (unit tested there,
+// including a regression test for the UTC/local-time drift bug) rather
+// than inline here, so it's testable independent of mounting this component.
+const weeks = computed<CalendarDay[][]>(() => buildCalendarWeeks(props.outflows, props.from, props.to));
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
