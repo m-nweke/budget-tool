@@ -8,9 +8,16 @@ import { getInstitutionMeta, logoUrl } from '../data/bankInstitutions';
 // badge. AccountsView falls back to the type emoji when this has nothing
 // to show at all (institution is null) — this component only owns the
 // "institution is set" rendering, not that outer fallback.
-const props = defineProps<{
-  institution: string | null;
-}>();
+const props = withDefaults(
+  defineProps<{
+    institution: string | null;
+    // CSS size (e.g. '1.5em', '2rem') — defaults to the inline-badge size
+    // used in list rows. Views that want the logo more prominent (e.g. a
+    // Cash Flow account card header) pass a larger explicit size instead.
+    size?: string;
+  }>(),
+  { size: '1.5em' }
+);
 
 const meta = computed(() => getInstitutionMeta(props.institution));
 const url = computed(() => (meta.value ? logoUrl(meta.value) : null));
@@ -26,12 +33,19 @@ watch(url, () => {
   <img
     v-if="meta && url && !imageFailed"
     class="bank-logo bank-logo-img"
+    :style="{ width: size, height: size }"
     :src="url"
     :alt="meta.name"
     :title="meta.name"
     @error="imageFailed = true"
   />
-  <span v-else-if="meta" class="bank-logo" :style="{ background: meta.color }" :title="meta.name" :aria-label="meta.name">
+  <span
+    v-else-if="meta"
+    class="bank-logo"
+    :style="{ width: size, height: size, background: meta.color }"
+    :title="meta.name"
+    :aria-label="meta.name"
+  >
     {{ meta.mark }}
   </span>
 </template>
@@ -39,10 +53,9 @@ watch(url, () => {
 <style scoped>
 .bank-logo {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  width: 1.5em;
-  height: 1.5em;
   border-radius: 50%;
   color: #fff;
   font-size: 0.6em;

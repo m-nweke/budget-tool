@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { api } from '../api';
 import PaycheckForm from '../components/PaycheckForm.vue';
+import BankLogo from '../components/BankLogo.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
@@ -80,9 +81,16 @@ const accountNameById = computed(() => {
   return map;
 });
 
-function formatSplit(split: Paycheck['splits'][number]): string {
-  const amount = split.split_type === 'percentage' ? `${split.value}%` : formatCurrency(split.value);
-  return `${amount} → ${accountNameById.value[split.bank_account_id] ?? 'Unknown account'}`;
+const accountInstitutionById = computed(() => {
+  const map: Record<number, string | null> = {};
+  for (const account of accounts.value) {
+    map[account.id] = account.institution;
+  }
+  return map;
+});
+
+function formatSplitAmount(split: Paycheck['splits'][number]): string {
+  return split.split_type === 'percentage' ? `${split.value}%` : formatCurrency(split.value);
 }
 </script>
 
@@ -122,7 +130,11 @@ function formatSplit(split: Paycheck['splits'][number]): string {
           <span class="font-mono">{{ formatCurrency(paycheck.amount) }}</span> next on {{ paycheck.next_pay_date }}
         </div>
         <ul v-if="paycheck.splits.length" class="split-list">
-          <li v-for="split in paycheck.splits" :key="split.id">{{ formatSplit(split) }}</li>
+          <li v-for="split in paycheck.splits" :key="split.id" class="split-row">
+            {{ formatSplitAmount(split) }} →
+            <BankLogo :institution="accountInstitutionById[split.bank_account_id] ?? null" size="1.25rem" />
+            {{ accountNameById[split.bank_account_id] ?? 'Unknown account' }}
+          </li>
         </ul>
         <button
           v-if="categories.length"
@@ -223,6 +235,12 @@ function formatSplit(split: Paycheck['splits'][number]): string {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 2px;
+}
+
+.split-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
 }
 
 .split-list {
