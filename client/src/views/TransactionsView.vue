@@ -8,6 +8,7 @@ import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useConfirmDelete } from '../composables/useConfirmDelete';
 import { formatCurrency } from '../utils/format';
+import { emojiForLabel } from '../utils/categoryEmoji';
 import type {
   Category,
   Transaction,
@@ -334,8 +335,9 @@ onMounted(loadData);
                 <span v-if="transaction.recurring_transaction_id" class="badge badge-recurring">↻ Recurring</span>
                 <span v-if="transaction.needs_approval" class="badge badge-pending">Pending Approval</span>
               </td>
-              <td class="amount-cell">{{ formatCurrency(transaction.amount) }}</td>
+              <td class="amount-cell font-mono">{{ formatCurrency(transaction.amount) }}</td>
               <td>
+                <span class="category-emoji" aria-hidden="true">{{ emojiForLabel(categoryNameById[transaction.category_id] ?? '') }}</span>
                 {{ categoryNameById[transaction.category_id] }}
                 <span v-if="showDepartmentLabel" class="badge badge-department">
                   {{ departmentNameByCategoryId[transaction.category_id] }}
@@ -363,9 +365,12 @@ onMounted(loadData);
           @click="openViewRecurringForm(rt)"
         >
           <div>
-            <div class="recurring-description">{{ rt.description || categoryNameById[rt.category_id] }}</div>
+            <div class="recurring-description">
+              <span class="category-emoji" aria-hidden="true">{{ emojiForLabel(rt.description || categoryNameById[rt.category_id] || '') }}</span>
+              {{ rt.description || categoryNameById[rt.category_id] }}
+            </div>
             <div class="recurring-meta">
-              {{ formatCurrency(rt.amount) }} · {{ rt.interval }} · next on {{ rt.next_run_date }}
+              <span class="font-mono">{{ formatCurrency(rt.amount) }}</span> · {{ rt.interval }} · next on {{ rt.next_run_date }}
               <template v-if="rt.end_date">· ends {{ rt.end_date }}</template>
             </div>
           </div>
@@ -426,6 +431,12 @@ onMounted(loadData);
 
 .table-card {
   overflow-x: auto;
+  border-radius: var(--radius-lg);
+}
+
+.category-emoji {
+  font-size: 1.05em;
+  margin-right: 2px;
 }
 
 .transactions-table {
@@ -495,7 +506,8 @@ onMounted(loadData);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-lg);
 }
 
 .recurring-row.clickable {

@@ -1,23 +1,28 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 import { api } from '../api';
 import { formatCurrency, accountLabel } from '../utils/format';
-import { emojiForOutflow } from '../utils/categoryEmoji';
-import type { CashflowProjection } from '../types';
+import BalanceChart from '../components/BalanceChart.vue';
+import OutflowCalendar from '../components/OutflowCalendar.vue';
+import OutflowBreakdown from '../components/OutflowBreakdown.vue';
+import type { AccountProjection, CashflowProjection } from '../types';
 
 const days = ref(14);
 const projection = ref<CashflowProjection | null>(null);
 const error = ref('');
 const loaded = ref(false);
+const loading = ref(false);
 
 async function load() {
   error.value = '';
+  loading.value = true;
   try {
     projection.value = await api.getCashFlow(days.value);
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
     loaded.value = true;
+    loading.value = false;
   }
 }
 
@@ -28,12 +33,24 @@ watch(days, load);
 
 onMounted(load);
 
-function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'investment'): string {
-  if (source === 'recurring_transaction') return 'Recurring';
-  if (source === 'bill') return 'Bill';
-  if (source === 'investment') return 'Investment';
-  return 'Debt';
+// Days that actually have incoming paychecks — a sparse subset of the full
+// daily list, kept visible as its own compact section so the chart doesn't
+// have to try to encode "which days had income" visually. Losing this
+// entirely (the chart alone can't show it) would be a real regression the
+// prior scrolling list didn't have.
+function daysWithCredits(account: AccountProjection) {
+  return account.daily.filter((d) => d.credits.length > 0);
 }
+
+const cashFlowFrom = computed(() => projection.value?.from ?? '');
+const cashFlowTo = computed(() => projection.value?.to ?? '');
+
+// Stretch goal (design doc): collapsed by default — it's a coarse 4-bucket
+// breakdown (recurring/bill/debt/investment), not the richer category-level
+// Sankey Monarch has (a true Sankey shape was prototyped and dropped —
+// see OutflowBreakdown.vue), so it's offered as an optional detail rather
+// than forced into the primary view.
+const showBreakdown = ref(false);
 </script>
 
 <template>
@@ -50,7 +67,11 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
 
   <p v-if="error" class="alert">{{ error }}</p>
 
-  <div v-if="loaded && projection && !projection.accounts.length" class="empty-state">
+  <div v-if="loading && !projection" class="empty-state">
+    <p>Loading projection…</p>
+  </div>
+
+  <div v-else-if="loaded && projection && !projection.accounts.length" class="empty-state">
     <h3>No accounts yet</h3>
     <p>Add a bank account to see a projected cash-flow forecast.</p>
   </div>
@@ -60,47 +81,45 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
       <div v-for="account in projection.accounts" :key="account.bank_account_id" class="card account-card">
         <h2>{{ accountLabel(account) }}</h2>
         <p class="starting-balance">Starting balance: <span class="font-mono">{{ formatCurrency(account.starting_balance) }}</span></p>
-        <ul class="daily-list">
-          <li
-            v-for="day in account.daily"
-            :key="day.date"
-            class="daily-row"
-            :class="{ negative: day.balance < 0 }"
-          >
-            <span class="daily-date">{{ day.date }}</span>
-            <span class="daily-credits">
-              <span
-                v-for="(credit, creditIndex) in day.credits"
-                :key="`${credit.paycheck_id}-${creditIndex}`"
-                class="badge badge-department"
-              >
-                +{{ formatCurrency(credit.amount) }} {{ credit.label }}
+        <BalanceChart :daily="account.daily" />
+        <div v-if="daysWithCredits(account).length" class="credits-section">
+          <p class="credits-heading">Incoming this window</p>
+          <ul class="credits-list">
+            <li v-for="day in daysWithCredits(account)" :key="day.date" class="credits-row">
+              <span class="credits-date">{{ day.date }}</span>
+              <span class="daily-credits">
+                <span
+                  v-for="(credit, creditIndex) in day.credits"
+                  :key="`${credit.paycheck_id}-${creditIndex}`"
+                  class="badge badge-department"
+                >
+                  +{{ formatCurrency(credit.amount) }} {{ credit.label }}
+                </span>
               </span>
-            </span>
-            <span class="daily-balance font-mono">{{ formatCurrency(day.balance) }}</span>
-          </li>
-        </ul>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
 
     <h2 class="outflows-heading">Upcoming outflows</h2>
     <p class="field-hint">
-      Recurring transactions, debt payments, bills, and investment contributions aren't linked to a specific account yet, so they're listed here rather than subtracted from any one balance above.
+      Recurring transactions, debt payments, bills, and investment contributions aren't linked to a specific account yet, so they're plotted here by due date rather than subtracted from any one balance above.
     </p>
     <div v-if="!projection.outflows.length" class="empty-state">
       <p>Nothing scheduled in this window.</p>
     </div>
-    <ul v-else class="outflow-list">
-      <li v-for="outflow in projection.outflows" :key="`${outflow.source}-${outflow.id}-${outflow.date}`" class="card outflow-row">
-        <span class="outflow-date">{{ outflow.date }}</span>
-        <span class="outflow-label">
-          <span class="outflow-emoji" aria-hidden="true">{{ emojiForOutflow(outflow.label, outflow.source) }}</span>
-          {{ outflow.label }}
-          <span class="badge badge-department">{{ sourceLabel(outflow.source) }}</span>
-        </span>
-        <span class="outflow-amount font-mono">{{ formatCurrency(outflow.amount) }}</span>
-      </li>
-    </ul>
+    <template v-else>
+      <OutflowCalendar :outflows="projection.outflows" :from="cashFlowFrom" :to="cashFlowTo" />
+
+      <button type="button" class="breakdown-toggle" @click="showBreakdown = !showBreakdown">
+        {{ showBreakdown ? 'Hide' : 'Show' }} breakdown by type
+        <span class="chevron">{{ showBreakdown ? '▴' : '▾' }}</span>
+      </button>
+      <div v-if="showBreakdown" class="card breakdown-card">
+        <OutflowBreakdown :outflows="projection.outflows" />
+      </div>
+    </template>
   </template>
 </template>
 
@@ -152,33 +171,39 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
   margin-bottom: var(--space-3);
 }
 
-.daily-list {
+.credits-section {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.credits-heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.credits-list {
   list-style: none;
   margin: 0;
   padding: 0;
-  max-height: 320px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-1);
 }
 
-.daily-row {
+.credits-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  padding: 6px 4px;
   font-size: 0.85rem;
-  border-bottom: 1px solid var(--color-border);
 }
 
-.daily-row.negative .daily-balance {
-  color: var(--color-danger);
-  font-weight: 600;
-}
-
-.daily-date {
+.credits-date {
   color: var(--color-text-muted);
   flex-shrink: 0;
 }
@@ -188,12 +213,6 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
   gap: var(--space-1);
   flex-wrap: wrap;
   justify-content: flex-end;
-}
-
-.daily-balance {
-  font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  flex-shrink: 0;
 }
 
 .outflows-heading {
@@ -207,35 +226,32 @@ function sourceLabel(source: 'recurring_transaction' | 'debt' | 'bill' | 'invest
   margin-bottom: var(--space-3);
 }
 
-.outflow-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.outflow-row {
-  display: flex;
+.breakdown-toggle {
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  padding: var(--space-4) var(--space-5);
-  border-radius: var(--radius-lg);
-}
-
-.outflow-date {
-  color: var(--color-text-muted);
+  gap: 4px;
+  margin-top: var(--space-4);
+  font: inherit;
   font-size: 0.85rem;
-}
-
-.outflow-emoji {
-  font-size: 1.05em;
-  margin-right: var(--space-1);
-}
-
-.outflow-amount {
-  font-variant-numeric: tabular-nums;
   font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 0;
+}
+
+.breakdown-toggle:hover {
+  color: var(--color-text);
+}
+
+.breakdown-toggle .chevron {
+  font-size: 0.75rem;
+}
+
+.breakdown-card {
+  margin-top: var(--space-3);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
 }
 </style>

@@ -15,6 +15,13 @@ const TYPE_LABELS: Record<Investment['type'], string> = {
   other: 'Other',
 };
 
+const TYPE_EMOJI: Record<Investment['type'], string> = {
+  brokerage: '📈',
+  retirement: '🏛️',
+  crypto: '₿',
+  other: '💰',
+};
+
 const accounts = ref<BankAccount[]>([]);
 
 const {
@@ -80,7 +87,7 @@ const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.c
 
   <div v-if="!showForm && investments.length" class="card total-card">
     <span class="total-label">Total tracked value</span>
-    <span class="total-value">{{ formatCurrency(totalValue) }}</span>
+    <span class="total-value font-mono">{{ formatCurrency(totalValue) }}</span>
   </div>
 
   <div v-if="loaded && !investments.length && !showForm" class="empty-state">
@@ -93,14 +100,15 @@ const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.c
     <li v-for="investment in investments" :key="investment.id" class="card investment-row clickable" @click="openViewForm(investment)">
       <div>
         <div class="investment-name">
+          <span class="investment-emoji" aria-hidden="true">{{ TYPE_EMOJI[investment.type] }}</span>
           {{ investment.name }}
           <span class="badge badge-department">{{ TYPE_LABELS[investment.type] }}</span>
           <span v-if="!investment.active" class="badge badge-pending">Excluded</span>
         </div>
         <div class="investment-meta">
-          {{ formatCurrency(investment.current_value) }}
+          <span class="font-mono">{{ formatCurrency(investment.current_value) }}</span>
           <template v-if="investment.monthly_contribution && investment.contribution_day">
-            · {{ formatCurrency(investment.monthly_contribution) }}/mo on the {{ investment.contribution_day }}
+            · <span class="font-mono">{{ formatCurrency(investment.monthly_contribution) }}</span>/mo on the {{ investment.contribution_day }}
           </template>
           <template v-if="investment.bank_account_id">
             · from {{ accountLabelById[investment.bank_account_id] ?? 'Unknown account' }}
@@ -148,7 +156,8 @@ const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.c
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-lg);
   margin-bottom: var(--space-5);
 }
 
@@ -176,7 +185,13 @@ const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.c
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.investment-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .investment-row.clickable {

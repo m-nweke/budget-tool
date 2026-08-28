@@ -86,9 +86,9 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
   <ul v-else class="debt-list">
     <li v-for="debt in debts" :key="debt.id" class="card debt-row clickable" @click="openViewForm(debt)">
       <div>
-        <div class="debt-name">{{ debt.name }}</div>
+        <div class="debt-name"><span class="debt-emoji" aria-hidden="true">💳</span>{{ debt.name }}</div>
         <div class="debt-meta">
-          {{ formatCurrency(debt.balance) }} balance · {{ debt.interest_rate }}% APR · {{ formatCurrency(debt.minimum_payment) }}/mo due on the {{ debt.due_day }}
+          <span class="font-mono">{{ formatCurrency(debt.balance) }}</span> balance · {{ debt.interest_rate }}% APR · <span class="font-mono">{{ formatCurrency(debt.minimum_payment) }}</span>/mo due on the {{ debt.due_day }}
         </div>
       </div>
       <KebabMenu @click.stop>
@@ -132,6 +132,7 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
   flex-direction: column;
   gap: 2px;
   padding: var(--space-4);
+  border-radius: var(--radius-lg);
 }
 
 .snapshot-label {
@@ -142,6 +143,7 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
 .snapshot-value {
   font-size: 0.95rem;
   font-weight: 600;
+  font-family: var(--font-mono);
   color: var(--color-text);
 }
 
@@ -178,7 +180,13 @@ const snapshot = computed(() => (payoffPlan.value ? buildDebtSnapshot(payoffPlan
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-lg);
+}
+
+.debt-emoji {
+  font-size: 1.05em;
+  margin-right: var(--space-1);
 }
 
 .debt-row.clickable {
