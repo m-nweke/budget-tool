@@ -104,6 +104,25 @@ describe('CRUD /api/bank-accounts', () => {
     }
   });
 
+  it('accepts and returns an institution', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const created = await agent
+      .post('/api/bank-accounts')
+      .send({ name: 'Checking', type: 'checking', institution: 'Chase' });
+    expect(created.status).toBe(201);
+    expect(created.body.institution).toBe('Chase');
+  });
+
+  it('rejects an institution over 60 characters', async () => {
+    await createOwner('Pat', 'pat@example.com');
+    const agent = await loginAs('pat@example.com');
+    const res = await agent
+      .post('/api/bank-accounts')
+      .send({ name: 'Checking', type: 'checking', institution: 'x'.repeat(61) });
+    expect(res.status).toBe(400);
+  });
+
   it("an update with apy omitted preserves the account's existing apy", async () => {
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');

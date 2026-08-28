@@ -45,6 +45,20 @@ describe('bankAccountRepository', () => {
     expect(updated.current_balance).toBe(1500);
   });
 
+  it('institution can be set on create and preserved on an unrelated update', () => {
+    const created = bankAccountRepository.create({ name: 'Checking', type: 'checking', institution: 'Chase' }, tenantId);
+    expect(created.institution).toBe('Chase');
+
+    const updated = bankAccountRepository.update(created.id, { name: 'Main Checking', type: 'checking' });
+    expect(updated.institution).toBe('Chase');
+  });
+
+  it('an explicit null institution on update clears a previously-set one', () => {
+    const created = bankAccountRepository.create({ name: 'Checking', type: 'checking', institution: 'Chase' }, tenantId);
+    const updated = bankAccountRepository.update(created.id, { name: 'Checking', type: 'checking', institution: null });
+    expect(updated.institution).toBeNull();
+  });
+
   it('remove deletes the account', () => {
     const created = bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
     bankAccountRepository.remove(created.id);
