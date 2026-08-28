@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { api } from '../api';
 import BillForm from '../components/BillForm.vue';
+import BankLogo from '../components/BankLogo.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
@@ -53,6 +54,14 @@ const accountLabelById = computed(() => {
   }
   return map;
 });
+
+const accountInstitutionById = computed(() => {
+  const map: Record<number, string | null> = {};
+  for (const account of accounts.value) {
+    map[account.id] = account.institution;
+  }
+  return map;
+});
 </script>
 
 <template>
@@ -94,7 +103,10 @@ const accountLabelById = computed(() => {
         </div>
         <div class="bill-meta">
           <span class="font-mono">{{ formatCurrency(bill.amount) }}</span>/mo · due on the {{ bill.due_day }}
-          <template v-if="bill.bank_account_id">· from {{ accountLabelById[bill.bank_account_id] ?? 'Unknown account' }}</template>
+          <span v-if="bill.bank_account_id" class="linked-account">
+            · from <BankLogo :institution="accountInstitutionById[bill.bank_account_id] ?? null" size="1.25rem" />
+            {{ accountLabelById[bill.bank_account_id] ?? 'Unknown account' }}
+          </span>
           <template v-if="bill.end_date">· ends {{ bill.end_date }}</template>
         </div>
       </div>
@@ -173,5 +185,11 @@ const accountLabelById = computed(() => {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   margin-top: 2px;
+}
+
+.linked-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 </style>

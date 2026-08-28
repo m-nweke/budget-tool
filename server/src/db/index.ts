@@ -153,7 +153,14 @@ db.exec(`
     -- Optional annual percentage yield, e.g. for a high-yield savings
     -- account. Nullable — most checking/other accounts don't carry one,
     -- and NULL (vs. 0) distinguishes "not tracked" from "tracked, 0%".
-    apy REAL
+    apy REAL,
+    -- Free-text institution name (e.g. "Chase", "SoFi") driving the logo
+    -- badge in the UI (client/src/data/bankInstitutions.ts). Nullable —
+    -- the picker is optional, and an unset institution falls back to the
+    -- account-type emoji instead of a badge. Not a FK/enum: the client
+    -- dropdown offers common banks plus a free-text "Other" so this stays
+    -- open-ended rather than gatekept by a fixed list.
+    institution TEXT
   );
 
   CREATE TABLE IF NOT EXISTS paychecks (
@@ -319,6 +326,7 @@ migrateColumn('ALTER TABLE bills ADD COLUMN bank_account_id INTEGER REFERENCES b
 migrateColumn('ALTER TABLE bills ADD COLUMN start_on TEXT');
 db.exec("UPDATE bills SET start_on = date('now') WHERE start_on IS NULL");
 migrateColumn('ALTER TABLE bills ADD COLUMN end_date TEXT');
+migrateColumn('ALTER TABLE bank_accounts ADD COLUMN institution TEXT');
 
 // Like migrateColumn, but for a column being removed rather than added —
 // dropping a column that was never there (a database created fresh, after

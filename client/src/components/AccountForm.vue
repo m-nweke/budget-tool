@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import type { BankAccount, BankAccountType, CreateBankAccountDto } from '../types';
+import { BANK_INSTITUTIONS, OTHER_INSTITUTION } from '../data/bankInstitutions';
+import InstitutionPicker from './InstitutionPicker.vue';
 
 const props = defineProps<{
   account: BankAccount | null;
@@ -16,6 +18,11 @@ const name = ref('');
 const type = ref<BankAccountType>('checking');
 const currentBalance = ref<number | string>('');
 const apy = ref<number | string>('');
+// institutionSelect drives the <select>: a curated bank name, '' (none
+// picked), or the OTHER_INSTITUTION sentinel — which reveals
+// institutionCustom for a free-text name not in the curated list.
+const institutionSelect = ref('');
+const institutionCustom = ref('');
 
 watch(
   () => props.account,
@@ -24,11 +31,30 @@ watch(
     type.value = account ? account.type : 'checking';
     currentBalance.value = account ? account.current_balance : '';
     apy.value = account?.apy ?? '';
+
+    const institution = account?.institution ?? '';
+    const trimmed = institution.trim();
+    const known = BANK_INSTITUTIONS.find((b) => b.name.toLowerCase() === trimmed.toLowerCase());
+    if (!institution) {
+      institutionSelect.value = '';
+      institutionCustom.value = '';
+    } else if (known) {
+      institutionSelect.value = known.name;
+      institutionCustom.value = '';
+    } else {
+      institutionSelect.value = OTHER_INSTITUTION;
+      institutionCustom.value = institution;
+    }
   },
   { immediate: true }
 );
 
 function handleSubmit() {
+  const institution =
+    institutionSelect.value === OTHER_INSTITUTION
+      ? institutionCustom.value.trim() || null
+      : institutionSelect.value || null;
+
   emit('submit', {
     name: name.value,
     type: type.value,
@@ -40,6 +66,7 @@ function handleSubmit() {
     // still carry (see bankAccountRepository.update's null-vs-undefined
     // handling); undefined tells the server to leave it untouched instead.
     apy: type.value === 'other' ? undefined : apy.value === '' ? null : Number(apy.value),
+    institution,
   });
 }
 </script>
@@ -58,6 +85,14 @@ function handleSubmit() {
         <option value="savings">Savings</option>
         <option value="other">Other</option>
       </select>
+    </label>
+    <label class="field">
+      Bank / Institution (optional)
+      <InstitutionPicker v-model="institutionSelect" />
+    </label>
+    <label v-if="institutionSelect === OTHER_INSTITUTION" class="field">
+      Institution name
+      <input v-model="institutionCustom" type="text" placeholder="e.g. My Local Credit Union" />
     </label>
     <label class="field">
       Current Balance

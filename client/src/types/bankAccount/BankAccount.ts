@@ -8,4 +8,5 @@ export interface BankAccount {
   type: BankAccountType;
   current_balance: number;
   apy: number | null;
+  institution: string | null;
 }
