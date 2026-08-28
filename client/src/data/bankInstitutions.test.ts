@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getInstitutionMeta } from './bankInstitutions';
+import { BANK_INSTITUTIONS, getInstitutionMeta, logoUrl } from './bankInstitutions';
 
 describe('getInstitutionMeta', () => {
   it('returns null for an unset institution', () => {
@@ -23,5 +23,19 @@ describe('getInstitutionMeta', () => {
 
   it('uses the first two letters of a single-word custom institution', () => {
     expect(getInstitutionMeta('Wealthfront')?.mark).toBe('WE');
+  });
+});
+
+describe('logoUrl', () => {
+  it('every curated bank has a domain, so logoUrl never falls back to the letter-mark for one', () => {
+    for (const bank of BANK_INSTITUTIONS) {
+      expect(bank.domain, `${bank.name} is missing a domain`).toBeTruthy();
+      expect(logoUrl(bank)).toBe(`https://www.google.com/s2/favicons?domain=${bank.domain}&sz=64`);
+    }
+  });
+
+  it('returns null for a custom institution with no known domain', () => {
+    const custom = getInstitutionMeta('My Local Credit Union')!;
+    expect(logoUrl(custom)).toBeNull();
   });
 });

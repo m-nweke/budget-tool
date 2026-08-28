@@ -1,20 +1,37 @@
 <script setup lang="ts">
-import { computed } from 'vue';
-import { getInstitutionMeta } from '../data/bankInstitutions';
+import { computed, ref, watch } from 'vue';
+import { getInstitutionMeta, logoUrl } from '../data/bankInstitutions';
 
-// Renders a small colored letter-mark badge for the account's institution.
-// AccountsView falls back to the type emoji when this has nothing to show
-// (institution is null) — this component only owns the "institution is
-// set" rendering, not the fallback.
+// Renders the account's institution: a curated bank's real logo (fetched
+// live from Google's public favicon service, keyed off the bank's domain —
+// see bankInstitutions.ts) when available, otherwise a colored letter-mark
+// badge. AccountsView falls back to the type emoji when this has nothing
+// to show at all (institution is null) — this component only owns the
+// "institution is set" rendering, not that outer fallback.
 const props = defineProps<{
   institution: string | null;
 }>();
 
 const meta = computed(() => getInstitutionMeta(props.institution));
+const url = computed(() => (meta.value ? logoUrl(meta.value) : null));
+// A failed/slow image load shouldn't leave a broken-image icon in a
+// financial account list — falls back to the letter-mark badge instead.
+const imageFailed = ref(false);
+watch(url, () => {
+  imageFailed.value = false;
+});
 </script>
 
 <template>
-  <span v-if="meta" class="bank-logo" :style="{ background: meta.color }" :title="meta.name" :aria-label="meta.name">
+  <img
+    v-if="meta && url && !imageFailed"
+    class="bank-logo bank-logo-img"
+    :src="url"
+    :alt="meta.name"
+    :title="meta.name"
+    @error="imageFailed = true"
+  />
+  <span v-else-if="meta" class="bank-logo" :style="{ background: meta.color }" :title="meta.name" :aria-label="meta.name">
     {{ meta.mark }}
   </span>
 </template>
@@ -34,5 +51,11 @@ const meta = computed(() => getInstitutionMeta(props.institution));
   line-height: 1;
   vertical-align: middle;
   margin-right: var(--space-1);
+}
+
+.bank-logo-img {
+  object-fit: contain;
+  background: #fff;
+  padding: 2px;
 }
 </style>
