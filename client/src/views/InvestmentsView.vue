@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { api } from '../api';
 import InvestmentForm from '../components/InvestmentForm.vue';
+import BankLogo from '../components/BankLogo.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
@@ -58,6 +59,14 @@ const accountLabelById = computed(() => {
   return map;
 });
 
+const accountInstitutionById = computed(() => {
+  const map: Record<number, string | null> = {};
+  for (const account of accounts.value) {
+    map[account.id] = account.institution;
+  }
+  return map;
+});
+
 const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.current_value, 0));
 </script>
 
@@ -110,9 +119,10 @@ const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.c
           <template v-if="investment.monthly_contribution && investment.contribution_day">
             · <span class="font-mono">{{ formatCurrency(investment.monthly_contribution) }}</span>/mo on the {{ investment.contribution_day }}
           </template>
-          <template v-if="investment.bank_account_id">
-            · from {{ accountLabelById[investment.bank_account_id] ?? 'Unknown account' }}
-          </template>
+          <span v-if="investment.bank_account_id" class="linked-account">
+            · from <BankLogo :institution="accountInstitutionById[investment.bank_account_id] ?? null" size="1.25rem" />
+            {{ accountLabelById[investment.bank_account_id] ?? 'Unknown account' }}
+          </span>
         </div>
       </div>
       <KebabMenu @click.stop>
@@ -204,6 +214,12 @@ const totalValue = computed(() => investments.value.reduce((sum, i) => sum + i.c
 
 .investment-name {
   font-weight: 600;
+}
+
+.linked-account {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .investment-meta {

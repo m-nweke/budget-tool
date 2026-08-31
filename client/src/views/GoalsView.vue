@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { api } from '../api';
 import GoalForm from '../components/GoalForm.vue';
+import BankLogo from '../components/BankLogo.vue';
 import KebabMenu from '../components/KebabMenu.vue';
 import ConfirmDialog from '../components/ConfirmDialog.vue';
 import { useCrudListView } from '../composables/useCrudListView';
@@ -43,6 +44,14 @@ const accountNameById = computed(() => {
   const map: Record<number, string> = {};
   for (const account of accounts.value) {
     map[account.id] = accountLabel(account);
+  }
+  return map;
+});
+
+const accountInstitutionById = computed(() => {
+  const map: Record<number, string | null> = {};
+  for (const account of accounts.value) {
+    map[account.id] = account.institution;
   }
   return map;
 });
@@ -162,7 +171,8 @@ function effectiveTargetDate(goal: SavingsGoal): string {
         <div class="goal-name">
           <span class="goal-emoji" aria-hidden="true">🎯</span>
           {{ goal.name }}
-          <span v-if="goal.bank_account_id" class="badge" :style="accountBadgeStyle(goal.bank_account_id)">
+          <span v-if="goal.bank_account_id" class="badge vault-badge" :style="accountBadgeStyle(goal.bank_account_id)">
+            <BankLogo :institution="accountInstitutionById[goal.bank_account_id] ?? null" size="1.25rem" />
             Vault of {{ accountNameById[goal.bank_account_id] }}
           </span>
         </div>
@@ -288,6 +298,12 @@ function effectiveTargetDate(goal: SavingsGoal): string {
 
 .goal-name {
   font-weight: 600;
+}
+
+.vault-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .goal-amount {

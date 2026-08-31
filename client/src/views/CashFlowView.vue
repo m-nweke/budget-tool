@@ -3,12 +3,19 @@ import { ref, onMounted, watch, computed } from 'vue';
 import { api } from '../api';
 import { formatCurrency, accountLabel } from '../utils/format';
 import BalanceChart from '../components/BalanceChart.vue';
+import BankLogo from '../components/BankLogo.vue';
 import OutflowCalendar from '../components/OutflowCalendar.vue';
 import OutflowBreakdown from '../components/OutflowBreakdown.vue';
-import type { AccountProjection, CashflowProjection } from '../types';
+import type { AccountProjection, BankAccount, CashflowProjection } from '../types';
 
 const days = ref(14);
 const projection = ref<CashflowProjection | null>(null);
+// AccountProjection (the simulation's per-account shape) carries no
+// institution — that field isn't part of the projection type, even though
+// the repository row it's built from now has it. Fetched separately here,
+// same "cross-reference by id" pattern BillsView/InvestmentsView/GoalsView/
+// PaycheckView already use.
+const accounts = ref<BankAccount[]>([]);
 const error = ref('');
 const loaded = ref(false);
 const loading = ref(false);
@@ -17,7 +24,9 @@ async function load() {
   error.value = '';
   loading.value = true;
   try {
-    projection.value = await api.getCashFlow(days.value);
+    const [projectionResult, accountsResult] = await Promise.all([api.getCashFlow(days.value), api.getBankAccounts()]);
+    projection.value = projectionResult;
+    accounts.value = accountsResult;
   } catch (e) {
     error.value = (e as Error).message;
   } finally {
@@ -25,6 +34,14 @@ async function load() {
     loading.value = false;
   }
 }
+
+const accountInstitutionById = computed(() => {
+  const map: Record<number, string | null> = {};
+  for (const account of accounts.value) {
+    map[account.id] = account.institution;
+  }
+  return map;
+});
 
 // Re-fetches whenever the window size changes — the whole projection is
 // recomputed server-side per request (nothing is cached client-side), same
@@ -59,7 +76,7 @@ const showBreakdown = ref(false);
       <h1>Cash Flow</h1>
       <p>Projected account balances and expected outflows for the next {{ days }} days.</p>
     </div>
-    <label class="days-field">
+    <label class="field days-field">
       Days
       <input v-model.number="days" type="number" min="1" max="90" />
     </label>
@@ -79,7 +96,10 @@ const showBreakdown = ref(false);
   <template v-else-if="projection">
     <div class="account-grid">
       <div v-for="account in projection.accounts" :key="account.bank_account_id" class="card account-card">
-        <h2>{{ accountLabel(account) }}</h2>
+        <h2>
+          <BankLogo :institution="accountInstitutionById[account.bank_account_id] ?? null" size="1.75rem" />
+          {{ accountLabel(account) }}
+        </h2>
         <p class="starting-balance">Starting balance: <span class="font-mono">{{ formatCurrency(account.starting_balance) }}</span></p>
         <BalanceChart :daily="account.daily" />
         <div v-if="daysWithCredits(account).length" class="credits-section">
@@ -136,14 +156,10 @@ const showBreakdown = ref(false);
   margin-top: var(--space-1);
 }
 
-.days-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  font-size: 0.85rem;
-  color: var(--color-text-muted);
-}
-
+/* .field (style.css) supplies the label typography plus the shared
+   bordered/focus-ring input look every other form in the app uses — this
+   input was missing that class entirely, which is why it looked like a
+   bare unstyled number input next to everything else on the page. */
 .days-field input {
   width: 80px;
 }
@@ -161,6 +177,9 @@ const showBreakdown = ref(false);
 }
 
 .account-card h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   font-size: 1.05rem;
   margin-bottom: var(--space-1);
 }

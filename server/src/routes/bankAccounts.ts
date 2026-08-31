@@ -27,8 +27,18 @@ function validateApy(apy: unknown): string | null {
   return null;
 }
 
+// Free-text (see bank_accounts.institution comment) — just bounded so a
+// pasted essay can't land in what's meant to be a short badge label.
+function validateInstitution(institution: unknown): string | null {
+  if (institution === undefined || institution === null) return null;
+  if (typeof institution !== 'string' || institution.length > 60) {
+    return 'institution must be a string of 60 characters or fewer';
+  }
+  return null;
+}
+
 router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateBankAccountDto>, res: Response) => {
-  const { name, type, current_balance, apy } = req.body;
+  const { name, type, current_balance, apy, institution } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: 'name and type are required' });
   }
@@ -39,13 +49,17 @@ router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateBankAccountDt
   if (apyError) {
     return res.status(400).json({ error: apyError });
   }
+  const institutionError = validateInstitution(institution);
+  if (institutionError) {
+    return res.status(400).json({ error: institutionError });
+  }
   const user = req.user as AuthUser;
-  const account = bankAccountRepository.create({ name, type, current_balance, apy }, user.tenant_id);
+  const account = bankAccountRepository.create({ name, type, current_balance, apy, institution }, user.tenant_id);
   res.status(201).json(account);
 });
 
 router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreateBankAccountDto>, res: Response) => {
-  const { name, type, current_balance, apy } = req.body;
+  const { name, type, current_balance, apy, institution } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: 'name and type are required' });
   }
@@ -55,6 +69,10 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   const apyError = validateApy(apy);
   if (apyError) {
     return res.status(400).json({ error: apyError });
+  }
+  const institutionError = validateInstitution(institution);
+  if (institutionError) {
+    return res.status(400).json({ error: institutionError });
   }
   const existing = bankAccountRepository.findById(req.params.id);
   if (!existing) {
@@ -64,7 +82,7 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this bank account' });
   }
-  const account = bankAccountRepository.update(req.params.id, { name, type, current_balance, apy });
+  const account = bankAccountRepository.update(req.params.id, { name, type, current_balance, apy, institution });
   res.json(account);
 });
 
