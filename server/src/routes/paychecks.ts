@@ -9,9 +9,9 @@ const router = express.Router();
 const VALID_FREQUENCIES: PaycheckFrequency[] = ['weekly', 'biweekly', 'semimonthly', 'monthly'];
 const VALID_SPLIT_TYPES: SplitType[] = ['percentage', 'fixed'];
 
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json(paycheckRepository.findAll(user.tenant_id));
+  res.json((await paycheckRepository.findAll(user.tenant_id)));
 });
 
 // Validates the paycheck's own fields, and every split: split_type/value
@@ -20,7 +20,7 @@ router.get('/', requireRole('owner'), (req: Request, res: Response) => {
 // data-isolation bug, not just bad input, so it's checked here rather than
 // left to a foreign-key constraint (which wouldn't catch cross-tenant, only
 // nonexistent, ids).
-function validateBody(body: CreatePaycheckDto, user: AuthUser): string | null {
+async function validateBody(body: CreatePaycheckDto, user: AuthUser): Promise<string | null> {
   const { label, amount, frequency, next_pay_date, splits } = body;
   if (!label || amount === undefined || amount === null || !next_pay_date) {
     return 'label, amount, and next_pay_date are required';
@@ -41,7 +41,7 @@ function validateBody(body: CreatePaycheckDto, user: AuthUser): string | null {
     if (split.split_type === 'percentage' && split.value > 100) {
       return 'a percentage split value cannot exceed 100';
     }
-    const account = bankAccountRepository.findById(split.bank_account_id);
+    const account = (await bankAccountRepository.findById(split.bank_account_id));
     if (!account || account.tenant_id !== user.tenant_id) {
       return 'each split bank_account_id must reference an account in this tenant';
     }
@@ -49,35 +49,35 @@ function validateBody(body: CreatePaycheckDto, user: AuthUser): string | null {
   return null;
 }
 
-router.post('/', requireRole('owner'), (req: Request<{}, {}, CreatePaycheckDto>, res: Response) => {
+router.post('/', requireRole('owner'), async (req: Request<{}, {}, CreatePaycheckDto>, res: Response) => {
   const user = req.user as AuthUser;
-  const validationError = validateBody(req.body, user);
+  const validationError = (await validateBody(req.body, user));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
-  const paycheck = paycheckRepository.create(req.body, user.tenant_id);
+  const paycheck = (await paycheckRepository.create(req.body, user.tenant_id));
   res.status(201).json(paycheck);
 });
 
-router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreatePaycheckDto>, res: Response) => {
+router.put('/:id', requireRole('owner'), async (req: Request<{ id: string }, {}, CreatePaycheckDto>, res: Response) => {
   const user = req.user as AuthUser;
-  const validationError = validateBody(req.body, user);
+  const validationError = (await validateBody(req.body, user));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
-  const existing = paycheckRepository.findById(req.params.id);
+  const existing = (await paycheckRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'paycheck not found' });
   }
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this paycheck' });
   }
-  const paycheck = paycheckRepository.update(req.params.id, req.body);
+  const paycheck = (await paycheckRepository.update(req.params.id, req.body));
   res.json(paycheck);
 });
 
-router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: Response) => {
-  const existing = paycheckRepository.findById(req.params.id);
+router.delete('/:id', requireRole('owner'), async (req: Request<{ id: string }>, res: Response) => {
+  const existing = (await paycheckRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'paycheck not found' });
   }
@@ -85,7 +85,7 @@ router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: 
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this paycheck' });
   }
-  paycheckRepository.remove(req.params.id);
+  (await paycheckRepository.remove(req.params.id));
   res.status(204).end();
 });
 

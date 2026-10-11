@@ -5,9 +5,9 @@ import type { CreateDebtDto, AuthUser } from '../types';
 
 const router = express.Router();
 
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json(debtRepository.findAll(user.tenant_id));
+  res.json((await debtRepository.findAll(user.tenant_id)));
 });
 
 function validateBody(body: CreateDebtDto): string | null {
@@ -37,22 +37,22 @@ function validateBody(body: CreateDebtDto): string | null {
   return null;
 }
 
-router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateDebtDto>, res: Response) => {
-  const validationError = validateBody(req.body);
+router.post('/', requireRole('owner'), async (req: Request<{}, {}, CreateDebtDto>, res: Response) => {
+  const validationError = (await validateBody(req.body));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
   const user = req.user as AuthUser;
-  const debt = debtRepository.create(req.body, user.tenant_id);
+  const debt = (await debtRepository.create(req.body, user.tenant_id));
   res.status(201).json(debt);
 });
 
-router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreateDebtDto>, res: Response) => {
-  const validationError = validateBody(req.body);
+router.put('/:id', requireRole('owner'), async (req: Request<{ id: string }, {}, CreateDebtDto>, res: Response) => {
+  const validationError = (await validateBody(req.body));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
-  const existing = debtRepository.findById(req.params.id);
+  const existing = (await debtRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'debt not found' });
   }
@@ -60,12 +60,12 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this debt' });
   }
-  const debt = debtRepository.update(req.params.id, req.body);
+  const debt = (await debtRepository.update(req.params.id, req.body));
   res.json(debt);
 });
 
-router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: Response) => {
-  const existing = debtRepository.findById(req.params.id);
+router.delete('/:id', requireRole('owner'), async (req: Request<{ id: string }>, res: Response) => {
+  const existing = (await debtRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'debt not found' });
   }
@@ -73,7 +73,7 @@ router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: 
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this debt' });
   }
-  debtRepository.remove(req.params.id);
+  (await debtRepository.remove(req.params.id));
   res.status(204).end();
 });
 

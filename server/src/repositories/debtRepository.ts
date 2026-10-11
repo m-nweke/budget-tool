@@ -4,38 +4,32 @@ import type { Debt, CreateDebtDto } from '../types';
 const COLUMNS = 'id, tenant_id, name, balance, interest_rate, minimum_payment, due_day, promo_apr, promo_expires_on';
 
 const debtRepository = {
-  findAll(tenantId: number): Debt[] {
-    return db.prepare(`SELECT ${COLUMNS} FROM debts WHERE tenant_id = ?`).all(tenantId) as Debt[];
+  async findAll(tenantId: number): Promise<Debt[]> {
+    return (await db.all(`SELECT ${COLUMNS} FROM debts WHERE tenant_id = ?`, tenantId)) as Debt[];
   },
 
-  findById(id: number | string): Debt | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM debts WHERE id = ?`).get(id) as Debt | undefined;
+  async findById(id: number | string): Promise<Debt | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM debts WHERE id = ?`, id)) as Debt | undefined;
   },
 
-  create(
+  async create(
     { name, balance, interest_rate, minimum_payment, due_day, promo_apr, promo_expires_on }: CreateDebtDto,
     tenantId: number
-  ): Debt {
-    const result = db
-      .prepare(
-        'INSERT INTO debts (tenant_id, name, balance, interest_rate, minimum_payment, due_day, promo_apr, promo_expires_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
-      )
-      .run(tenantId, name, balance, interest_rate, minimum_payment, due_day, promo_apr ?? null, promo_expires_on ?? null);
-    return debtRepository.findById(result.lastInsertRowid as number) as Debt;
+  ): Promise<Debt> {
+    const result = (await db.run('INSERT INTO debts (tenant_id, name, balance, interest_rate, minimum_payment, due_day, promo_apr, promo_expires_on) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', tenantId, name, balance, interest_rate, minimum_payment, due_day, promo_apr ?? null, promo_expires_on ?? null));
+    return (await debtRepository.findById(result.lastInsertRowid as number)) as Debt;
   },
 
-  update(
+  async update(
     id: number | string,
     { name, balance, interest_rate, minimum_payment, due_day, promo_apr, promo_expires_on }: CreateDebtDto
-  ): Debt {
-    db.prepare(
-      'UPDATE debts SET name = ?, balance = ?, interest_rate = ?, minimum_payment = ?, due_day = ?, promo_apr = ?, promo_expires_on = ? WHERE id = ?'
-    ).run(name, balance, interest_rate, minimum_payment, due_day, promo_apr ?? null, promo_expires_on ?? null, id);
-    return debtRepository.findById(id) as Debt;
+  ): Promise<Debt> {
+    (await db.run('UPDATE debts SET name = ?, balance = ?, interest_rate = ?, minimum_payment = ?, due_day = ?, promo_apr = ?, promo_expires_on = ? WHERE id = ?', name, balance, interest_rate, minimum_payment, due_day, promo_apr ?? null, promo_expires_on ?? null, id));
+    return (await debtRepository.findById(id)) as Debt;
   },
 
-  remove(id: number | string): void {
-    db.prepare('DELETE FROM debts WHERE id = ?').run(id);
+  async remove(id: number | string): Promise<void> {
+    (await db.run('DELETE FROM debts WHERE id = ?', id));
   },
 };
 

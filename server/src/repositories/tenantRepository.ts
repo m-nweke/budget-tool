@@ -20,22 +20,20 @@ function generateJoinCode(): string {
 }
 
 const tenantRepository = {
-  findById(id: number | string): Tenant | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM tenants WHERE id = ?`).get(id) as Tenant | undefined;
+  async findById(id: number | string): Promise<Tenant | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM tenants WHERE id = ?`, id)) as Tenant | undefined;
   },
 
-  findByJoinCode(joinCode: string): Tenant | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM tenants WHERE join_code = ?`).get(joinCode) as
+  async findByJoinCode(joinCode: string): Promise<Tenant | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM tenants WHERE join_code = ?`, joinCode)) as
       | Tenant
       | undefined;
   },
 
-  create(name: string, type: TenantType): Tenant {
+  async create(name: string, type: TenantType): Promise<Tenant> {
     const joinCode = type === 'enterprise' ? generateJoinCode() : null;
-    const result = db
-      .prepare('INSERT INTO tenants (name, type, join_code) VALUES (?, ?, ?)')
-      .run(name, type, joinCode);
-    return tenantRepository.findById(result.lastInsertRowid as number) as Tenant;
+    const result = (await db.run('INSERT INTO tenants (name, type, join_code) VALUES (?, ?, ?)', name, type, joinCode));
+    return (await tenantRepository.findById(result.lastInsertRowid as number)) as Tenant;
   },
 };
 

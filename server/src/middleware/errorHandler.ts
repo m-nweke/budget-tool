@@ -5,7 +5,7 @@ interface HttpBodyParserError extends Error {
   status?: number;
 }
 
-interface SqliteError extends Error {
+interface DatabaseError extends Error {
   code?: string;
 }
 
@@ -22,22 +22,22 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     return;
   }
 
-  const sqliteError = err as SqliteError;
-  switch (sqliteError.code) {
-    case 'SQLITE_CONSTRAINT_FOREIGNKEY':
+  const databaseError = err as DatabaseError;
+  switch (databaseError.code) {
+    case '23503':
       res.status(400).json({ error: 'This action references a record that no longer exists' });
       return;
-    case 'SQLITE_CONSTRAINT_NOTNULL':
+    case '23502':
       res.status(400).json({ error: 'A required field is missing' });
       return;
-    case 'SQLITE_CONSTRAINT_UNIQUE':
+    case '23505':
       res.status(400).json({ error: 'A record with that value already exists' });
       return;
-    case 'SQLITE_CONSTRAINT':
+    case '23514':
       res.status(400).json({ error: 'This action conflicts with related data and cannot be completed' });
       return;
   }
 
-  console.error(err);
+  console.error('Unhandled request failure');
   res.status(500).json({ error: 'Internal server error' });
 }

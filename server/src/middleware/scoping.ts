@@ -8,9 +8,9 @@ import type { AuthUser } from '../types';
 // implicit fallback to department_id — zero grants means zero access, which
 // is how a newly-created head starts out before anyone grants them
 // anything, not a bug to work around.
-export function resolveAccessibleDepartmentIds(user: AuthUser): number[] {
+export async function resolveAccessibleDepartmentIds(user: AuthUser): Promise<number[]> {
   if (user.role === 'department_head') {
-    return departmentAccessRepository.listForUser(user.id);
+    return (await departmentAccessRepository.listForUser(user.id));
   }
   if (user.role === 'department_employee') {
     return user.department_id !== null ? [user.department_id] : [];
@@ -28,11 +28,11 @@ export function resolveAccessibleDepartmentIds(user: AuthUser): number[] {
 // the only boundary is their own tenant_id. Every scoped repo's findAll
 // accepts both departmentIds and tenantId for this reason: departmentIds
 // wins when present (enterprise), tenantId is the fallback (personal).
-export function resolveScope(user: AuthUser): { departmentIds?: number[]; tenantId?: number } {
+export async function resolveScope(user: AuthUser): Promise<{ departmentIds?: number[]; tenantId?: number }> {
   if (user.role === 'owner') {
     return { tenantId: user.tenant_id };
   }
-  return { departmentIds: resolveAccessibleDepartmentIds(user) };
+  return { departmentIds: (await resolveAccessibleDepartmentIds(user)) };
 }
 
 // Used inline in route handlers *after* a resource (and its department) is
@@ -40,9 +40,9 @@ export function resolveScope(user: AuthUser): { departmentIds?: number[]; tenant
 // happens (e.g. a transaction's category's department) — consistent with
 // how validation already happens inline in existing handlers rather than
 // via a generic validation middleware.
-export function userHasDepartmentAccess(user: AuthUser, departmentId: number | null): boolean {
+export async function userHasDepartmentAccess(user: AuthUser, departmentId: number | null): Promise<boolean> {
   if (departmentId === null) return false;
-  return resolveAccessibleDepartmentIds(user).includes(departmentId);
+  return (await resolveAccessibleDepartmentIds(user)).includes(departmentId);
 }
 
 // For the "check access against both the existing and target department"
@@ -51,8 +51,8 @@ export function userHasDepartmentAccess(user: AuthUser, departmentId: number | n
 // since resolveAccessibleDepartmentIds does a real department_access query
 // for a head. Also the single place that check gets fixed if its logic
 // needs to change, instead of three near-identical inline copies drifting.
-export function userHasAccessToAll(user: AuthUser, departmentIds: (number | null)[]): boolean {
-  const accessibleIds = resolveAccessibleDepartmentIds(user);
+export async function userHasAccessToAll(user: AuthUser, departmentIds: (number | null)[]): Promise<boolean> {
+  const accessibleIds = (await resolveAccessibleDepartmentIds(user));
   return departmentIds.every((id) => id !== null && accessibleIds.includes(id));
 }
 
@@ -63,14 +63,14 @@ export function userHasAccessToAll(user: AuthUser, departmentIds: (number | null
 // writes inside their own tenant by construction — an owner has no such
 // natural boundary, so tenant_id has to be checked explicitly). Enterprise
 // roles fall back to the existing department check.
-export function userCanAccessResource(
+export async function userCanAccessResource(
   user: AuthUser,
   resource: { tenant_id: number; department_id: number | null }
-): boolean {
+): Promise<boolean> {
   if (user.role === 'owner') {
     return resource.tenant_id === user.tenant_id;
   }
-  return userHasDepartmentAccess(user, resource.department_id);
+  return (await userHasDepartmentAccess(user, resource.department_id));
 }
 
 // Express middleware factory for head-only routes (category management,

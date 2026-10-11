@@ -18,35 +18,35 @@ async function loginAs(email: string, password = 'password123') {
 }
 
 async function createHead(name: string, email: string) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: tenantId,
     role: 'department_head',
     department_id: null,
-  });
+  }));
   return user;
 }
 
 async function createEmployee(name: string, email: string, departmentId: number | null, ofTenantId = tenantId) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: ofTenantId,
     role: 'department_employee',
     department_id: departmentId,
-  });
+  }));
   return user;
 }
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
-  );
-  tenantId = tenantRepository.create('Acme Co', 'enterprise').id;
-  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+  ));
+  tenantId = (await tenantRepository.create('Acme Co', 'enterprise')).id;
+  deptA = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Engineering', tenantId))
     .lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+  deptB = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Marketing', tenantId))
     .lastInsertRowid as number;
 });
 
@@ -60,7 +60,7 @@ describe('PATCH /api/team/:userId', () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({ department_id: deptA });
-    const membership = tenantMembershipRepository.findByUserAndTenant(employee.id, tenantId);
+    const membership = (await tenantMembershipRepository.findByUserAndTenant(employee.id, tenantId));
     expect(membership?.department_id).toBe(deptA);
   });
 
@@ -118,11 +118,8 @@ describe('PATCH /api/team/:userId', () => {
   });
 
   it('400s when department_id references a department in a different tenant', async () => {
-    const otherTenantId = tenantRepository.create('Globex', 'enterprise').id;
-    const otherDeptId = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run(
-      'Engineering',
-      otherTenantId
-    ).lastInsertRowid as number;
+    const otherTenantId = (await tenantRepository.create('Globex', 'enterprise')).id;
+    const otherDeptId = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Engineering', otherTenantId)).lastInsertRowid as number;
     const employee = await createEmployee('Evan', 'evan@example.com', null);
     await createHead('Dana', 'dana@example.com');
     const agent = await loginAs('dana@example.com');
@@ -155,18 +152,18 @@ describe('PATCH /api/team/:userId', () => {
 
   it("a head from a different tenant cannot reassign this tenant's employee", async () => {
     const employee = await createEmployee('Evan', 'evan@example.com', null);
-    const otherTenantId = tenantRepository.create('Globex', 'enterprise').id;
-    const outsideHeadUser = userRepository.create({
+    const otherTenantId = (await tenantRepository.create('Globex', 'enterprise')).id;
+    const outsideHeadUser = (await userRepository.create({
       name: 'Outside Head',
       email: 'outside@example.com',
       password_hash: await hashPassword('password123'),
-    });
-    tenantMembershipRepository.create({
+    }));
+    (await tenantMembershipRepository.create({
       user_id: outsideHeadUser.id,
       tenant_id: otherTenantId,
       role: 'department_head',
       department_id: null,
-    });
+    }));
     const agent = await loginAs('outside@example.com');
 
     const res = await agent.patch(`/api/team/${employee.id}`).send({ department_id: deptA });

@@ -27,7 +27,7 @@ function dateRange(from: string, to: string): string[] {
 // precedent as recurringTransactionRepository importing categoryRepository/
 // transactionRepository (decision 13). No DB writes anywhere in this file.
 const cashflowRepository = {
-  simulate(tenantId: number, from: string, to: string): CashflowProjection {
+  async simulate(tenantId: number, from: string, to: string): Promise<CashflowProjection> {
     const dates = dateRange(from, to);
 
     // Each account's balance only ever moves from its own paycheck splits —
@@ -41,7 +41,7 @@ const cashflowRepository = {
     // stepping their occurrence dates) per account was redundant DB work
     // that scaled with account count for no reason.
     const creditsByAccount = new Map<number, (PaycheckCredit & { date: string })[]>();
-    for (const paycheck of paycheckRepository.findAll(tenantId)) {
+    for (const paycheck of (await paycheckRepository.findAll(tenantId))) {
       const occurrenceDates = stepPaycheckDates(paycheck.next_pay_date, paycheck.frequency, from, to);
       for (const split of paycheck.splits) {
         const amount = split.split_type === 'percentage' ? (paycheck.amount * split.value) / 100 : split.value;
@@ -53,7 +53,7 @@ const cashflowRepository = {
       }
     }
 
-    const accounts: AccountProjection[] = bankAccountRepository.findAll(tenantId).map((account) => {
+    const accounts: AccountProjection[] = (await (await bankAccountRepository.findAll(tenantId)).map((account) => {
       const daily: AccountDailyBalance[] = dates.map((date) => ({ date, balance: account.current_balance, credits: [] }));
       const balanceByIndex = new Map(dates.map((date, index) => [date, index]));
 
@@ -78,11 +78,11 @@ const cashflowRepository = {
         starting_balance: account.current_balance,
         daily,
       };
-    });
+    }));
 
     const outflows: ProjectedOutflow[] = [];
 
-    for (const template of recurringTransactionRepository.findAllActive(undefined, tenantId)) {
+    for (const template of (await recurringTransactionRepository.findAllActive(undefined, tenantId))) {
       for (const occurrence of recurringTransactionRepository.projectOccurrences(template, to)) {
         if (occurrence.date < from) continue;
         outflows.push({
@@ -95,7 +95,7 @@ const cashflowRepository = {
       }
     }
 
-    for (const debt of debtRepository.findAll(tenantId)) {
+    for (const debt of (await debtRepository.findAll(tenantId))) {
       for (const dueDate of stepMonthlyDueDates(debt.due_day, from, to)) {
         outflows.push({
           date: dueDate,
@@ -113,7 +113,7 @@ const cashflowRepository = {
     // still lands in the same tenant-wide unattributed outflow list.
     // start_on/end_date bound which occurrences count, same as
     // recurringTransactionRepository.projectOccurrences' end_date check.
-    for (const bill of billRepository.findAllActive(tenantId)) {
+    for (const bill of (await billRepository.findAllActive(tenantId))) {
       for (const dueDate of stepMonthlyDueDates(bill.due_day, from, to)) {
         if (dueDate < bill.start_on) continue;
         if (bill.end_date && dueDate > bill.end_date) continue;
@@ -131,7 +131,7 @@ const cashflowRepository = {
     // with just a manually-tracked current_value and no monthly_contribution/
     // contribution_day (the matched-optional pair) has nothing periodic to
     // project. Same unattributed-outflow shape as bills above.
-    for (const investment of investmentRepository.findAllActive(tenantId)) {
+    for (const investment of (await investmentRepository.findAllActive(tenantId))) {
       if (investment.monthly_contribution === null || investment.contribution_day === null) continue;
       for (const dueDate of stepMonthlyDueDates(investment.contribution_day, from, to)) {
         outflows.push({

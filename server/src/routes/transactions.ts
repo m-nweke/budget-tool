@@ -18,50 +18,50 @@ function notAuthorizedForResourceMessage(user: AuthUser): string {
   return user.role === 'owner' ? 'Not authorized for this tenant' : 'Not authorized for this department';
 }
 
-router.get('/', (req: Request, res: Response) => {
-  const scope = resolveScope(req.user as AuthUser);
-  res.json(transactionRepository.findAll(scope.departmentIds, scope.tenantId));
+router.get('/', async (req: Request, res: Response) => {
+  const scope = (await resolveScope(req.user as AuthUser));
+  res.json((await transactionRepository.findAll(scope.departmentIds, scope.tenantId)));
 });
 
-router.post('/', (req: Request<{}, {}, CreateTransactionDto>, res: Response) => {
+router.post('/', async (req: Request<{}, {}, CreateTransactionDto>, res: Response) => {
   const { amount, date, description, category_id } = req.body;
   if (amount === undefined || amount === null || !date || !category_id) {
     return res.status(400).json({ error: 'amount, date, and category_id are required' });
   }
-  const category = categoryRepository.findById(category_id);
+  const category = (await categoryRepository.findById(category_id));
   if (!category) {
     return res.status(400).json({ error: 'category_id does not reference an existing category' });
   }
   const user = req.user as AuthUser;
-  if (!userCanAccessResource(user, category)) {
+  if (!(await userCanAccessResource(user, category))) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
   const { needsApproval, approved } = computeApproval(amount, category);
-  const transaction = transactionRepository.create(
+  const transaction = (await transactionRepository.create(
     { amount, date, description, category_id },
     user.id,
     needsApproval,
     approved
-  );
+  ));
   res.status(201).json(transaction);
 });
 
-router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res: Response) => {
+router.put('/:id', async (req: Request<{ id: string }, {}, CreateTransactionDto>, res: Response) => {
   const { amount, date, description, category_id } = req.body;
   if (amount === undefined || amount === null || !date || !category_id) {
     return res.status(400).json({ error: 'amount, date, and category_id are required' });
   }
-  const existing = transactionRepository.findById(req.params.id);
+  const existing = (await transactionRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'transaction not found' });
   }
-  const category = categoryRepository.findById(category_id);
+  const category = (await categoryRepository.findById(category_id));
   if (!category) {
     return res.status(400).json({ error: 'category_id does not reference an existing category' });
   }
   const user = req.user as AuthUser;
-  const existingCategory = categoryRepository.findById(existing.category_id);
-  if (!existingCategory || !userCanAccessResource(user, existingCategory) || !userCanAccessResource(user, category)) {
+  const existingCategory = (await categoryRepository.findById(existing.category_id));
+  if (!existingCategory || !(await userCanAccessResource(user, existingCategory)) || !(await userCanAccessResource(user, category))) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
   // Only re-run the threshold check when amount or category actually
@@ -92,12 +92,12 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
       approved = computed.approved;
     }
   }
-  const transaction = transactionRepository.update(
+  const transaction = (await transactionRepository.update(
     req.params.id,
     { amount, date, description, category_id },
     needsApproval,
     approved
-  );
+  ));
   res.json(transaction);
 });
 
@@ -112,17 +112,17 @@ router.put('/:id', (req: Request<{ id: string }, {}, CreateTransactionDto>, res:
 router.delete(
   '/:id',
   requireRole('department_head', 'owner'),
-  (req: Request<{ id: string }>, res: Response) => {
-    const existing = transactionRepository.findById(req.params.id);
+  async (req: Request<{ id: string }>, res: Response) => {
+    const existing = (await transactionRepository.findById(req.params.id));
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
-    const category = categoryRepository.findById(existing.category_id);
+    const category = (await categoryRepository.findById(existing.category_id));
     const user = req.user as AuthUser;
-    if (!category || !userCanAccessResource(user, category)) {
+    if (!category || !(await userCanAccessResource(user, category))) {
       return res.status(403).json({ error: 'Not authorized for this department' });
     }
-    transactionRepository.remove(req.params.id);
+    (await transactionRepository.remove(req.params.id));
     res.status(204).end();
   }
 );
@@ -141,14 +141,14 @@ router.delete(
 router.post(
   '/:id/approve',
   requireRole('department_head', 'owner'),
-  (req: Request<{ id: string }>, res: Response) => {
-    const existing = transactionRepository.findById(req.params.id);
+  async (req: Request<{ id: string }>, res: Response) => {
+    const existing = (await transactionRepository.findById(req.params.id));
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
     const user = req.user as AuthUser;
-    const category = categoryRepository.findById(existing.category_id);
-    if (!category || !userCanAccessResource(user, category)) {
+    const category = (await categoryRepository.findById(existing.category_id));
+    if (!category || !(await userCanAccessResource(user, category))) {
       return res.status(403).json({ error: notAuthorizedForResourceMessage(user) });
     }
     if (user.role === 'owner') {
@@ -163,21 +163,21 @@ router.post(
     } else if (existing.created_by === user.id) {
       return res.status(403).json({ error: 'Cannot approve your own transaction' });
     }
-    res.json(transactionRepository.approve(req.params.id, true));
+    res.json((await transactionRepository.approve(req.params.id, true)));
   }
 );
 
 router.post(
   '/:id/reject',
   requireRole('department_head', 'owner'),
-  (req: Request<{ id: string }>, res: Response) => {
-    const existing = transactionRepository.findById(req.params.id);
+  async (req: Request<{ id: string }>, res: Response) => {
+    const existing = (await transactionRepository.findById(req.params.id));
     if (!existing) {
       return res.status(404).json({ error: 'transaction not found' });
     }
     const user = req.user as AuthUser;
-    const category = categoryRepository.findById(existing.category_id);
-    if (!category || !userCanAccessResource(user, category)) {
+    const category = (await categoryRepository.findById(existing.category_id));
+    if (!category || !(await userCanAccessResource(user, category))) {
       return res.status(403).json({ error: notAuthorizedForResourceMessage(user) });
     }
     if (user.role === 'owner') {
@@ -189,7 +189,7 @@ router.post(
     } else if (existing.created_by === user.id) {
       return res.status(403).json({ error: 'Cannot reject your own transaction' });
     }
-    res.json(transactionRepository.approve(req.params.id, false));
+    res.json((await transactionRepository.approve(req.params.id, false)));
   }
 );
 

@@ -7,25 +7,25 @@ import tenantRepository from '../repositories/tenantRepository';
 import tenantMembershipRepository from '../repositories/tenantMembershipRepository';
 import { hashPassword } from '../utils/password';
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
-  );
+  ));
 });
 
 async function seedUser() {
-  const tenant = tenantRepository.create('Acme Co', 'enterprise');
-  const user = userRepository.create({
+  const tenant = (await tenantRepository.create('Acme Co', 'enterprise'));
+  const user = (await userRepository.create({
     name: 'Dana Head',
     email: 'dana@example.com',
     password_hash: await hashPassword('correct-horse'),
-  });
-  tenantMembershipRepository.create({
+  }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: tenant.id,
     role: 'department_head',
     department_id: null,
-  });
+  }));
   return { user, tenant };
 }
 
@@ -77,13 +77,13 @@ describe('POST /api/auth/login', () => {
 
   it('a login with more than one membership returns a picker instead of a session', async () => {
     const { user } = await seedUser();
-    const secondTenant = tenantRepository.create("Pat's Budget", 'personal');
-    tenantMembershipRepository.create({
+    const secondTenant = (await tenantRepository.create("Pat's Budget", 'personal'));
+    (await tenantMembershipRepository.create({
       user_id: user.id,
       tenant_id: secondTenant.id,
       role: 'owner',
       department_id: null,
-    });
+    }));
 
     const res = await request(app)
       .post('/api/auth/login')
@@ -126,13 +126,13 @@ describe('rate limiting', () => {
 describe('POST /api/auth/select-tenant', () => {
   it('switches an authenticated multi-membership session to the chosen tenant', async () => {
     const { user, tenant } = await seedUser();
-    const secondTenant = tenantRepository.create("Pat's Budget", 'personal');
-    tenantMembershipRepository.create({
+    const secondTenant = (await tenantRepository.create("Pat's Budget", 'personal'));
+    (await tenantMembershipRepository.create({
       user_id: user.id,
       tenant_id: secondTenant.id,
       role: 'owner',
       department_id: null,
-    });
+    }));
 
     const agent = request.agent(app);
     await agent.post('/api/auth/login').send({ email: 'dana@example.com', password: 'correct-horse' });
@@ -155,7 +155,7 @@ describe('POST /api/auth/select-tenant', () => {
 
   it('rejects selecting a tenant the user has no membership in', async () => {
     await seedUser();
-    const otherTenant = tenantRepository.create('Other Co', 'enterprise');
+    const otherTenant = (await tenantRepository.create('Other Co', 'enterprise'));
     const agent = request.agent(app);
     await agent.post('/api/auth/login').send({ email: 'dana@example.com', password: 'correct-horse' });
 
@@ -164,7 +164,7 @@ describe('POST /api/auth/select-tenant', () => {
   });
 
   it('requires an authenticated identity', async () => {
-    const tenant = tenantRepository.create('Acme Co', 'enterprise');
+    const tenant = (await tenantRepository.create('Acme Co', 'enterprise'));
     const res = await request(app).post('/api/auth/select-tenant').send({ tenant_id: tenant.id });
     expect(res.status).toBe(401);
   });
@@ -189,7 +189,7 @@ describe('POST /api/auth/register', () => {
   });
 
   it('join account type requires a valid join code and creates an unassigned employee membership', async () => {
-    const tenant = tenantRepository.create('Acme Co', 'enterprise');
+    const tenant = (await tenantRepository.create('Acme Co', 'enterprise'));
     const res = await request(app).post('/api/auth/register').send({
       name: 'Evan Employee',
       email: 'evan@example.com',
@@ -214,7 +214,7 @@ describe('POST /api/auth/register', () => {
 
   it('registering with an existing email requires the matching password (the multi-tenant join case)', async () => {
     await seedUser();
-    const tenant = tenantRepository.create('Other Co', 'enterprise');
+    const tenant = (await tenantRepository.create('Other Co', 'enterprise'));
     const res = await request(app).post('/api/auth/register').send({
       name: 'Dana Head',
       email: 'dana@example.com',
@@ -227,7 +227,7 @@ describe('POST /api/auth/register', () => {
 
   it('an existing email with the correct password gets a new membership on the same account', async () => {
     await seedUser();
-    const tenant = tenantRepository.create('Other Co', 'enterprise');
+    const tenant = (await tenantRepository.create('Other Co', 'enterprise'));
     const res = await request(app).post('/api/auth/register').send({
       name: 'Dana Head',
       email: 'dana@example.com',
@@ -291,13 +291,13 @@ describe('GET /api/auth/memberships', () => {
     const agent = request.agent(app);
     await agent.post('/api/auth/login').send({ email: 'dana@example.com', password: 'correct-horse' });
 
-    const secondTenant = tenantRepository.create("Pat's Budget", 'personal');
-    tenantMembershipRepository.create({
+    const secondTenant = (await tenantRepository.create("Pat's Budget", 'personal'));
+    (await tenantMembershipRepository.create({
       user_id: user.id,
       tenant_id: secondTenant.id,
       role: 'owner',
       department_id: null,
-    });
+    }));
 
     const res = await agent.get('/api/auth/memberships');
     expect(res.status).toBe(200);

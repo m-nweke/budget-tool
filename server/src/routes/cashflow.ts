@@ -11,7 +11,7 @@ const MAX_DAYS = 90;
 
 // Read-only — this data only exists under a personal tenant (see every
 // other Phase 2 route), so 'owner'-only, no separate tenant_type check.
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const { days } = req.query;
   let windowDays = DEFAULT_DAYS;
   if (days !== undefined) {
@@ -30,7 +30,7 @@ router.get('/', requireRole('owner'), (req: Request, res: Response) => {
   // otherwise `days=N` would return N + 1 dates, off by one from what the
   // query param name (and the client's "next N days" copy) promises.
   const to = addDays(from, windowDays - 1);
-  res.json(cashflowRepository.simulate(user.tenant_id, from, to));
+  res.json((await cashflowRepository.simulate(user.tenant_id, from, to)));
 });
 
 export default router;

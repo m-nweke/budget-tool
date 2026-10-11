@@ -14,14 +14,14 @@ const router = express.Router();
 router.patch(
   '/:userId',
   requireRole('department_head'),
-  (req: Request<{ userId: string }, {}, { department_id?: number | null }>, res: Response) => {
+  async (req: Request<{ userId: string }, {}, { department_id?: number | null }>, res: Response) => {
     const { department_id } = req.body;
     if (department_id === undefined) {
       return res.status(400).json({ error: 'department_id is required' });
     }
     const user = req.user as AuthUser;
 
-    const existing = tenantMembershipRepository.findByUserAndTenant(Number(req.params.userId), user.tenant_id);
+    const existing = (await tenantMembershipRepository.findByUserAndTenant(Number(req.params.userId), user.tenant_id));
     if (!existing) {
       return res.status(404).json({ error: 'user not found in this tenant' });
     }
@@ -30,17 +30,17 @@ router.patch(
     }
 
     if (department_id !== null) {
-      const department = departmentRepository.findById(department_id);
+      const department = (await departmentRepository.findById(department_id));
       if (!department || department.tenant_id !== user.tenant_id) {
         return res.status(400).json({ error: 'department_id does not reference a department in this tenant' });
       }
     }
 
-    const membership = tenantMembershipRepository.updateDepartment(
+    const membership = (await tenantMembershipRepository.updateDepartment(
       Number(req.params.userId),
       user.tenant_id,
       department_id
-    );
+    ));
     res.json(membership);
   }
 );

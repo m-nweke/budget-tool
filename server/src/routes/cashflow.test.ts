@@ -17,34 +17,34 @@ async function loginAs(email: string, password = 'password123') {
 }
 
 async function createHead(name: string, email: string) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: enterpriseTenantId,
     role: 'department_head',
     department_id: null,
-  });
+  }));
   return user;
 }
 
 async function createOwner(name: string, email: string) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  const personalTenant = tenantRepository.create(`${name}'s Budget`, 'personal');
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  const personalTenant = (await tenantRepository.create(`${name}'s Budget`, 'personal'));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: personalTenant.id,
     role: 'owner',
     department_id: null,
-  });
+  }));
   return { user, tenantId: personalTenant.id };
 }
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; DELETE FROM debts; ' +
       'DELETE FROM bank_accounts; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
-  );
-  enterpriseTenantId = tenantRepository.create('Acme Co', 'enterprise').id;
+  ));
+  enterpriseTenantId = (await tenantRepository.create('Acme Co', 'enterprise')).id;
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-08-19T00:00:00Z'));
 });
@@ -63,7 +63,7 @@ describe('GET /api/cash-flow', () => {
 
   it('defaults to a 14-day window from today', async () => {
     const { tenantId } = await createOwner('Pat', 'pat@example.com');
-    bankAccountRepository.create({ name: 'Checking', type: 'checking', current_balance: 100 }, tenantId);
+    (await bankAccountRepository.create({ name: 'Checking', type: 'checking', current_balance: 100 }, tenantId));
     const agent = await loginAs('pat@example.com');
 
     const res = await agent.get('/api/cash-flow');
@@ -86,7 +86,7 @@ describe('GET /api/cash-flow', () => {
 
   it('returns exactly `days` dates per account, not days + 1', async () => {
     const { tenantId } = await createOwner('Pat', 'pat@example.com');
-    bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId);
+    (await bankAccountRepository.create({ name: 'Checking', type: 'checking' }, tenantId));
     const agent = await loginAs('pat@example.com');
 
     const res = await agent.get('/api/cash-flow?days=7');
@@ -102,8 +102,8 @@ describe('GET /api/cash-flow', () => {
   });
 
   it("an owner never sees another tenant's accounts", async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    bankAccountRepository.create({ name: 'Other Checking', type: 'checking', current_balance: 999 }, other.id);
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    (await bankAccountRepository.create({ name: 'Other Checking', type: 'checking', current_balance: 999 }, other.id));
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');

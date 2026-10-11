@@ -24,74 +24,72 @@ const PERSONAL_EMAIL = 'personal@example.com';
 const DEV_PASSWORD = 'password123';
 
 async function seed(): Promise<void> {
-  const existing = userRepository.findByEmail(HEAD_EMAIL);
+  const existing = (await userRepository.findByEmail(HEAD_EMAIL));
   if (existing) {
     console.log(`Seed users already exist: ${HEAD_EMAIL}, ${EMPLOYEE_EMAIL}, ${PERSONAL_EMAIL}`);
     return;
   }
 
-  // Hashing has to happen before the transaction (better-sqlite3's
-  // db.transaction() wraps a synchronous function), so a failure there
-  // never touches the DB and doesn't need to be rolled back.
+  // Hash before opening a database transaction.
   const passwordHash = await hashPassword(DEV_PASSWORD);
 
   // Every insert commits or none do — without this, a crash partway
   // through would leave orphaned rows that a re-run can't detect (it only
   // checks for the head user by email), producing duplicates on retry.
-  db.transaction(() => {
-    const companyTenant = tenantRepository.create('Acme Co', 'enterprise');
-    const engineering = departmentRepository.create('Engineering', companyTenant.id);
+  (await db.transaction(async () => {
+    const companyTenant = (await tenantRepository.create('Acme Co', 'enterprise'));
+    const engineering = (await departmentRepository.create('Engineering', companyTenant.id));
     // Marketing exists but neither seeded user has access to it — a
     // manual check that scoping actually hides it, not just that
     // Engineering shows up.
-    departmentRepository.create('Marketing', companyTenant.id);
+    (await departmentRepository.create('Marketing', companyTenant.id));
 
-    const head = userRepository.create({ name: 'Dana Head', email: HEAD_EMAIL, password_hash: passwordHash });
-    tenantMembershipRepository.create({
+    const head = (await userRepository.create({ name: 'Dana Head', email: HEAD_EMAIL, password_hash: passwordHash }));
+    (await tenantMembershipRepository.create({
       user_id: head.id,
       tenant_id: companyTenant.id,
       role: 'department_head',
       department_id: null,
-    });
-    departmentAccessRepository.grant(head.id, engineering.id);
+    }));
+    (await departmentAccessRepository.grant(head.id, engineering.id));
 
-    const employee = userRepository.create({
+    const employee = (await userRepository.create({
       name: 'Evan Employee',
       email: EMPLOYEE_EMAIL,
       password_hash: passwordHash,
-    });
-    tenantMembershipRepository.create({
+    }));
+    (await tenantMembershipRepository.create({
       user_id: employee.id,
       tenant_id: companyTenant.id,
       role: 'department_employee',
       department_id: engineering.id,
-    });
+    }));
 
-    const personalTenant = tenantRepository.create("Pat's Budget", 'personal');
-    const personalUser = userRepository.create({
+    const personalTenant = (await tenantRepository.create("Pat's Budget", 'personal'));
+    const personalUser = (await userRepository.create({
       name: 'Pat Personal',
       email: PERSONAL_EMAIL,
       password_hash: passwordHash,
-    });
-    tenantMembershipRepository.create({
+    }));
+    (await tenantMembershipRepository.create({
       user_id: personalUser.id,
       tenant_id: personalTenant.id,
       role: 'owner',
       department_id: null,
-    });
+    }));
 
     // Phase 2 sample data — enough to manually exercise accounts, a
     // paycheck with mixed split types, a linked savings goal, and a debt
     // without having to create everything by hand first.
-    const checking = bankAccountRepository.create(
+    const checking = (await bankAccountRepository.create(
       { name: 'Checking', type: 'checking', current_balance: 1500 },
       personalTenant.id
-    );
-    const savings = bankAccountRepository.create(
+    ));
+    const savings = (await bankAccountRepository.create(
       { name: 'Savings', type: 'savings', current_balance: 4000 },
       personalTenant.id
-    );
-    paycheckRepository.create(
+    ));
+    (await paycheckRepository.create(
       {
         label: 'Paycheck',
         amount: 2000,
@@ -103,15 +101,15 @@ async function seed(): Promise<void> {
         ],
       },
       personalTenant.id
-    );
-    savingsGoalRepository.create(
+    ));
+    (await savingsGoalRepository.create(
       { name: 'Emergency Fund', target_amount: 10000, bank_account_id: savings.id },
       personalTenant.id
-    );
-    debtRepository.create(
+    ));
+    (await debtRepository.create(
       { name: 'Credit Card', balance: 2500, interest_rate: 21.99, minimum_payment: 75, due_day: 15 },
       personalTenant.id
-    );
+    ));
 
     console.log('Seeded tenants and users:');
     console.log(`  company:  Acme Co — Engineering (id ${engineering.id}), Marketing (no access granted)`);
@@ -119,11 +117,11 @@ async function seed(): Promise<void> {
     console.log(`  employee: ${EMPLOYEE_EMAIL} / ${DEV_PASSWORD}`);
     console.log(`  personal: ${PERSONAL_EMAIL} / ${DEV_PASSWORD} (tenant: Pat's Budget)`);
     console.log(`  join code for Acme Co: ${companyTenant.join_code}`);
-  })();
+  })());
 }
 
 seed()
   .catch((err) => {
     console.error('Seed failed:', err);
     process.exitCode = 1;
-  });
+  }).finally(() => db.close());

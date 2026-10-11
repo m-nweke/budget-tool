@@ -8,12 +8,12 @@ const dashboardRepository = {
   // returns every category, unscoped (no internal caller needs this, kept
   // consistent with the other repos' scoping convention). An empty
   // departmentIds array (zero accessible departments) returns zero rows.
-  findSummary(
+  async findSummary(
     from: string = currentMonth(),
     to: string = from,
     departmentIds?: number[],
     tenantId?: number
-  ): DashboardRow[] {
+  ): Promise<DashboardRow[]> {
     if (departmentIds && departmentIds.length === 0) return [];
     const { start, end } = monthRangeSpan(from, to);
     const months = monthCount(from, to);
@@ -26,9 +26,7 @@ const dashboardRepository = {
       scopeFilter = 'AND c.tenant_id = ?';
       scopeParams = [tenantId];
     }
-    return db
-      .prepare(
-        `SELECT
+    return (await db.all(`SELECT
            c.id AS category_id,
            c.name AS name,
            c.budgeted_amount * ? AS budgeted_amount,
@@ -41,9 +39,7 @@ const dashboardRepository = {
            ON t.category_id = c.id AND t.date >= ? AND t.date < ?
          LEFT JOIN departments d ON d.id = c.department_id AND d.tenant_id = c.tenant_id
          WHERE c.start_on < ? ${scopeFilter}
-         GROUP BY c.id, c.name, c.budgeted_amount, c.department_id, d.name`
-      )
-      .all(months, months, start, end, end, ...scopeParams) as DashboardRow[];
+         GROUP BY c.id, c.name, c.budgeted_amount, c.department_id, d.name`, months, months, start, end, end, ...scopeParams)) as DashboardRow[];
   },
 };
 

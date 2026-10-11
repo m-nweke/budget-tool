@@ -10,9 +10,9 @@ const VALID_TYPES: BankAccountType[] = ['checking', 'savings', 'other'];
 // owner-only on every verb, unlike categories/transactions — these tables
 // only ever exist under a personal tenant, so there's no enterprise-role
 // read case to keep open (see the plan's confirmed access decision).
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json(bankAccountRepository.findAll(user.tenant_id));
+  res.json((await bankAccountRepository.findAll(user.tenant_id)));
 });
 
 // apy is optional on every account type (not restricted to 'savings' — a
@@ -37,7 +37,7 @@ function validateInstitution(institution: unknown): string | null {
   return null;
 }
 
-router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateBankAccountDto>, res: Response) => {
+router.post('/', requireRole('owner'), async (req: Request<{}, {}, CreateBankAccountDto>, res: Response) => {
   const { name, type, current_balance, apy, institution } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: 'name and type are required' });
@@ -54,11 +54,11 @@ router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateBankAccountDt
     return res.status(400).json({ error: institutionError });
   }
   const user = req.user as AuthUser;
-  const account = bankAccountRepository.create({ name, type, current_balance, apy, institution }, user.tenant_id);
+  const account = (await bankAccountRepository.create({ name, type, current_balance, apy, institution }, user.tenant_id));
   res.status(201).json(account);
 });
 
-router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreateBankAccountDto>, res: Response) => {
+router.put('/:id', requireRole('owner'), async (req: Request<{ id: string }, {}, CreateBankAccountDto>, res: Response) => {
   const { name, type, current_balance, apy, institution } = req.body;
   if (!name || !type) {
     return res.status(400).json({ error: 'name and type are required' });
@@ -74,7 +74,7 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   if (institutionError) {
     return res.status(400).json({ error: institutionError });
   }
-  const existing = bankAccountRepository.findById(req.params.id);
+  const existing = (await bankAccountRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'bank account not found' });
   }
@@ -82,12 +82,12 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this bank account' });
   }
-  const account = bankAccountRepository.update(req.params.id, { name, type, current_balance, apy, institution });
+  const account = (await bankAccountRepository.update(req.params.id, { name, type, current_balance, apy, institution }));
   res.json(account);
 });
 
-router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: Response) => {
-  const existing = bankAccountRepository.findById(req.params.id);
+router.delete('/:id', requireRole('owner'), async (req: Request<{ id: string }>, res: Response) => {
+  const existing = (await bankAccountRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'bank account not found' });
   }
@@ -95,13 +95,13 @@ router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: 
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this bank account' });
   }
-  if (bankAccountRepository.countPaycheckSplitsFor(req.params.id) > 0) {
+  if ((await bankAccountRepository.countPaycheckSplitsFor(req.params.id)) > 0) {
     return res.status(400).json({ error: 'cannot delete a bank account referenced by a paycheck split' });
   }
-  if (bankAccountRepository.countSavingsGoalsFor(req.params.id) > 0) {
+  if ((await bankAccountRepository.countSavingsGoalsFor(req.params.id)) > 0) {
     return res.status(400).json({ error: 'cannot delete a bank account linked to a savings goal' });
   }
-  bankAccountRepository.remove(req.params.id);
+  (await bankAccountRepository.remove(req.params.id));
   res.status(204).end();
 });
 

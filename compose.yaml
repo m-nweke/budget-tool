@@ -1,0 +1,19 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "127.0.0.1:55432:5432"
+    environment:
+      POSTGRES_USER: budget_test
+      POSTGRES_PASSWORD: budget_test_local
+      POSTGRES_DB: budget_test
+    volumes:
+      - budget-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U budget_test -d budget_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  budget-postgres:

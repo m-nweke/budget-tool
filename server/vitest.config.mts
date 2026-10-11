@@ -1,11 +1,10 @@
 import { defineConfig } from 'vitest/config';
-
 export default defineConfig({
   test: {
     include: ['src/**/*.test.ts'],
-    // Isolated, disposable database per test file (see src/db/index.ts).
-    env: {
-      DB_PATH: ':memory:',
-    },
+    setupFiles: ['src/testSetup.ts'],
+    maxWorkers: 4,
+    testTimeout: 15000,
+    hookTimeout: 30000,
   },
 });

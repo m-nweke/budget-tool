@@ -5,32 +5,20 @@ import type { SavingsGoal, CreateSavingsGoalDto } from '../types';
 const COLUMNS = 'id, tenant_id, name, target_amount, start_on, target_date, bank_account_id, saved_amount';
 
 const savingsGoalRepository = {
-  findAll(tenantId: number): SavingsGoal[] {
-    return db.prepare(`SELECT ${COLUMNS} FROM savings_goals WHERE tenant_id = ?`).all(tenantId) as SavingsGoal[];
+  async findAll(tenantId: number): Promise<SavingsGoal[]> {
+    return (await db.all(`SELECT ${COLUMNS} FROM savings_goals WHERE tenant_id = ?`, tenantId)) as SavingsGoal[];
   },
 
-  findById(id: number | string): SavingsGoal | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM savings_goals WHERE id = ?`).get(id) as SavingsGoal | undefined;
+  async findById(id: number | string): Promise<SavingsGoal | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM savings_goals WHERE id = ?`, id)) as SavingsGoal | undefined;
   },
 
-  create(
+  async create(
     { name, target_amount, start_on, target_date, bank_account_id, saved_amount }: CreateSavingsGoalDto,
     tenantId: number
-  ): SavingsGoal {
-    const result = db
-      .prepare(
-        'INSERT INTO savings_goals (tenant_id, name, target_amount, start_on, target_date, bank_account_id, saved_amount) VALUES (?, ?, ?, ?, ?, ?, ?)'
-      )
-      .run(
-        tenantId,
-        name,
-        target_amount,
-        start_on || todayISO(),
-        target_date ?? null,
-        bank_account_id ?? null,
-        saved_amount ?? 0
-      );
-    return savingsGoalRepository.findById(result.lastInsertRowid as number) as SavingsGoal;
+  ): Promise<SavingsGoal> {
+    const result = (await db.run('INSERT INTO savings_goals (tenant_id, name, target_amount, start_on, target_date, bank_account_id, saved_amount) VALUES (?, ?, ?, ?, ?, ?, ?)', tenantId, name, target_amount, start_on || todayISO(), target_date ?? null, bank_account_id ?? null, saved_amount ?? 0));
+    return (await savingsGoalRepository.findById(result.lastInsertRowid as number)) as SavingsGoal;
   },
 
   // Like categoryRepository.update, an omitted start_on means "leave it
@@ -41,27 +29,17 @@ const savingsGoalRepository = {
   // "omitted" the same as "explicitly cleared," silently unlinking the
   // account or dropping the target date on an update that only meant to
   // change the name/amount.
-  update(
+  async update(
     id: number | string,
     { name, target_amount, start_on, target_date, bank_account_id, saved_amount }: CreateSavingsGoalDto
-  ): SavingsGoal {
-    const existing = savingsGoalRepository.findById(id);
-    db.prepare(
-      'UPDATE savings_goals SET name = ?, target_amount = ?, start_on = ?, target_date = ?, bank_account_id = ?, saved_amount = ? WHERE id = ?'
-    ).run(
-      name,
-      target_amount,
-      start_on || existing?.start_on || todayISO(),
-      target_date === undefined ? (existing?.target_date ?? null) : target_date,
-      bank_account_id === undefined ? (existing?.bank_account_id ?? null) : bank_account_id,
-      saved_amount ?? existing?.saved_amount ?? 0,
-      id
-    );
-    return savingsGoalRepository.findById(id) as SavingsGoal;
+  ): Promise<SavingsGoal> {
+    const existing = (await savingsGoalRepository.findById(id));
+    (await db.run('UPDATE savings_goals SET name = ?, target_amount = ?, start_on = ?, target_date = ?, bank_account_id = ?, saved_amount = ? WHERE id = ?', name, target_amount, start_on || existing?.start_on || todayISO(), target_date === undefined ? (existing?.target_date ?? null) : target_date, bank_account_id === undefined ? (existing?.bank_account_id ?? null) : bank_account_id, saved_amount ?? existing?.saved_amount ?? 0, id));
+    return (await savingsGoalRepository.findById(id)) as SavingsGoal;
   },
 
-  remove(id: number | string): void {
-    db.prepare('DELETE FROM savings_goals WHERE id = ?').run(id);
+  async remove(id: number | string): Promise<void> {
+    (await db.run('DELETE FROM savings_goals WHERE id = ?', id));
   },
 };
 

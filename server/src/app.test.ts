@@ -7,10 +7,10 @@ import tenantRepository from './repositories/tenantRepository';
 import tenantMembershipRepository from './repositories/tenantMembershipRepository';
 import { hashPassword } from './utils/password';
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
-  );
+  ));
 });
 
 // Smoke tests for the app.ts/server.ts split: confirms the exported app
@@ -23,18 +23,18 @@ describe('app', () => {
   });
 
   it('serves existing API routes once authenticated', async () => {
-    const tenant = tenantRepository.create('Acme Co', 'enterprise');
-    const user = userRepository.create({
+    const tenant = (await tenantRepository.create('Acme Co', 'enterprise'));
+    const user = (await userRepository.create({
       name: 'Dana Head',
       email: 'dana@example.com',
       password_hash: await hashPassword('correct-horse'),
-    });
-    tenantMembershipRepository.create({
+    }));
+    (await tenantMembershipRepository.create({
       user_id: user.id,
       tenant_id: tenant.id,
       role: 'department_head',
       department_id: null,
-    });
+    }));
     const agent = request.agent(app);
     await agent.post('/api/auth/login').send({ email: 'dana@example.com', password: 'correct-horse' });
 

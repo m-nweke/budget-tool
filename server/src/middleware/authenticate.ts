@@ -12,7 +12,7 @@ import tenantRepository from '../repositories/tenantRepository';
 // request rather than cached in the token — a head reassigning someone's
 // department, or removing their membership entirely, takes effect on the
 // very next request, not just the next login.
-export function authenticate(req: Request, res: Response, next: NextFunction): void {
+export async function authenticate(req: Request, res: Response, next: NextFunction): Promise<void> {
   const token = req.cookies?.[COOKIE_NAME];
   const payload = token ? verifyToken(token) : null;
   // A pre-tenant token (no tenant_id claim — see signPreTenantToken) only
@@ -24,14 +24,14 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
     return;
   }
 
-  const user = userRepository.findById(Number(payload.sub));
+  const user = (await userRepository.findById(Number(payload.sub)));
   if (!user) {
     res.status(401).json({ error: 'Not authenticated' });
     return;
   }
 
-  const membership = tenantMembershipRepository.findByUserAndTenant(user.id, payload.tenant_id);
-  const tenant = membership ? tenantRepository.findById(payload.tenant_id) : undefined;
+  const membership = (await tenantMembershipRepository.findByUserAndTenant(user.id, payload.tenant_id));
+  const tenant = membership ? (await tenantRepository.findById(payload.tenant_id)) : undefined;
   // Either can be gone even with a valid, unexpired token: the membership
   // if a head removed this user from the tenant since the token was
   // issued, the tenant in principle never (tenants aren't deletable

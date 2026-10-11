@@ -25,12 +25,13 @@ import type {
 // today, so this shouldn't happen) — skip that membership from the picker
 // rather than crash building it, so one bad row doesn't 500 out every
 // other, valid membership this identity has.
-function buildMembershipSummaries(userId: number): MembershipSummary[] {
-  return tenantMembershipRepository.listForUser(userId).flatMap((membership) => {
-    const tenant = tenantRepository.findById(membership.tenant_id);
-    if (!tenant) return [];
-    return [{ tenant_id: tenant.id, tenant_name: tenant.name, tenant_type: tenant.type, role: membership.role }];
-  });
+async function buildMembershipSummaries(userId: number): Promise<MembershipSummary[]> {
+  const summaries: MembershipSummary[] = [];
+  for (const membership of await tenantMembershipRepository.listForUser(userId)) {
+    const tenant = await tenantRepository.findById(membership.tenant_id);
+    if (tenant) summaries.push({ tenant_id: tenant.id, tenant_name: tenant.name, tenant_type: tenant.type, role: membership.role });
+  }
+  return summaries;
 }
 
 // A hash of an unguessable, never-issued password, used to give a
@@ -86,7 +87,7 @@ router.post('/login', authRateLimiter, async (req: Request<{}, {}, LoginRequest>
     return res.status(400).json({ error: 'email and password are required' });
   }
 
-  const user = userRepository.findByEmail(email);
+  const user = (await userRepository.findByEmail(email));
   // Always run a bcrypt.compare, even for a nonexistent user (against
   // DUMMY_HASH, which never matches) — skipping it when `user` is missing
   // would make login attempts for unregistered emails return measurably
@@ -97,10 +98,10 @@ router.post('/login', authRateLimiter, async (req: Request<{}, {}, LoginRequest>
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
-  const memberships = tenantMembershipRepository.listForUser(user.id);
+  const memberships = (await tenantMembershipRepository.listForUser(user.id));
   if (memberships.length === 1) {
     const membership = memberships[0];
-    const tenant = tenantRepository.findById(membership.tenant_id);
+    const tenant = (await tenantRepository.findById(membership.tenant_id));
     if (!tenant) {
       // Data integrity issue (a membership pointing at a tenant that no
       // longer exists) — tenants are never deleted today, so this
@@ -121,11 +122,11 @@ router.post('/login', authRateLimiter, async (req: Request<{}, {}, LoginRequest>
   // instead of a 500.
   const preToken = signPreTenantToken(user.id);
   res.cookie(COOKIE_NAME, preToken, PRE_TENANT_COOKIE_OPTIONS);
-  const body: LoginResponse = { memberships: buildMembershipSummaries(user.id) };
+  const body: LoginResponse = { memberships: (await buildMembershipSummaries(user.id)) };
   res.json(body);
 });
 
-router.post('/select-tenant', (req: Request<{}, {}, SelectTenantRequest>, res: Response) => {
+router.post('/select-tenant', async (req: Request<{}, {}, SelectTenantRequest>, res: Response) => {
   // Reads the cookie directly rather than via the `authenticate`
   // middleware: authenticate requires the token's CURRENT tenant_id to
   // resolve to a real membership, but a pre-tenant token (the multi-
@@ -143,13 +144,13 @@ router.post('/select-tenant', (req: Request<{}, {}, SelectTenantRequest>, res: R
     return res.status(400).json({ error: 'tenant_id must be a number' });
   }
 
-  const user = userRepository.findById(Number(payload.sub));
+  const user = (await userRepository.findById(Number(payload.sub)));
   if (!user) {
     return res.status(401).json({ error: 'Not authenticated' });
   }
 
-  const membership = tenantMembershipRepository.findByUserAndTenant(user.id, tenant_id);
-  const tenant = membership ? tenantRepository.findById(tenant_id) : undefined;
+  const membership = (await tenantMembershipRepository.findByUserAndTenant(user.id, tenant_id));
+  const tenant = membership ? (await tenantRepository.findById(tenant_id)) : undefined;
   if (!membership || !tenant) {
     return res.status(403).json({ error: 'Not a member of this tenant' });
   }
@@ -177,7 +178,7 @@ router.post('/register', authRateLimiter, async (req: Request<{}, {}, RegisterRe
     return res.status(400).json({ error: 'joinCode is required to join a company' });
   }
 
-  let tenant = accountType === 'join' ? tenantRepository.findByJoinCode(joinCode as string) : undefined;
+  let tenant = accountType === 'join' ? (await tenantRepository.findByJoinCode(joinCode as string)) : undefined;
   if (accountType === 'join' && !tenant) {
     return res.status(404).json({ error: 'Invalid join code' });
   }
@@ -186,14 +187,14 @@ router.post('/register', authRateLimiter, async (req: Request<{}, {}, RegisterRe
   // multi-tenant case — someone with, say, a personal budget registering
   // a new membership in a company — so the password must actually match
   // that existing account, not silently attach a membership to it.
-  let user = userRepository.findByEmail(email);
+  let user = (await userRepository.findByEmail(email));
   if (user) {
     if (!user.password_hash || !(await verifyPassword(password, user.password_hash))) {
       return res.status(401).json({ error: 'An account with this email already exists' });
     }
   } else {
     const password_hash = await hashPassword(password);
-    user = userRepository.create({ name, email, password_hash });
+    user = (await userRepository.create({ name, email, password_hash }));
   }
 
   // A personal budget is meant to be singular per person — unlike 'join'
@@ -206,30 +207,30 @@ router.post('/register', authRateLimiter, async (req: Request<{}, {}, RegisterRe
   // for this identity. Without this, a retried/double-submitted request
   // would silently create a second personal tenant every time (no tenant
   // exists yet for the "already a member" check below to catch).
-  if (accountType === 'personal' && tenantMembershipRepository.listForUser(user.id).some((m) => m.role === 'owner')) {
+  if (accountType === 'personal' && (await (await tenantMembershipRepository.listForUser(user.id)).some((m) => m.role === 'owner'))) {
     return res.status(400).json({ error: 'You already have a personal budget' });
   }
 
   if (accountType === 'personal') {
-    tenant = tenantRepository.create(`${name}'s Budget`, 'personal');
+    tenant = (await tenantRepository.create(`${name}'s Budget`, 'personal'));
   } else if (accountType === 'company') {
-    tenant = tenantRepository.create(`${name}'s Company`, 'enterprise');
+    tenant = (await tenantRepository.create(`${name}'s Company`, 'enterprise'));
   }
   // 'join' already resolved tenant above (or 404'd before this point).
   const resolvedTenant = tenant as NonNullable<typeof tenant>;
 
-  if (tenantMembershipRepository.findByUserAndTenant(user.id, resolvedTenant.id)) {
+  if ((await tenantMembershipRepository.findByUserAndTenant(user.id, resolvedTenant.id))) {
     return res.status(400).json({ error: 'You already belong to this tenant' });
   }
 
   const role: MembershipRole =
     accountType === 'personal' ? 'owner' : accountType === 'company' ? 'department_head' : 'department_employee';
-  const membership = tenantMembershipRepository.create({
+  const membership = (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: resolvedTenant.id,
     role,
     department_id: null,
-  });
+  }));
 
   const token = signToken(user.id, resolvedTenant.id);
   res.cookie(COOKIE_NAME, token, COOKIE_OPTIONS);
@@ -254,9 +255,9 @@ router.get('/me', authenticate, (req: Request, res: Response) => {
 // exists before a session is established. Always includes the tenant the
 // caller is currently in, so the client doesn't need to merge it in
 // separately with req.user.
-router.get('/memberships', authenticate, (req: Request, res: Response) => {
+router.get('/memberships', authenticate, async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json({ memberships: buildMembershipSummaries(user.id) });
+  res.json({ memberships: (await buildMembershipSummaries(user.id)) });
 });
 
 export default router;

@@ -9,16 +9,16 @@ import Database from 'better-sqlite3';
 // under test only ever runs once, at module import time, so exercising it
 // means actually simulating a server restart against the same file.
 let dbPath: string;
-const originalDbPath = process.env.DB_PATH;
+const originalDbPath = process.env.SQLITE_UPGRADE_PATH;
 
 beforeEach(() => {
   dbPath = path.join(os.tmpdir(), `budget-migration-test-${Date.now()}-${Math.random()}.sqlite`);
-  process.env.DB_PATH = dbPath;
+  process.env.SQLITE_UPGRADE_PATH = dbPath;
   vi.resetModules();
 });
 
 afterEach(() => {
-  process.env.DB_PATH = originalDbPath;
+  process.env.SQLITE_UPGRADE_PATH = originalDbPath;
   vi.resetModules();
   fs.rmSync(dbPath, { force: true });
 });
@@ -27,7 +27,7 @@ describe('backfill_approved_pre_approval_workflow', () => {
   it('backfills a legacy approved=0/needs_approval=0 transaction on the boot where it is first found', async () => {
     // Boot 1: creates the schema and runs the migration against empty
     // tables (a no-op — nothing to backfill yet, but the marker gets set).
-    const first = await import('./index');
+    const first = await import('./legacySqlite');
     first.default.close();
 
     // Between boots: insert a transaction shaped exactly like every row
@@ -52,7 +52,7 @@ describe('backfill_approved_pre_approval_workflow', () => {
     // Boot 2: the migration finds no marker, so it re-runs and backfills
     // the legacy row.
     vi.resetModules();
-    const second = await import('./index');
+    const second = await import('./legacySqlite');
     const row = second.default.prepare('SELECT approved, needs_approval FROM transactions WHERE id = ?').get(txId);
     expect(row).toEqual({ approved: 1, needs_approval: 0 });
     second.default.close();
@@ -60,7 +60,7 @@ describe('backfill_approved_pre_approval_workflow', () => {
 
   it('does not touch a genuinely rejected transaction on a later restart', async () => {
     // Boot 1: schema created, marker set (nothing to backfill).
-    const first = await import('./index');
+    const first = await import('./legacySqlite');
     const tenantId = first.default
       .prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')")
       .run().lastInsertRowid as number;
@@ -81,7 +81,7 @@ describe('backfill_approved_pre_approval_workflow', () => {
     // already present from boot 1 — the migration must be a no-op here,
     // or it would silently un-reject this transaction.
     vi.resetModules();
-    const second = await import('./index');
+    const second = await import('./legacySqlite');
     const row = second.default.prepare('SELECT approved, needs_approval FROM transactions WHERE id = ?').get(txId);
     expect(row).toEqual({ approved: 0, needs_approval: 0 });
     second.default.close();
@@ -132,7 +132,7 @@ describe('migrate_users_and_departments_to_tenants', () => {
       .run('Evan Employee', 'evan@example.com', 'department_employee', deptId).lastInsertRowid as number;
     raw.close();
 
-    const opened = await import('./index');
+    const opened = await import('./legacySqlite');
     const db = opened.default;
 
     const tenants = db.prepare('SELECT * FROM tenants').all();
@@ -163,7 +163,7 @@ describe('migrate_users_and_departments_to_tenants', () => {
   });
 
   it('is a no-op on a fresh, empty database — no default tenant is synthesized', async () => {
-    const opened = await import('./index');
+    const opened = await import('./legacySqlite');
     expect(opened.default.prepare('SELECT COUNT(*) AS count FROM tenants').get()).toEqual({ count: 0 });
     opened.default.close();
   });
@@ -179,7 +179,7 @@ describe('migrate_users_and_departments_to_tenants', () => {
     );
     raw.close();
 
-    const first = await import('./index');
+    const first = await import('./legacySqlite');
     expect(first.default.prepare('SELECT COUNT(*) AS count FROM tenants').get()).toEqual({ count: 1 });
     // Simulates real post-migration activity: a second tenant created
     // through the normal application flow (e.g. a personal signup),
@@ -190,7 +190,7 @@ describe('migrate_users_and_departments_to_tenants', () => {
     // Boot 2: if the migration re-ran, it would see userCount > 0 again
     // and synthesize a second 'Default Company' tenant.
     vi.resetModules();
-    const second = await import('./index');
+    const second = await import('./legacySqlite');
     const tenants = second.default.prepare('SELECT name, type FROM tenants').all();
     expect(tenants).toEqual([
       { name: 'Default Company', type: 'enterprise' },

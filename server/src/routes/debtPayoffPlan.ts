@@ -10,9 +10,9 @@ const STRATEGIES = ['snowball', 'avalanche', 'custom'];
 
 // Read-only — this data only exists under a personal tenant (see every
 // other Phase 2 route), so 'owner'-only, no separate tenant_type check.
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json(debtPayoffPlanRepository.buildPlan(user.tenant_id));
+  res.json((await debtPayoffPlanRepository.buildPlan(user.tenant_id)));
 });
 
 function validateBody(body: UpdateDebtPayoffSettingsDto): string | null {
@@ -35,16 +35,16 @@ function validateBody(body: UpdateDebtPayoffSettingsDto): string | null {
 // Mounted at /settings under this same router (not nested under
 // /api/debts) — see decision 26 for why this whole feature got its own
 // router instead of extending debts.ts.
-router.put('/settings', requireRole('owner'), (req: Request<{}, {}, UpdateDebtPayoffSettingsDto>, res: Response) => {
-  const validationError = validateBody(req.body);
+router.put('/settings', requireRole('owner'), async (req: Request<{}, {}, UpdateDebtPayoffSettingsDto>, res: Response) => {
+  const validationError = (await validateBody(req.body));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
   const user = req.user as AuthUser;
-  debtPayoffSettingsRepository.upsert(user.tenant_id, req.body);
+  (await debtPayoffSettingsRepository.upsert(user.tenant_id, req.body));
   // Returns the freshly recomputed plan (not just the settings row) so the
   // client gets an up-to-date result in one round trip.
-  res.json(debtPayoffPlanRepository.buildPlan(user.tenant_id));
+  res.json((await debtPayoffPlanRepository.buildPlan(user.tenant_id)));
 });
 
 export default router;

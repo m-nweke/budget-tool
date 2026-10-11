@@ -8,9 +8,9 @@ const router = express.Router();
 
 const VALID_TYPES: InvestmentType[] = ['brokerage', 'retirement', 'crypto', 'other'];
 
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json(investmentRepository.findAll(user.tenant_id));
+  res.json((await investmentRepository.findAll(user.tenant_id)));
 });
 
 function validateBody(body: CreateInvestmentDto): string | null {
@@ -50,38 +50,38 @@ function validateBody(body: CreateInvestmentDto): string | null {
 // body (e.g. an object or array where a number is expected) would otherwise
 // reach bankAccountRepository.findById and throw when better-sqlite3 tries
 // to bind it as a query parameter, 500ing instead of cleanly 400ing.
-function validateLinkedAccount(user: AuthUser, bankAccountId: unknown): { error: string } | null {
+async function validateLinkedAccount(user: AuthUser, bankAccountId: unknown): Promise<{ error: string } | null> {
   if (bankAccountId === null || bankAccountId === undefined) return null;
   if (typeof bankAccountId !== 'number') {
     return { error: 'bank_account_id must be a number' };
   }
-  const account = bankAccountRepository.findById(bankAccountId);
+  const account = (await bankAccountRepository.findById(bankAccountId));
   if (!account || account.tenant_id !== user.tenant_id) {
     return { error: 'bank_account_id does not reference an account in this tenant' };
   }
   return null;
 }
 
-router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateInvestmentDto>, res: Response) => {
-  const validationError = validateBody(req.body);
+router.post('/', requireRole('owner'), async (req: Request<{}, {}, CreateInvestmentDto>, res: Response) => {
+  const validationError = (await validateBody(req.body));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
   const user = req.user as AuthUser;
-  const linkError = validateLinkedAccount(user, req.body.bank_account_id);
+  const linkError = (await validateLinkedAccount(user, req.body.bank_account_id));
   if (linkError) {
     return res.status(400).json(linkError);
   }
-  const investment = investmentRepository.create(req.body, user.tenant_id);
+  const investment = (await investmentRepository.create(req.body, user.tenant_id));
   res.status(201).json(investment);
 });
 
-router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreateInvestmentDto>, res: Response) => {
-  const validationError = validateBody(req.body);
+router.put('/:id', requireRole('owner'), async (req: Request<{ id: string }, {}, CreateInvestmentDto>, res: Response) => {
+  const validationError = (await validateBody(req.body));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
-  const existing = investmentRepository.findById(req.params.id);
+  const existing = (await investmentRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'investment not found' });
   }
@@ -89,16 +89,16 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this investment' });
   }
-  const linkError = validateLinkedAccount(user, req.body.bank_account_id);
+  const linkError = (await validateLinkedAccount(user, req.body.bank_account_id));
   if (linkError) {
     return res.status(400).json(linkError);
   }
-  const investment = investmentRepository.update(req.params.id, req.body);
+  const investment = (await investmentRepository.update(req.params.id, req.body));
   res.json(investment);
 });
 
-router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: Response) => {
-  const existing = investmentRepository.findById(req.params.id);
+router.delete('/:id', requireRole('owner'), async (req: Request<{ id: string }>, res: Response) => {
+  const existing = (await investmentRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'investment not found' });
   }
@@ -106,7 +106,7 @@ router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: 
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this investment' });
   }
-  investmentRepository.remove(req.params.id);
+  (await investmentRepository.remove(req.params.id));
   res.status(204).end();
 });
 
