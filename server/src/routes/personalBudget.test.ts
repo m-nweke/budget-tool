@@ -16,36 +16,36 @@ async function loginAs(email: string, password = 'password123') {
 }
 
 async function createHead(name: string, email: string) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: enterpriseTenantId,
     role: 'department_head',
     department_id: null,
-  });
+  }));
   return user;
 }
 
 async function createOwner(name: string, email: string) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  const personalTenant = tenantRepository.create(`${name}'s Budget`, 'personal');
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  const personalTenant = (await tenantRepository.create(`${name}'s Budget`, 'personal'));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: personalTenant.id,
     role: 'owner',
     department_id: null,
-  });
+  }));
   return { user, tenantId: personalTenant.id };
 }
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM paycheck_splits; DELETE FROM paychecks; DELETE FROM savings_goals; ' +
       'DELETE FROM debt_payoff_settings; DELETE FROM debts; ' +
       'DELETE FROM bills; DELETE FROM investments; DELETE FROM bank_accounts; ' +
       'DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM tenants;'
-  );
-  enterpriseTenantId = tenantRepository.create('Acme Co', 'enterprise').id;
+  ));
+  enterpriseTenantId = (await tenantRepository.create('Acme Co', 'enterprise')).id;
 });
 
 describe('GET /api/bank-accounts', () => {
@@ -58,10 +58,10 @@ describe('GET /api/bank-accounts', () => {
 
   it('an owner sees only their own tenant\'s accounts', async () => {
     const { tenantId } = await createOwner('Pat', 'pat@example.com');
-    db.prepare('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)').run(tenantId, 'Checking', 'checking');
+    (await db.run('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)', tenantId, 'Checking', 'checking'));
 
-    const otherTenant = tenantRepository.create("Alex's Budget", 'personal');
-    db.prepare('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)').run(otherTenant.id, 'Other Checking', 'checking');
+    const otherTenant = (await tenantRepository.create("Alex's Budget", 'personal'));
+    (await db.run('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)', otherTenant.id, 'Other Checking', 'checking'));
 
     const agent = await loginAs('pat@example.com');
     const res = await agent.get('/api/bank-accounts');
@@ -135,10 +135,8 @@ describe('CRUD /api/bank-accounts', () => {
   });
 
   it('an owner cannot update or delete another tenant\'s bank account', async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherAccountId = db
-      .prepare('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)')
-      .run(other.id, 'Checking', 'checking').lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherAccountId = (await db.run('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)', other.id, 'Checking', 'checking')).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
@@ -181,10 +179,8 @@ describe('CRUD /api/savings-goals', () => {
   });
 
   it('rejects a bank_account_id from another tenant', async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherAccountId = db
-      .prepare('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)')
-      .run(other.id, 'Checking', 'checking').lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherAccountId = (await db.run('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)', other.id, 'Checking', 'checking')).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
@@ -366,10 +362,8 @@ describe('CRUD /api/bills', () => {
   });
 
   it('an owner cannot update or delete another tenant\'s bill', async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherBillId = db
-      .prepare('INSERT INTO bills (tenant_id, name, category, amount, due_day) VALUES (?, ?, ?, ?, ?)')
-      .run(other.id, 'Rent', 'rent', 1500, 1).lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherBillId = (await db.run('INSERT INTO bills (tenant_id, name, category, amount, due_day) VALUES (?, ?, ?, ?, ?)', other.id, 'Rent', 'rent', 1500, 1)).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
@@ -464,10 +458,8 @@ describe('CRUD /api/investments', () => {
   });
 
   it('rejects a bank_account_id belonging to another tenant', async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherAccountId = db
-      .prepare("INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, 'Checking', 'checking', 0)")
-      .run(other.id).lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherAccountId = (await db.run("INSERT INTO bank_accounts (tenant_id, name, type, current_balance) VALUES (?, 'Checking', 'checking', 0)", other.id)).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
@@ -487,10 +479,8 @@ describe('CRUD /api/investments', () => {
   });
 
   it("an owner cannot update or delete another tenant's investment", async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherInvestmentId = db
-      .prepare('INSERT INTO investments (tenant_id, name, type) VALUES (?, ?, ?)')
-      .run(other.id, 'Vanguard', 'brokerage').lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherInvestmentId = (await db.run('INSERT INTO investments (tenant_id, name, type) VALUES (?, ?, ?)', other.id, 'Vanguard', 'brokerage')).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
@@ -541,10 +531,8 @@ describe('CRUD /api/paychecks', () => {
   });
 
   it('rejects a split whose bank_account_id belongs to another tenant', async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherAccountId = db
-      .prepare('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)')
-      .run(other.id, 'Checking', 'checking').lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherAccountId = (await db.run('INSERT INTO bank_accounts (tenant_id, name, type) VALUES (?, ?, ?)', other.id, 'Checking', 'checking')).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');
@@ -584,10 +572,8 @@ describe('CRUD /api/paychecks', () => {
   });
 
   it('an owner cannot update another tenant\'s paycheck', async () => {
-    const other = tenantRepository.create("Alex's Budget", 'personal');
-    const otherPaycheckId = db
-      .prepare('INSERT INTO paychecks (tenant_id, label, amount, frequency, next_pay_date) VALUES (?, ?, ?, ?, ?)')
-      .run(other.id, 'Other Job', 1000, 'weekly', '2026-09-01').lastInsertRowid as number;
+    const other = (await tenantRepository.create("Alex's Budget", 'personal'));
+    const otherPaycheckId = (await db.run('INSERT INTO paychecks (tenant_id, label, amount, frequency, next_pay_date) VALUES (?, ?, ?, ?, ?)', other.id, 'Other Job', 1000, 'weekly', '2026-09-01')).lastInsertRowid as number;
 
     await createOwner('Pat', 'pat@example.com');
     const agent = await loginAs('pat@example.com');

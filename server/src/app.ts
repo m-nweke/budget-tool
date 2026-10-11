@@ -3,6 +3,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 
+import { query } from './db';
 import authRouter from './routes/auth';
 import departmentsRouter from './routes/departments';
 import categoriesRouter from './routes/categories';
@@ -46,6 +47,10 @@ app.use(cookieParser());
 // /login and /logout are public by design; /me guards itself inline via
 // authenticate. Every other router below now requires a valid session —
 // this is the point department scoping actually needs req.user for.
+app.get('/api/health', async (_req: Request, res: Response) => {
+  try { await query('SELECT 1'); res.json({ status: 'ok' }); }
+  catch { res.status(503).json({ status: 'unavailable' }); }
+});
 app.use('/api/auth', authRouter);
 
 // Materialize any due recurring transactions before serving reads. There's
@@ -62,7 +67,7 @@ app.use('/api/auth', authRouter);
 // materialize (and write) every other tenant's due recurring transactions
 // too, an unscoped cross-tenant cost that grows with total platform tenant
 // count, not this tenant's own data (see recurringTransactionRepository.generateDue).
-function materializeDueTransactions(req: Request, res: Response, next: NextFunction): void {
+async function materializeDueTransactions(req: Request, res: Response, next: NextFunction): Promise<void> {
   if (!req.user) {
     // authenticate() always runs first and sets req.user — this guard exists
     // so a missing tenant_id fails closed instead of silently falling through
@@ -70,7 +75,7 @@ function materializeDueTransactions(req: Request, res: Response, next: NextFunct
     next(new Error('materializeDueTransactions requires an authenticated request'));
     return;
   }
-  recurringTransactionRepository.generateDue(req.user.tenant_id);
+  await recurringTransactionRepository.generateDue(req.user.tenant_id);
   next();
 }
 

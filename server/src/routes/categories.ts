@@ -12,9 +12,9 @@ import type { CreateCategoryDto, AuthUser } from '../types';
 
 const router = express.Router();
 
-router.get('/', (req: Request, res: Response) => {
-  const scope = resolveScope(req.user as AuthUser);
-  res.json(categoryRepository.findAll(scope.departmentIds, scope.tenantId));
+router.get('/', async (req: Request, res: Response) => {
+  const scope = (await resolveScope(req.user as AuthUser));
+  res.json((await categoryRepository.findAll(scope.departmentIds, scope.tenantId)));
 });
 
 // Category management is 'department_head'-or-'owner'-only — a plain
@@ -28,7 +28,7 @@ router.get('/', (req: Request, res: Response) => {
 router.post(
   '/',
   requireRole('department_head', 'owner'),
-  (req: Request<{}, {}, CreateCategoryDto>, res: Response) => {
+  async (req: Request<{}, {}, CreateCategoryDto>, res: Response) => {
     const { name, budgeted_amount, start_on, approval_threshold } = req.body;
     if (!name || budgeted_amount === undefined || budgeted_amount === null) {
       return res.status(400).json({ error: 'name and budgeted_amount are required' });
@@ -43,15 +43,15 @@ router.post(
       if (department_id === undefined || department_id === null) {
         return res.status(400).json({ error: 'department_id is required' });
       }
-      if (!userHasDepartmentAccess(user, department_id)) {
+      if (!(await userHasDepartmentAccess(user, department_id))) {
         return res.status(403).json({ error: 'Not authorized for this department' });
       }
     }
 
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name, budgeted_amount, start_on, department_id, approval_threshold },
       user.tenant_id
-    );
+    ));
     res.status(201).json(category);
   }
 );
@@ -59,12 +59,12 @@ router.post(
 router.put(
   '/:id',
   requireRole('department_head', 'owner'),
-  (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Response) => {
+  async (req: Request<{ id: string }, {}, CreateCategoryDto>, res: Response) => {
     const { name, budgeted_amount, start_on, approval_threshold } = req.body;
     if (!name || budgeted_amount === undefined || budgeted_amount === null) {
       return res.status(400).json({ error: 'name and budgeted_amount are required' });
     }
-    const existing = categoryRepository.findById(req.params.id);
+    const existing = (await categoryRepository.findById(req.params.id));
     if (!existing) {
       return res.status(404).json({ error: 'category not found' });
     }
@@ -72,7 +72,7 @@ router.put(
 
     let department_id: number | null;
     if (user.role === 'owner') {
-      if (!userCanAccessResource(user, existing)) {
+      if (!(await userCanAccessResource(user, existing))) {
         return res.status(403).json({ error: 'Not authorized for this category' });
       }
       department_id = null;
@@ -85,18 +85,18 @@ router.put(
       // target one — a head can't use an edit to move a category into a
       // department they don't have access to, nor edit one they've lost
       // access to since it was created.
-      if (!userHasAccessToAll(user, [existing.department_id, department_id])) {
+      if (!(await userHasAccessToAll(user, [existing.department_id, department_id]))) {
         return res.status(403).json({ error: 'Not authorized for this department' });
       }
     }
 
-    const category = categoryRepository.update(req.params.id, {
+    const category = (await categoryRepository.update(req.params.id, {
       name,
       budgeted_amount,
       start_on,
       department_id,
       approval_threshold,
-    });
+    }));
     res.json(category);
   }
 );
@@ -104,24 +104,24 @@ router.put(
 router.delete(
   '/:id',
   requireRole('department_head', 'owner'),
-  (req: Request<{ id: string }>, res: Response) => {
-    const existing = categoryRepository.findById(req.params.id);
+  async (req: Request<{ id: string }>, res: Response) => {
+    const existing = (await categoryRepository.findById(req.params.id));
     if (!existing) {
       return res.status(404).json({ error: 'category not found' });
     }
     const user = req.user as AuthUser;
-    if (!userCanAccessResource(user, existing)) {
+    if (!(await userCanAccessResource(user, existing))) {
       return res.status(403).json({ error: 'Not authorized for this department' });
     }
-    if (categoryRepository.countTransactionsFor(req.params.id) > 0) {
+    if ((await categoryRepository.countTransactionsFor(req.params.id)) > 0) {
       return res.status(400).json({ error: 'cannot delete a category that has transactions' });
     }
-    if (recurringTransactionRepository.countForCategory(req.params.id) > 0) {
+    if ((await recurringTransactionRepository.countForCategory(req.params.id)) > 0) {
       return res
         .status(400)
         .json({ error: 'cannot delete a category that has recurring transactions' });
     }
-    categoryRepository.remove(req.params.id);
+    (await categoryRepository.remove(req.params.id));
     res.status(204).end();
   }
 );

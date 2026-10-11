@@ -145,12 +145,11 @@ function buildSnapshot(debts: Debt[]): DebtSnapshot | null {
 }
 
 const debtPayoffPlanRepository = {
-  buildPlan(tenantId: number): DebtPayoffPlanResponse {
-    const debts = debtRepository.findAll(tenantId);
-    const settings = debtPayoffSettingsRepository.find(tenantId) ?? null;
-    const totalBalanceAcrossAccounts = bankAccountRepository
-      .findAll(tenantId)
-      .reduce((sum, account) => sum + account.current_balance, 0);
+  async buildPlan(tenantId: number): Promise<DebtPayoffPlanResponse> {
+    const debts = (await debtRepository.findAll(tenantId));
+    const settings = (await debtPayoffSettingsRepository.find(tenantId)) ?? null;
+    const totalBalanceAcrossAccounts = (await (await (await bankAccountRepository.findAll(tenantId)))
+      .reduce((sum, account) => sum + account.current_balance, 0));
 
     const snapshot = buildSnapshot(debts);
 
@@ -160,11 +159,11 @@ const debtPayoffPlanRepository = {
     if (settings && settings.monthly_amount > 0 && debts.length > 0) {
       const customOrder = (() => { if (!settings.custom_order) return null; try { return JSON.parse(settings.custom_order) as number[]; } catch { return null; } })();
       const order = orderDebts(debts, settings.strategy, customOrder);
-      plan = simulate(debts, settings.monthly_amount, order);
+      plan = (await simulate(debts, settings.monthly_amount, order));
 
       if (settings.strategy !== 'avalanche' && !('insufficient_minimums' in plan)) {
         const avalancheOrder = orderDebts(debts, 'avalanche', null);
-        const avalanchePlan = simulate(debts, settings.monthly_amount, avalancheOrder);
+        const avalanchePlan = (await simulate(debts, settings.monthly_amount, avalancheOrder));
         if (!('insufficient_minimums' in avalanchePlan)) {
           avalancheComparison = {
             total_interest: avalanchePlan.total_interest,

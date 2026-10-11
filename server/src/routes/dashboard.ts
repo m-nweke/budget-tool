@@ -15,7 +15,7 @@ function isValidDepartmentId(value: unknown): value is string {
   return typeof value === 'string' && /^[1-9]\d*$/.test(value) && Number.isSafeInteger(Number(value));
 }
 
-router.get('/', (req: Request, res: Response) => {
+router.get('/', async (req: Request, res: Response) => {
   const { from, to, department_id: departmentIdParam } = req.query;
 
   if (from !== undefined && !isValidMonth(from)) {
@@ -37,7 +37,7 @@ router.get('/', (req: Request, res: Response) => {
   const resolvedFrom = isValidMonth(from) ? from : isValidMonth(to) ? to : undefined;
   const resolvedTo = isValidMonth(to) ? to : resolvedFrom;
 
-  const scope = resolveScope(req.user as AuthUser);
+  const scope = (await resolveScope(req.user as AuthUser));
 
   let departmentIds = scope.departmentIds;
   if (departmentIdParam !== undefined) {
@@ -56,7 +56,7 @@ router.get('/', (req: Request, res: Response) => {
     departmentIds = [requestedId];
   }
 
-  res.json(dashboardRepository.findSummary(resolvedFrom, resolvedTo, departmentIds, scope.tenantId));
+  res.json((await dashboardRepository.findSummary(resolvedFrom, resolvedTo, departmentIds, scope.tenantId)));
 });
 
 export default router;

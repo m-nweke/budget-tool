@@ -15,17 +15,17 @@ let otherTenantId: number;
 let deptA: number;
 let deptB: number;
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
-  );
-  tenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')").run()
+  ));
+  tenantId = (await db.run("INSERT INTO tenants (name, type) VALUES ('Acme Co', 'enterprise')"))
     .lastInsertRowid as number;
-  otherTenantId = db.prepare("INSERT INTO tenants (name, type) VALUES ('Other Co', 'enterprise')").run()
+  otherTenantId = (await db.run("INSERT INTO tenants (name, type) VALUES ('Other Co', 'enterprise')"))
     .lastInsertRowid as number;
-  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+  deptA = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Engineering', tenantId))
     .lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+  deptB = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Marketing', tenantId))
     .lastInsertRowid as number;
 });
 
@@ -55,8 +55,8 @@ function owner(): AuthUser {
 
 // A real users row is required — department_access.user_id has a foreign
 // key, so any test granting access needs an actual user to grant it to.
-function head(): AuthUser {
-  const id = db.prepare('INSERT INTO users (name, email) VALUES (?, ?)').run('Dana Head', 'dana@example.com')
+async function head(): Promise<AuthUser> {
+  const id = (await db.run('INSERT INTO users (name, email) VALUES (?, ?)', 'Dana Head', 'dana@example.com'))
     .lastInsertRowid as number;
   return {
     id,
@@ -70,81 +70,81 @@ function head(): AuthUser {
 }
 
 describe('resolveAccessibleDepartmentIds', () => {
-  it('an employee resolves to their single home department', () => {
-    expect(resolveAccessibleDepartmentIds(employee(deptA))).toEqual([deptA]);
+  it('an employee resolves to their single home department', async () => {
+    expect((await resolveAccessibleDepartmentIds(employee(deptA)))).toEqual([deptA]);
   });
 
-  it('an employee with no home department resolves to zero access', () => {
-    expect(resolveAccessibleDepartmentIds(employee(null))).toEqual([]);
+  it('an employee with no home department resolves to zero access', async () => {
+    expect((await resolveAccessibleDepartmentIds(employee(null)))).toEqual([]);
   });
 
-  it('a head with no grants resolves to zero access — no implicit fallback', () => {
-    expect(resolveAccessibleDepartmentIds(head())).toEqual([]);
+  it('a head with no grants resolves to zero access — no implicit fallback', async () => {
+    expect((await resolveAccessibleDepartmentIds((await head())))).toEqual([]);
   });
 
-  it('a head resolves to every department they\'ve been granted', () => {
-    const user = head();
-    departmentAccessRepository.grant(user.id, deptA);
-    departmentAccessRepository.grant(user.id, deptB);
-    expect(resolveAccessibleDepartmentIds(user).sort()).toEqual([deptA, deptB].sort());
+  it('a head resolves to every department they\'ve been granted', async () => {
+    const user = (await head());
+    (await departmentAccessRepository.grant(user.id, deptA));
+    (await departmentAccessRepository.grant(user.id, deptB));
+    expect((await resolveAccessibleDepartmentIds(user)).sort()).toEqual([deptA, deptB].sort());
   });
 
-  it('an owner (personal tenant) always resolves to zero departments — no departments exist to be accessible', () => {
-    expect(resolveAccessibleDepartmentIds(owner())).toEqual([]);
+  it('an owner (personal tenant) always resolves to zero departments — no departments exist to be accessible', async () => {
+    expect((await resolveAccessibleDepartmentIds(owner()))).toEqual([]);
   });
 });
 
 describe('resolveScope', () => {
-  it('an enterprise user gets a department-based scope', () => {
-    expect(resolveScope(employee(deptA))).toEqual({ departmentIds: [deptA] });
+  it('an enterprise user gets a department-based scope', async () => {
+    expect((await resolveScope(employee(deptA)))).toEqual({ departmentIds: [deptA] });
   });
 
-  it('an owner gets a tenant-based scope instead', () => {
-    expect(resolveScope(owner())).toEqual({ tenantId });
+  it('an owner gets a tenant-based scope instead', async () => {
+    expect((await resolveScope(owner()))).toEqual({ tenantId });
   });
 });
 
 describe('userHasDepartmentAccess', () => {
-  it('true for an employee\'s home department', () => {
-    expect(userHasDepartmentAccess(employee(deptA), deptA)).toBe(true);
+  it('true for an employee\'s home department', async () => {
+    expect((await userHasDepartmentAccess(employee(deptA), deptA))).toBe(true);
   });
 
-  it('false for a department other than the employee\'s home one', () => {
-    expect(userHasDepartmentAccess(employee(deptA), deptB)).toBe(false);
+  it('false for a department other than the employee\'s home one', async () => {
+    expect((await userHasDepartmentAccess(employee(deptA), deptB))).toBe(false);
   });
 
-  it('false when the target department is null (e.g. an unscoped category)', () => {
-    expect(userHasDepartmentAccess(employee(deptA), null)).toBe(false);
+  it('false when the target department is null (e.g. an unscoped category)', async () => {
+    expect((await userHasDepartmentAccess(employee(deptA), null))).toBe(false);
   });
 
-  it('true for a head granted that department', () => {
-    const user = head();
-    departmentAccessRepository.grant(user.id, deptA);
-    expect(userHasDepartmentAccess(user, deptA)).toBe(true);
+  it('true for a head granted that department', async () => {
+    const user = (await head());
+    (await departmentAccessRepository.grant(user.id, deptA));
+    expect((await userHasDepartmentAccess(user, deptA))).toBe(true);
   });
 
-  it('false for a head not granted that department', () => {
-    const user = head();
-    departmentAccessRepository.grant(user.id, deptA);
-    expect(userHasDepartmentAccess(user, deptB)).toBe(false);
+  it('false for a head not granted that department', async () => {
+    const user = (await head());
+    (await departmentAccessRepository.grant(user.id, deptA));
+    expect((await userHasDepartmentAccess(user, deptB))).toBe(false);
   });
 });
 
 describe('userCanAccessResource', () => {
-  it('an enterprise user falls back to the department check', () => {
+  it('an enterprise user falls back to the department check', async () => {
     const resource = { tenant_id: tenantId, department_id: deptA };
-    expect(userCanAccessResource(employee(deptA), resource)).toBe(true);
-    expect(userCanAccessResource(employee(deptB), resource)).toBe(false);
+    expect((await userCanAccessResource(employee(deptA), resource))).toBe(true);
+    expect((await userCanAccessResource(employee(deptB), resource))).toBe(false);
   });
 
-  it('an owner is authorized for any resource in their own tenant', () => {
+  it('an owner is authorized for any resource in their own tenant', async () => {
     const resource = { tenant_id: tenantId, department_id: null };
-    expect(userCanAccessResource(owner(), resource)).toBe(true);
+    expect((await userCanAccessResource(owner(), resource))).toBe(true);
   });
 
-  it('an owner is not authorized for a resource in a different tenant', () => {
+  it('an owner is not authorized for a resource in a different tenant', async () => {
     const resource = { tenant_id: otherTenantId, department_id: null };
-    expect(userCanAccessResource(owner(), resource)).toBe(false);
+    expect((await userCanAccessResource(owner(), resource))).toBe(false);
   });
 });
 
@@ -154,8 +154,8 @@ describe('requireRole', () => {
     return { status } as unknown as import('express').Response;
   }
 
-  it('calls next() when the user has one of the required roles', () => {
-    const req = { user: head() } as import('express').Request;
+  it('calls next() when the user has one of the required roles', async () => {
+    const req = { user: (await head()) } as import('express').Request;
     const next = vi.fn();
     requireRole('department_head')(req, mockRes(), next);
     expect(next).toHaveBeenCalled();

@@ -10,7 +10,7 @@ const COLUMNS = 'id, amount, description, category_id, interval, next_run_date, 
 // current next_run_date. Shared by generateDue() (all active templates) and
 // update()'s "apply to existing" regeneration path (one template, after its
 // generation cursor has been rewound — see recurringTransactionRepository.update).
-function generateDueForTemplate(template: RecurringTransaction): void {
+async function generateDueForTemplate(template: RecurringTransaction): Promise<void> {
   const today = todayISO();
   let nextRun = template.next_run_date;
   let pastEnd = false;
@@ -18,7 +18,7 @@ function generateDueForTemplate(template: RecurringTransaction): void {
   // Loaded once per template, not per occurrence — a category's threshold
   // can't change mid-loop, and generateDue() may run this for many
   // templates in one pass.
-  const category = categoryRepository.findById(template.category_id);
+  const category = (await categoryRepository.findById(template.category_id));
   const threshold = category?.approval_threshold ?? null;
 
   while (nextRun <= today) {
@@ -27,7 +27,7 @@ function generateDueForTemplate(template: RecurringTransaction): void {
       break;
     }
     const needsApproval = threshold !== null && template.amount > threshold;
-    transactionRepository.createGenerated(
+    (await transactionRepository.createGenerated(
       {
         amount: template.amount,
         date: nextRun,
@@ -37,7 +37,7 @@ function generateDueForTemplate(template: RecurringTransaction): void {
       template.id,
       needsApproval,
       !needsApproval
-    );
+    ));
     nextRun = addByInterval(nextRun, template.interval);
   }
 
@@ -46,9 +46,9 @@ function generateDueForTemplate(template: RecurringTransaction): void {
   }
 
   if (pastEnd) {
-    recurringTransactionRepository.deactivate(template.id);
+    (await recurringTransactionRepository.deactivate(template.id));
   } else if (nextRun !== template.next_run_date) {
-    db.prepare('UPDATE recurring_transactions SET next_run_date = ? WHERE id = ?').run(nextRun, template.id);
+    (await db.run('UPDATE recurring_transactions SET next_run_date = ? WHERE id = ?', nextRun, template.id));
   }
 }
 
@@ -56,22 +56,16 @@ function generateDueForTemplate(template: RecurringTransaction): void {
 // shape as findAllActive (tenantId given = one tenant via the categories
 // join, omitted = every tenant), but a single indexed LIMIT 1 lookup instead
 // of materializing every active template's full row.
-function hasDueTemplates(tenantId?: number): boolean {
+async function hasDueTemplates(tenantId?: number): Promise<boolean> {
   const today = todayISO();
   if (tenantId !== undefined) {
-    const row = db
-      .prepare(
-        `SELECT 1 FROM recurring_transactions rt
+    const row = (await db.get(`SELECT 1 FROM recurring_transactions rt
          JOIN categories c ON c.id = rt.category_id
          WHERE rt.active = 1 AND c.tenant_id = ? AND rt.next_run_date <= ?
-         LIMIT 1`
-      )
-      .get(tenantId, today);
+         LIMIT 1`, tenantId, today));
     return row !== undefined;
   }
-  const row = db
-    .prepare('SELECT 1 FROM recurring_transactions WHERE active = 1 AND next_run_date <= ? LIMIT 1')
-    .get(today);
+  const row = (await db.get('SELECT 1 FROM recurring_transactions WHERE active = 1 AND next_run_date <= ? LIMIT 1', today));
   return row !== undefined;
 }
 
@@ -80,9 +74,9 @@ function hasDueTemplates(tenantId?: number): boolean {
 // individually — batching them is both faster and makes the whole
 // generation pass atomic (a crash mid-backfill can't leave next_run_date
 // out of sync with which transactions actually got created).
-const generateDueTransaction = db.transaction((tenantId?: number) => {
-  for (const template of recurringTransactionRepository.findAllActive(undefined, tenantId)) {
-    generateDueForTemplate(template);
+const generateDueTransaction = db.transaction(async (tenantId?: number) => {
+  for (const template of (await recurringTransactionRepository.findAllActive(undefined, tenantId))) {
+    (await generateDueForTemplate(template));
   }
 });
 
@@ -91,62 +85,46 @@ const recurringTransactionRepository = {
   // fallback. Omitting both returns every active template, unscoped — used
   // internally by generateDue() (materializes for the whole app, not one
   // user's view).
-  findAllActive(departmentIds?: number[], tenantId?: number): RecurringTransaction[] {
+  async findAllActive(departmentIds?: number[], tenantId?: number): Promise<RecurringTransaction[]> {
     if (departmentIds) {
       if (departmentIds.length === 0) return [];
       const placeholders = departmentIds.map(() => '?').join(', ');
-      return db
-        .prepare(
-          `SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
+      return (await db.all(`SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
            JOIN categories c ON c.id = rt.category_id
-           WHERE rt.active = 1 AND c.department_id IN (${placeholders})`
-        )
-        .all(...departmentIds) as RecurringTransaction[];
+           WHERE rt.active = 1 AND c.department_id IN (${placeholders})`, ...departmentIds)) as RecurringTransaction[];
     }
     if (tenantId !== undefined) {
-      return db
-        .prepare(
-          `SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
+      return (await db.all(`SELECT rt.${COLUMNS.split(', ').join(', rt.')} FROM recurring_transactions rt
            JOIN categories c ON c.id = rt.category_id
-           WHERE rt.active = 1 AND c.tenant_id = ?`
-        )
-        .all(tenantId) as RecurringTransaction[];
+           WHERE rt.active = 1 AND c.tenant_id = ?`, tenantId)) as RecurringTransaction[];
     }
-    return db
-      .prepare(`SELECT ${COLUMNS} FROM recurring_transactions WHERE active = 1`)
-      .all() as RecurringTransaction[];
+    return (await db.all(`SELECT ${COLUMNS} FROM recurring_transactions WHERE active = 1`)) as RecurringTransaction[];
   },
 
-  findById(id: number | string): RecurringTransaction | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM recurring_transactions WHERE id = ?`).get(id) as
+  async findById(id: number | string): Promise<RecurringTransaction | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM recurring_transactions WHERE id = ?`, id)) as
       | RecurringTransaction
       | undefined;
   },
 
-  create({
+  async create({
     amount,
     description,
     category_id,
     start_date,
     interval,
     end_date,
-  }: CreateRecurringTransactionDto): RecurringTransaction {
-    const result = db
-      .prepare(
-        'INSERT INTO recurring_transactions (amount, description, category_id, interval, next_run_date, end_date, active) VALUES (?, ?, ?, ?, ?, ?, 1)'
-      )
-      .run(amount, description || null, category_id, interval, start_date, end_date || null);
-    return recurringTransactionRepository.findById(result.lastInsertRowid as number) as RecurringTransaction;
+  }: CreateRecurringTransactionDto): Promise<RecurringTransaction> {
+    const result = (await db.run('INSERT INTO recurring_transactions (amount, description, category_id, interval, next_run_date, end_date, active) VALUES (?, ?, ?, ?, ?, ?, 1)', amount, description || null, category_id, interval, start_date, end_date || null));
+    return (await recurringTransactionRepository.findById(result.lastInsertRowid as number)) as RecurringTransaction;
   },
 
   update: db.transaction(
-    (
+    async (
       id: number | string,
       { amount, description, category_id, interval, end_date, apply_to_existing }: UpdateRecurringTransactionDto
-    ): RecurringTransaction => {
-      db.prepare(
-        'UPDATE recurring_transactions SET amount = ?, description = ?, category_id = ?, interval = ?, end_date = ? WHERE id = ?'
-      ).run(amount, description || null, category_id, interval, end_date || null, id);
+    ): Promise<RecurringTransaction> => {
+      (await db.run('UPDATE recurring_transactions SET amount = ?, description = ?, category_id = ?, interval = ?, end_date = ? WHERE id = ?', amount, description || null, category_id, interval, end_date || null, id));
 
       // Opt-in: rebuild history under the new config rather than just
       // patching fields on the old rows. Find when this series first
@@ -156,43 +134,36 @@ const recurringTransactionRepository = {
       // ends up with genuinely monthly-spaced history, not old weekly rows
       // with new field values.
       if (apply_to_existing) {
-        const earliest = db
-          .prepare('SELECT MIN(date) AS date FROM transactions WHERE recurring_transaction_id = ?')
-          .get(id) as { date: string | null };
+        const earliest = (await db.get('SELECT MIN(date) AS date FROM transactions WHERE recurring_transaction_id = ?', id)) as { date: string | null };
 
         if (earliest.date) {
-          db.prepare('DELETE FROM transactions WHERE recurring_transaction_id = ?').run(id);
-          db.prepare('UPDATE recurring_transactions SET next_run_date = ?, active = 1 WHERE id = ?').run(
-            earliest.date,
-            id
-          );
-          generateDueForTemplate(recurringTransactionRepository.findById(id) as RecurringTransaction);
+          (await db.run('DELETE FROM transactions WHERE recurring_transaction_id = ?', id));
+          (await db.run('UPDATE recurring_transactions SET next_run_date = ?, active = 1 WHERE id = ?', earliest.date, id));
+          (await generateDueForTemplate((await recurringTransactionRepository.findById(id)) as RecurringTransaction));
         }
       }
 
-      const updated = recurringTransactionRepository.findById(id) as RecurringTransaction;
+      const updated = (await recurringTransactionRepository.findById(id)) as RecurringTransaction;
       // If the new end_date already precedes where the series currently
       // stands, there's nothing left to generate — deactivate immediately
       // rather than leaving a "still active" series that will never fire.
       if (updated.active && updated.end_date && updated.end_date < updated.next_run_date) {
-        recurringTransactionRepository.deactivate(id);
-        return recurringTransactionRepository.findById(id) as RecurringTransaction;
+        (await recurringTransactionRepository.deactivate(id));
+        return (await recurringTransactionRepository.findById(id)) as RecurringTransaction;
       }
       return updated;
     }
   ),
 
-  countForCategory(categoryId: number | string): number {
+  async countForCategory(categoryId: number | string): Promise<number> {
     // Counts every row regardless of `active` — a cancelled series still
     // holds a foreign key to the category, so it still blocks deletion.
-    const row = db
-      .prepare('SELECT COUNT(*) AS count FROM recurring_transactions WHERE category_id = ?')
-      .get(categoryId) as { count: number };
+    const row = (await db.get('SELECT COUNT(*) AS count FROM recurring_transactions WHERE category_id = ?', categoryId)) as { count: number };
     return row.count;
   },
 
-  deactivate(id: number | string): void {
-    db.prepare('UPDATE recurring_transactions SET active = 0 WHERE id = ?').run(id);
+  async deactivate(id: number | string): Promise<void> {
+    (await db.run('UPDATE recurring_transactions SET active = 0 WHERE id = ?', id));
   },
 
   // Materializes any due occurrences into real transactions. Called before
@@ -215,9 +186,9 @@ const recurringTransactionRepository = {
   // hasDueTemplates is a cheap indexed-ish existence check run before the
   // write transaction, so the common case (nothing due) costs one SELECT
   // instead of a db.transaction() + full generation pass on every request.
-  generateDue(tenantId?: number): void {
-    if (!hasDueTemplates(tenantId)) return;
-    generateDueTransaction(tenantId);
+  async generateDue(tenantId?: number): Promise<void> {
+    if (!(await hasDueTemplates(tenantId))) return;
+    (await generateDueTransaction(tenantId));
   },
 
   // Cash-flow simulation only (story 18) — same date-stepping shape as

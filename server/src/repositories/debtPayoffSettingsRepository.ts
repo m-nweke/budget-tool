@@ -4,8 +4,8 @@ import type { DebtPayoffSettings, UpdateDebtPayoffSettingsDto } from '../types';
 const COLUMNS = 'id, tenant_id, monthly_amount, strategy, custom_order';
 
 const debtPayoffSettingsRepository = {
-  find(tenantId: number): DebtPayoffSettings | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM debt_payoff_settings WHERE tenant_id = ?`).get(tenantId) as
+  async find(tenantId: number): Promise<DebtPayoffSettings | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM debt_payoff_settings WHERE tenant_id = ?`, tenantId)) as
       | DebtPayoffSettings
       | undefined;
   },
@@ -13,22 +13,15 @@ const debtPayoffSettingsRepository = {
   // One row per tenant — insert if this is the first time settings are
   // saved, otherwise update in place, rather than exposing separate
   // create/update methods a caller would have to choose between.
-  upsert(tenantId: number, dto: UpdateDebtPayoffSettingsDto): DebtPayoffSettings {
+  async upsert(tenantId: number, dto: UpdateDebtPayoffSettingsDto): Promise<DebtPayoffSettings> {
     const customOrderJson = dto.strategy === 'custom' && dto.order ? JSON.stringify(dto.order) : null;
-    const existing = debtPayoffSettingsRepository.find(tenantId);
+    const existing = (await debtPayoffSettingsRepository.find(tenantId));
     if (existing) {
-      db.prepare('UPDATE debt_payoff_settings SET monthly_amount = ?, strategy = ?, custom_order = ? WHERE tenant_id = ?').run(
-        dto.monthly_amount,
-        dto.strategy,
-        customOrderJson,
-        tenantId
-      );
+      (await db.run('UPDATE debt_payoff_settings SET monthly_amount = ?, strategy = ?, custom_order = ? WHERE tenant_id = ?', dto.monthly_amount, dto.strategy, customOrderJson, tenantId));
     } else {
-      db.prepare(
-        'INSERT INTO debt_payoff_settings (tenant_id, monthly_amount, strategy, custom_order) VALUES (?, ?, ?, ?)'
-      ).run(tenantId, dto.monthly_amount, dto.strategy, customOrderJson);
+      (await db.run('INSERT INTO debt_payoff_settings (tenant_id, monthly_amount, strategy, custom_order) VALUES (?, ?, ?, ?)', tenantId, dto.monthly_amount, dto.strategy, customOrderJson));
     }
-    return debtPayoffSettingsRepository.find(tenantId) as DebtPayoffSettings;
+    return (await debtPayoffSettingsRepository.find(tenantId)) as DebtPayoffSettings;
   },
 };
 

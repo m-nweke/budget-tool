@@ -33,64 +33,64 @@ function validate(
   return null;
 }
 
-router.get('/', (req: Request, res: Response) => {
-  const scope = resolveScope(req.user as AuthUser);
-  res.json(recurringTransactionRepository.findAllActive(scope.departmentIds, scope.tenantId));
+router.get('/', async (req: Request, res: Response) => {
+  const scope = (await resolveScope(req.user as AuthUser));
+  res.json((await recurringTransactionRepository.findAllActive(scope.departmentIds, scope.tenantId)));
 });
 
-router.post('/', (req: Request<{}, {}, CreateRecurringTransactionDto>, res: Response) => {
+router.post('/', async (req: Request<{}, {}, CreateRecurringTransactionDto>, res: Response) => {
   const error = validate(req.body);
   if (error) {
     return res.status(400).json({ error });
   }
-  const category = categoryRepository.findById(req.body.category_id);
+  const category = (await categoryRepository.findById(req.body.category_id));
   if (!category) {
     return res.status(400).json({ error: 'category_id does not reference an existing category' });
   }
-  if (!userCanAccessResource(req.user as AuthUser, category)) {
+  if (!(await userCanAccessResource(req.user as AuthUser, category))) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
-  const recurringTransaction = recurringTransactionRepository.create(req.body);
+  const recurringTransaction = (await recurringTransactionRepository.create(req.body));
   // Scoped to this tenant, same rationale as app.ts's materializeDueTransactions
   // middleware — this call runs after create() specifically to materialize the
   // brand-new template's own due occurrence immediately (the middleware's pass
   // ran before this template existed, so it couldn't have caught it).
-  recurringTransactionRepository.generateDue((req.user as AuthUser).tenant_id);
+  (await recurringTransactionRepository.generateDue((req.user as AuthUser).tenant_id));
   res.status(201).json(recurringTransaction);
 });
 
-router.put('/:id', (req: Request<{ id: string }, {}, UpdateRecurringTransactionDto>, res: Response) => {
+router.put('/:id', async (req: Request<{ id: string }, {}, UpdateRecurringTransactionDto>, res: Response) => {
   const error = validate(req.body);
   if (error) {
     return res.status(400).json({ error });
   }
-  const existing = recurringTransactionRepository.findById(req.params.id);
+  const existing = (await recurringTransactionRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'recurring transaction not found' });
   }
-  const category = categoryRepository.findById(req.body.category_id);
+  const category = (await categoryRepository.findById(req.body.category_id));
   if (!category) {
     return res.status(400).json({ error: 'category_id does not reference an existing category' });
   }
   const user = req.user as AuthUser;
-  const existingCategory = categoryRepository.findById(existing.category_id);
-  if (!existingCategory || !userCanAccessResource(user, existingCategory) || !userCanAccessResource(user, category)) {
+  const existingCategory = (await categoryRepository.findById(existing.category_id));
+  if (!existingCategory || !(await userCanAccessResource(user, existingCategory)) || !(await userCanAccessResource(user, category))) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
-  const recurringTransaction = recurringTransactionRepository.update(req.params.id, req.body);
+  const recurringTransaction = (await recurringTransactionRepository.update(req.params.id, req.body));
   res.json(recurringTransaction);
 });
 
-router.delete('/:id', (req: Request<{ id: string }>, res: Response) => {
-  const existing = recurringTransactionRepository.findById(req.params.id);
+router.delete('/:id', async (req: Request<{ id: string }>, res: Response) => {
+  const existing = (await recurringTransactionRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'recurring transaction not found' });
   }
-  const category = categoryRepository.findById(existing.category_id);
-  if (!category || !userCanAccessResource(req.user as AuthUser, category)) {
+  const category = (await categoryRepository.findById(existing.category_id));
+  if (!category || !(await userCanAccessResource(req.user as AuthUser, category))) {
     return res.status(403).json({ error: 'Not authorized for this department' });
   }
-  recurringTransactionRepository.deactivate(req.params.id);
+  (await recurringTransactionRepository.deactivate(req.params.id));
   res.status(204).end();
 });
 

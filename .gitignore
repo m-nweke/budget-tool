@@ -12,3 +12,11 @@ docs/*
 !/README.md
 !/CLAUDE.md
 .idea/
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.dump
+*.dump.gpg

@@ -19,30 +19,30 @@ describe('errorHandler', () => {
     expect(json).toHaveBeenCalledWith({ error: 'Request body is not valid JSON' });
   });
 
-  it('maps SQLITE_CONSTRAINT_FOREIGNKEY to 400 with a referenced-record message', () => {
+  it('maps 23503 to 400 with a referenced-record message', () => {
     const { res, status, json } = mockRes();
-    errorHandler({ code: 'SQLITE_CONSTRAINT_FOREIGNKEY' }, req, res, next);
+    errorHandler({ code: '23503' }, req, res, next);
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalledWith({ error: 'This action references a record that no longer exists' });
   });
 
-  it('maps SQLITE_CONSTRAINT_NOTNULL to 400 with a missing-field message', () => {
+  it('maps 23502 to 400 with a missing-field message', () => {
     const { res, status, json } = mockRes();
-    errorHandler({ code: 'SQLITE_CONSTRAINT_NOTNULL' }, req, res, next);
+    errorHandler({ code: '23502' }, req, res, next);
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalledWith({ error: 'A required field is missing' });
   });
 
-  it('maps SQLITE_CONSTRAINT_UNIQUE to 400 with a duplicate-record message', () => {
+  it('maps 23505 to 400 with a duplicate-record message', () => {
     const { res, status, json } = mockRes();
-    errorHandler({ code: 'SQLITE_CONSTRAINT_UNIQUE' }, req, res, next);
+    errorHandler({ code: '23505' }, req, res, next);
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalledWith({ error: 'A record with that value already exists' });
   });
 
-  it('maps a generic SQLITE_CONSTRAINT to 400 with a conflict message', () => {
+  it('maps a generic 23514 to 400 with a conflict message', () => {
     const { res, status, json } = mockRes();
-    errorHandler({ code: 'SQLITE_CONSTRAINT' }, req, res, next);
+    errorHandler({ code: '23514' }, req, res, next);
     expect(status).toHaveBeenCalledWith(400);
     expect(json).toHaveBeenCalledWith({
       error: 'This action conflicts with related data and cannot be completed',
@@ -58,15 +58,15 @@ describe('errorHandler', () => {
 
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({ error: 'Internal server error' });
-    expect(consoleError).toHaveBeenCalledWith(err);
+    expect(consoleError).toHaveBeenCalledWith('Unhandled request failure');
     consoleError.mockRestore();
   });
 
-  it('falls back to 500 for an SQLITE_CONSTRAINT code it does not recognize', () => {
+  it('falls back to 500 for an 23514 code it does not recognize', () => {
     const { res, status, json } = mockRes();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-    errorHandler({ code: 'SQLITE_BUSY' }, req, res, next);
+    errorHandler({ code: 'XX000' }, req, res, next);
 
     expect(status).toHaveBeenCalledWith(500);
     expect(json).toHaveBeenCalledWith({ error: 'Internal server error' });

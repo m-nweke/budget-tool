@@ -20,27 +20,27 @@ async function loginAs(email: string, password = 'password123') {
 }
 
 async function createHead(name: string, email: string, ...grantedDeptIds: number[]) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: tenantId,
     role: 'department_head',
     department_id: null,
-  });
+  }));
   for (const deptId of grantedDeptIds) {
-    departmentAccessRepository.grant(user.id, deptId);
+    (await departmentAccessRepository.grant(user.id, deptId));
   }
   return user;
 }
 
 async function createEmployee(name: string, email: string, departmentId: number | null) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: tenantId,
     role: 'department_employee',
     department_id: departmentId,
-  });
+  }));
   return user;
 }
 
@@ -49,25 +49,25 @@ async function createEmployee(name: string, email: string, departmentId: number 
 // tenant, unlike createHead/createEmployee which share the module-level
 // enterprise tenant.
 async function createOwner(name: string, email: string) {
-  const user = userRepository.create({ name, email, password_hash: await hashPassword('password123') });
-  const personalTenant = tenantRepository.create(`${name}'s Budget`, 'personal');
-  tenantMembershipRepository.create({
+  const user = (await userRepository.create({ name, email, password_hash: await hashPassword('password123') }));
+  const personalTenant = (await tenantRepository.create(`${name}'s Budget`, 'personal'));
+  (await tenantMembershipRepository.create({
     user_id: user.id,
     tenant_id: personalTenant.id,
     role: 'owner',
     department_id: null,
-  });
+  }));
   return { user, tenantId: personalTenant.id };
 }
 
-beforeEach(() => {
-  db.exec(
+beforeEach(async () => {
+  (await db.exec(
     'DELETE FROM transactions; DELETE FROM recurring_transactions; DELETE FROM categories; DELETE FROM department_access; DELETE FROM tenant_memberships; DELETE FROM users; DELETE FROM departments; DELETE FROM tenants;'
-  );
-  tenantId = tenantRepository.create('Acme Co', 'enterprise').id;
-  deptA = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Engineering', tenantId)
+  ));
+  tenantId = (await tenantRepository.create('Acme Co', 'enterprise')).id;
+  deptA = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Engineering', tenantId))
     .lastInsertRowid as number;
-  deptB = db.prepare('INSERT INTO departments (name, tenant_id) VALUES (?, ?)').run('Marketing', tenantId)
+  deptB = (await db.run('INSERT INTO departments (name, tenant_id) VALUES (?, ?)', 'Marketing', tenantId))
     .lastInsertRowid as number;
 });
 
@@ -91,8 +91,8 @@ describe('GET /api/departments', () => {
 
 describe('GET /api/dashboard department_id filtering', () => {
   it('narrows a head\'s combined dashboard to a single accessible department', async () => {
-    categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA, start_on: '2026-01-01' }, tenantId);
-    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB, start_on: '2026-01-01' }, tenantId);
+    (await categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA, start_on: '2026-01-01' }, tenantId));
+    (await categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB, start_on: '2026-01-01' }, tenantId));
     await createHead('Dana', 'dana@example.com', deptA, deptB);
     const agent = await loginAs('dana@example.com');
 
@@ -103,7 +103,7 @@ describe('GET /api/dashboard department_id filtering', () => {
   });
 
   it('rejects a department_id the head was not granted, with 403', async () => {
-    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB, start_on: '2026-01-01' }, tenantId);
+    (await categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB, start_on: '2026-01-01' }, tenantId));
     await createHead('Dana', 'dana@example.com', deptA);
     const agent = await loginAs('dana@example.com');
 
@@ -172,8 +172,8 @@ describe('POST /api/departments', () => {
 
 describe('GET /api/categories scoping', () => {
   it('an employee only sees categories in their own department', async () => {
-    categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
-    categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId);
+    (await categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId));
+    (await categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -247,7 +247,7 @@ describe('category management is head-only', () => {
 
 describe('transactions: employees can transact within their own department', () => {
   it('an employee can create a transaction in their own department', async () => {
-    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
+    const category = (await categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -260,7 +260,7 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('an employee cannot create a transaction in a department they don\'t belong to', async () => {
-    const category = categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId);
+    const category = (await categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -271,12 +271,12 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('a transaction over the category threshold is created pending, not approved', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -288,8 +288,8 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('GET /api/transactions is scoped to the caller\'s accessible departments', async () => {
-    const categoryA = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
-    const categoryB = categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId);
+    const categoryA = (await categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId));
+    const categoryB = (await categoryRepository.create({ name: 'Ads', budgeted_amount: 1000, department_id: deptB }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
 
@@ -297,21 +297,19 @@ describe('transactions: employees can transact within their own department', () 
 
     // Seed a transaction in the other department directly (no employee
     // there to create it through the API in this test).
-    db.prepare(
-      'INSERT INTO transactions (amount, date, category_id, needs_approval, approved) VALUES (10, ?, ?, 0, 1)'
-    ).run('2026-08-01', categoryB.id);
+    (await db.run('INSERT INTO transactions (amount, date, category_id, needs_approval, approved) VALUES (10, ?, ?, 0, 1)', '2026-08-01', categoryB.id));
 
     const res = await agent.get('/api/transactions');
     expect(res.body).toHaveLength(1);
   });
 
   it('editing only the description of an approved transaction does not revert its approval', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -337,12 +335,12 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('changing the amount of an approved transaction does re-evaluate against the threshold', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -362,12 +360,12 @@ describe('transactions: employees can transact within their own department', () 
   });
 
   it('editing a rejected transaction to a lower amount goes back to pending, not straight to approved', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -394,12 +392,12 @@ describe('transactions: employees can transact within their own department', () 
 
 describe('approve/reject workflow', () => {
   it('an employee cannot approve a transaction', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
     const created = await agent
@@ -411,12 +409,12 @@ describe('approve/reject workflow', () => {
   });
 
   it('a head can approve a pending transaction in their department', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -432,12 +430,12 @@ describe('approve/reject workflow', () => {
   });
 
   it('a head cannot approve a transaction outside their granted departments', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Ads',
       budgeted_amount: 1000,
       department_id: deptB,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Erin', 'erin@example.com', deptB);
     const employeeAgent = await loginAs('erin@example.com');
     const created = await employeeAgent
@@ -453,12 +451,12 @@ describe('approve/reject workflow', () => {
   });
 
   it('rejecting a transaction clears needs_approval without deleting it', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const employeeAgent = await loginAs('evan@example.com');
     const created = await employeeAgent
@@ -477,12 +475,12 @@ describe('approve/reject workflow', () => {
   });
 
   it('a head cannot approve their own submitted transaction', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
     const created = await headAgent
@@ -494,12 +492,12 @@ describe('approve/reject workflow', () => {
   });
 
   it('a head cannot reject their own submitted transaction', async () => {
-    const category = categoryRepository.create({
+    const category = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
     const created = await headAgent
@@ -513,7 +511,7 @@ describe('approve/reject workflow', () => {
 
 describe('DELETE /api/transactions/:id is head-only', () => {
   it('an employee cannot delete a transaction, even one they created', async () => {
-    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
+    const category = (await categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
     const created = await agent
@@ -525,7 +523,7 @@ describe('DELETE /api/transactions/:id is head-only', () => {
   });
 
   it('a head can delete a transaction in their department', async () => {
-    const category = categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId);
+    const category = (await categoryRepository.create({ name: 'Software', budgeted_amount: 500, department_id: deptA }, tenantId));
     await createHead('Dana', 'dana@example.com', deptA);
     const agent = await loginAs('dana@example.com');
     const created = await agent
@@ -546,26 +544,24 @@ describe('GET /api/approvals', () => {
   });
 
   it('lists only pending transactions scoped to the head\'s departments', async () => {
-    const categoryA = categoryRepository.create({
+    const categoryA = (await categoryRepository.create({
       name: 'Software',
       budgeted_amount: 500,
       department_id: deptA,
       approval_threshold: 100,
-    }, tenantId);
-    const categoryB = categoryRepository.create({
+    }, tenantId));
+    const categoryB = (await categoryRepository.create({
       name: 'Ads',
       budgeted_amount: 1000,
       department_id: deptB,
       approval_threshold: 100,
-    }, tenantId);
+    }, tenantId));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const evanAgent = await loginAs('evan@example.com');
     await evanAgent.post('/api/transactions').send({ amount: 250, date: '2026-08-01', category_id: categoryA.id });
 
     // Pending in deptB, seeded directly — no head has deptB access in this test.
-    db.prepare(
-      'INSERT INTO transactions (amount, date, category_id, needs_approval, approved) VALUES (250, ?, ?, 1, 0)'
-    ).run('2026-08-01', categoryB.id);
+    (await db.run('INSERT INTO transactions (amount, date, category_id, needs_approval, approved) VALUES (250, ?, ?, 1, 0)', '2026-08-01', categoryB.id));
 
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
@@ -577,10 +573,10 @@ describe('GET /api/approvals', () => {
 
   it('a personal-tenant owner sees their own pending transactions', async () => {
     const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
       personalTenantId
-    );
+    ));
     const agent = await loginAs('pat@example.com');
     await agent.post('/api/transactions').send({ amount: 250, date: '2026-08-01', category_id: category.id });
 
@@ -590,10 +586,10 @@ describe('GET /api/approvals', () => {
   });
 
   it('an owner never sees an enterprise head\'s pending transactions', async () => {
-    const categoryA = categoryRepository.create(
+    const categoryA = (await categoryRepository.create(
       { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },
       tenantId
-    );
+    ));
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
     await headAgent.post('/api/transactions').send({ amount: 250, date: '2026-08-01', category_id: categoryA.id });
@@ -608,10 +604,10 @@ describe('GET /api/approvals', () => {
 describe('POST /api/transactions/:id/approve and /reject for a personal-tenant owner', () => {
   it('an owner can approve their own pending transaction', async () => {
     const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
       personalTenantId
-    );
+    ));
     const agent = await loginAs('pat@example.com');
     const created = await agent
       .post('/api/transactions')
@@ -626,10 +622,10 @@ describe('POST /api/transactions/:id/approve and /reject for a personal-tenant o
 
   it('an owner can reject their own pending transaction', async () => {
     const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
       personalTenantId
-    );
+    ));
     const agent = await loginAs('pat@example.com');
     const created = await agent
       .post('/api/transactions')
@@ -643,15 +639,11 @@ describe('POST /api/transactions/:id/approve and /reject for a personal-tenant o
 
   it('an owner can approve a recurring-generator-created transaction (created_by NULL)', async () => {
     const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
       personalTenantId
-    );
-    const generated = db
-      .prepare(
-        'INSERT INTO transactions (amount, date, category_id, needs_approval, approved, created_by) VALUES (250, ?, ?, 1, 0, NULL)'
-      )
-      .run('2026-08-01', category.id);
+    ));
+    const generated = (await db.run('INSERT INTO transactions (amount, date, category_id, needs_approval, approved, created_by) VALUES (250, ?, ?, 1, 0, NULL)', '2026-08-01', category.id));
 
     const agent = await loginAs('pat@example.com');
     const res = await agent.post(`/api/transactions/${generated.lastInsertRowid}/approve`);
@@ -662,15 +654,11 @@ describe('POST /api/transactions/:id/approve and /reject for a personal-tenant o
 
   it('an owner can reject a recurring-generator-created transaction (created_by NULL)', async () => {
     const { tenantId: personalTenantId } = await createOwner('Pat', 'pat@example.com');
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name: 'Groceries', budgeted_amount: 400, department_id: null, approval_threshold: 100 },
       personalTenantId
-    );
-    const generated = db
-      .prepare(
-        'INSERT INTO transactions (amount, date, category_id, needs_approval, approved, created_by) VALUES (250, ?, ?, 1, 0, NULL)'
-      )
-      .run('2026-08-01', category.id);
+    ));
+    const generated = (await db.run('INSERT INTO transactions (amount, date, category_id, needs_approval, approved, created_by) VALUES (250, ?, ?, 1, 0, NULL)', '2026-08-01', category.id));
 
     const agent = await loginAs('pat@example.com');
     const res = await agent.post(`/api/transactions/${generated.lastInsertRowid}/reject`);
@@ -680,10 +668,10 @@ describe('POST /api/transactions/:id/approve and /reject for a personal-tenant o
   });
 
   it('an owner cannot approve another tenant\'s transaction', async () => {
-    const categoryA = categoryRepository.create(
+    const categoryA = (await categoryRepository.create(
       { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },
       tenantId
-    );
+    ));
     await createHead('Dana', 'dana@example.com', deptA);
     const headAgent = await loginAs('dana@example.com');
     const created = await headAgent
@@ -697,10 +685,10 @@ describe('POST /api/transactions/:id/approve and /reject for a personal-tenant o
   });
 
   it('an employee remains blocked from approving even in a department they have access to', async () => {
-    const category = categoryRepository.create(
+    const category = (await categoryRepository.create(
       { name: 'Software', budgeted_amount: 500, department_id: deptA, approval_threshold: 100 },
       tenantId
-    );
+    ));
     await createEmployee('Evan', 'evan@example.com', deptA);
     const agent = await loginAs('evan@example.com');
     const created = await agent

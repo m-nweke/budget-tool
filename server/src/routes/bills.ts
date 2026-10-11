@@ -9,9 +9,9 @@ const router = express.Router();
 
 const VALID_CATEGORIES: BillCategory[] = ['rent', 'wifi', 'electric', 'water', 'insurance', 'other'];
 
-router.get('/', requireRole('owner'), (req: Request, res: Response) => {
+router.get('/', requireRole('owner'), async (req: Request, res: Response) => {
   const user = req.user as AuthUser;
-  res.json(billRepository.findAll(user.tenant_id));
+  res.json((await billRepository.findAll(user.tenant_id)));
 });
 
 // `fallbackStartOn` is what start_on actually resolves to when the request
@@ -51,38 +51,38 @@ function validateBody(body: CreateBillDto, fallbackStartOn: string): string | nu
 // object or array where a number is expected) would otherwise reach
 // bankAccountRepository.findById and throw when better-sqlite3 tries to
 // bind it as a query parameter, 500ing instead of cleanly 400ing.
-function validateLinkedAccount(user: AuthUser, bankAccountId: unknown): { error: string } | null {
+async function validateLinkedAccount(user: AuthUser, bankAccountId: unknown): Promise<{ error: string } | null> {
   if (bankAccountId === null || bankAccountId === undefined) return null;
   if (typeof bankAccountId !== 'number') {
     return { error: 'bank_account_id must be a number' };
   }
-  const account = bankAccountRepository.findById(bankAccountId);
+  const account = (await bankAccountRepository.findById(bankAccountId));
   if (!account || account.tenant_id !== user.tenant_id) {
     return { error: 'bank_account_id does not reference an account in this tenant' };
   }
   return null;
 }
 
-router.post('/', requireRole('owner'), (req: Request<{}, {}, CreateBillDto>, res: Response) => {
-  const validationError = validateBody(req.body, todayISO());
+router.post('/', requireRole('owner'), async (req: Request<{}, {}, CreateBillDto>, res: Response) => {
+  const validationError = (await validateBody(req.body, todayISO()));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
   const user = req.user as AuthUser;
-  const linkError = validateLinkedAccount(user, req.body.bank_account_id);
+  const linkError = (await validateLinkedAccount(user, req.body.bank_account_id));
   if (linkError) {
     return res.status(400).json(linkError);
   }
-  const bill = billRepository.create(req.body, user.tenant_id);
+  const bill = (await billRepository.create(req.body, user.tenant_id));
   res.status(201).json(bill);
 });
 
-router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, CreateBillDto>, res: Response) => {
-  const existing = billRepository.findById(req.params.id);
+router.put('/:id', requireRole('owner'), async (req: Request<{ id: string }, {}, CreateBillDto>, res: Response) => {
+  const existing = (await billRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'bill not found' });
   }
-  const validationError = validateBody(req.body, existing.start_on);
+  const validationError = (await validateBody(req.body, existing.start_on));
   if (validationError) {
     return res.status(400).json({ error: validationError });
   }
@@ -90,16 +90,16 @@ router.put('/:id', requireRole('owner'), (req: Request<{ id: string }, {}, Creat
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this bill' });
   }
-  const linkError = validateLinkedAccount(user, req.body.bank_account_id);
+  const linkError = (await validateLinkedAccount(user, req.body.bank_account_id));
   if (linkError) {
     return res.status(400).json(linkError);
   }
-  const bill = billRepository.update(req.params.id, req.body);
+  const bill = (await billRepository.update(req.params.id, req.body));
   res.json(bill);
 });
 
-router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: Response) => {
-  const existing = billRepository.findById(req.params.id);
+router.delete('/:id', requireRole('owner'), async (req: Request<{ id: string }>, res: Response) => {
+  const existing = (await billRepository.findById(req.params.id));
   if (!existing) {
     return res.status(404).json({ error: 'bill not found' });
   }
@@ -107,7 +107,7 @@ router.delete('/:id', requireRole('owner'), (req: Request<{ id: string }>, res: 
   if (existing.tenant_id !== user.tenant_id) {
     return res.status(403).json({ error: 'Not authorized for this bill' });
   }
-  billRepository.remove(req.params.id);
+  (await billRepository.remove(req.params.id));
   res.status(204).end();
 });
 

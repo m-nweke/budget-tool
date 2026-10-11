@@ -21,19 +21,17 @@ export function buildAuthUser(user: User, membership: TenantMembership, tenant: 
 }
 
 const userRepository = {
-  findById(id: number | string): User | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM users WHERE id = ?`).get(id) as User | undefined;
+  async findById(id: number | string): Promise<User | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM users WHERE id = ?`, id)) as User | undefined;
   },
 
-  findByEmail(email: string): User | undefined {
-    return db.prepare(`SELECT ${COLUMNS} FROM users WHERE email = ?`).get(email) as User | undefined;
+  async findByEmail(email: string): Promise<User | undefined> {
+    return (await db.get(`SELECT ${COLUMNS} FROM users WHERE email = ?`, email)) as User | undefined;
   },
 
-  create({ name, email, password_hash }: CreateUserDto): User {
-    const result = db
-      .prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)')
-      .run(name, email, password_hash);
-    return userRepository.findById(result.lastInsertRowid as number) as User;
+  async create({ name, email, password_hash }: CreateUserDto): Promise<User> {
+    const result = (await db.run('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)', name, email, password_hash));
+    return (await userRepository.findById(result.lastInsertRowid as number)) as User;
   },
 };
 
