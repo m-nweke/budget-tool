@@ -23,6 +23,14 @@ const depositAmount = ref('3250');
 const draft = reactive<Record<number, string>>({});
 const reviewStatus = ref('');
 const reviewError = ref('');
+const longDate = (date: string) => new Date(date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
+/** States the rule's trigger and that nothing moves until the owner reviews it. */
+function ruleSummary(id: number) {
+  const rule = rules[id];
+  if (!rule || rule.mode === 'none') return 'Funded manually · no deposit suggestion';
+  const share = rule.mode === 'percent' ? `${rule.value}% of` : `${money(Math.round(rule.value * 100))} from`;
+  return `Suggests ${share} each ${accountName(rule.accountId)} deposit · you review first`;
+}
 const accountName = (id: number | null) => props.data.accounts.find(account => account.id === id)?.name ?? 'No account linked';
 const depositCents = computed(() => Math.round(Number(depositAmount.value) * 100));
 const eligible = computed(() => props.data.goals.filter(goal => {
@@ -108,11 +116,11 @@ function skipReview() {
     <p class="vaults-intro">Vaults give your savings a purpose. A linked account is one you track in Budget Tool; it is not a bank connection.</p>
     <div v-if="data.goals.length" class="vault-grid">
       <article v-for="goal in data.goals" :key="goal.id" class="vault-card">
-        <div class="vault-card-top"><span class="vault-mark" aria-hidden="true">◈</span><span class="vault-account">{{ accountName(goal.account_id) }}</span></div>
-        <h3>{{ goal.name }}</h3><div class="vault-amount">{{ money(goal.saved_cents) }}</div><p class="vault-target">Set aside of {{ money(goal.target_cents) }}<template v-if="goal.target_date"> · by {{ goal.target_date }}</template></p>
+        <div class="vault-card-top"><span class="vault-mark" aria-hidden="true">◈</span><span class="vault-account">{{ goal.account_id === null ? 'Not linked to an account' : `Held in ${accountName(goal.account_id)}` }}</span></div>
+        <h3>{{ goal.name }}</h3><div class="vault-amount">{{ money(goal.saved_cents) }}</div><p class="vault-target">Set aside of {{ money(goal.target_cents) }}<template v-if="goal.target_date"> · by {{ longDate(goal.target_date) }}</template></p>
         <progress :value="Math.min(goal.saved_cents, goal.target_cents)" :max="goal.target_cents" :aria-label="`${goal.name} progress`"/>
-        <div class="vault-card-bottom"><span>{{ Math.round(goal.saved_cents / goal.target_cents * 100) }}% of goal</span><button v-if="demo" class="text-button" :aria-label="`Edit ${goal.name} vault preview`" @click="edit(goal)">Edit preview <FinanceIcon name="arrow"/></button><RouterLink v-else to="/goals" class="text-button">Manage goal <FinanceIcon name="arrow"/></RouterLink></div>
-        <p v-if="demo" class="vault-rule">{{ rules[goal.id]?.mode === 'percent' ? `${rules[goal.id]?.value}% of deposits into ${accountName(rules[goal.id]?.accountId ?? null)}` : rules[goal.id]?.mode === 'fixed' ? `${money(Math.round((rules[goal.id]?.value ?? 0) * 100))} per deposit into ${accountName(rules[goal.id]?.accountId ?? null)}` : 'Fund manually · no deposit suggestion' }}</p>
+        <div class="vault-card-bottom"><span>{{ Math.round(goal.saved_cents / goal.target_cents * 100) }}% of goal</span><button v-if="demo" class="text-button" :aria-label="`Edit ${goal.name} vault preview`" @click="edit(goal)">Edit vault <FinanceIcon name="arrow"/></button><RouterLink v-else to="/goals" class="text-button">Manage goal <FinanceIcon name="arrow"/></RouterLink></div>
+        <p v-if="demo" class="vault-rule">{{ ruleSummary(goal.id) }}</p>
       </article>
     </div>
     <div v-else class="vault-empty"><h3>What would you like to make room for?</h3><p>Start with a goal, then connect it to an account you track.</p><button v-if="demo" class="btn btn-primary" @click="edit()">Create a vault preview</button><RouterLink v-else to="/goals" class="btn btn-primary">Create a savings goal</RouterLink></div>

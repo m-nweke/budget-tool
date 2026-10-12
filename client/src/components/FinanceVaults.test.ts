@@ -22,4 +22,13 @@ describe('demo vault allocation review', () => {
     await wrapper.get('.vault-review-actions .text-button').trigger('click');
     expect(wrapper.get('.vault-remainder').text()).toContain('$3,250.00');
   });
+
+  it('states each rule trigger, the review step and the holding account on the card', () => {
+    const wrapper = mount(FinanceVaults, { props: { data: createDemo(), demo: true }, global: { stubs: ['RouterLink'] } });
+    const text = wrapper.text();
+    expect(text).toContain('Suggests 12% of each Everyday checking deposit · you review first');
+    expect(text).toContain('Suggests $150.00 from each Everyday checking deposit · you review first');
+    expect(text).toContain('Held in Rainy day fund');
+    expect(text).not.toMatch(/by \d{4}-\d{2}-\d{2}/);
+  });
 });
