@@ -20,4 +20,22 @@ describe('isolated finance demo', () => {
     expect(fetch).not.toHaveBeenCalled();
     wrapper.unmount();
   });
+
+  it('toggles the overview panel between trajectory and calendar and remembers the choice', async () => {
+    localStorage.removeItem('overview-glance');
+    const router=createRouter({history:createMemoryHistory(),routes:[{path:'/demo/:section',component:FinanceWorkspace}]});
+    await router.push('/demo/overview');
+    const wrapper=mount(FinanceWorkspace,{global:{plugins:[router]}});
+    await flushPromises();
+    const toggle=wrapper.find('[aria-label="Panel view"]');
+    const [trajectory,calendar]=toggle.findAll('button');
+    expect(trajectory!.attributes('aria-pressed')).toBe('true');
+    expect(wrapper.find('.trajectory-panel h2').text()).toBe('Your cash trajectory');
+    await calendar!.trigger('click');
+    expect(calendar!.attributes('aria-pressed')).toBe('true');
+    expect(wrapper.find('.trajectory-panel h2').text()).toBe('Your money calendar');
+    expect(wrapper.findComponent({name:'CashTrajectory'}).element.parentElement!.hasAttribute('inert')).toBe(true);
+    expect(localStorage.getItem('overview-glance')).toBe('calendar');
+    wrapper.unmount();
+  });
 });
