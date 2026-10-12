@@ -1,0 +1,7 @@
+export interface FinanceAccount { id: number; name: string; type: string; balance_cents: number; opening_balance_cents: number; opening_on: string; spendable: boolean }
+export interface Movement { id: number; date: string; kind: 'income'|'expense'|'transfer'; amount_cents: number; account_id: number; transfer_account_id: number|null; description: string; commitment_key: string|null }
+export interface Commitment { key: string; name: string; kind: string; amount_cents: number; account_id: number|null; transfer_account_id: number|null; frequency: string; next_date: string; end_date: string|null; active?: boolean; day_of_month?: number; pay_days?: number[] }
+export interface FinanceGoal { id:number; name:string; target_cents:number; saved_cents:number; account_id:number|null; target_date:string|null }
+export interface Forecast { from:string; to:string; daily:{date:string; balance_cents:number; headroom_cents:number; accounts:Record<string,number>}[]; safe_to_spend_cents:number|null; headroom_cents:number|null; next_income_date:string|null; window_end:string; warnings:string[] }
+export interface FinanceData { as_of:string; accounts:FinanceAccount[]; movements:Movement[]; commitments:Commitment[]; goals:FinanceGoal[]; settings:{timezone:string; cushion_cents:number; essential_allowance_cents:number; spending_account_ids:number[]}; forecast:Forecast }
+export interface ImportPreview { rows:{row:number; valid:boolean; errors:string[]; duplicate:boolean}[]; can_import:boolean }

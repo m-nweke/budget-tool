@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import DashboardView from '../views/DashboardView.vue';
+import FinanceWorkspace from '../views/FinanceWorkspace.vue';
+import { defineComponent, h } from 'vue';
+const HomeView = defineComponent({ setup() { const { user } = useAuth(); return () => h(user.value?.tenant_type === 'personal' ? FinanceWorkspace : DashboardView); } });
 import TransactionsView from '../views/TransactionsView.vue';
 import CategoriesView from '../views/CategoriesView.vue';
 import ApprovalsView from '../views/ApprovalsView.vue';
@@ -18,7 +21,10 @@ import { useAuth } from '../composables/useAuth';
 const router = createRouter({
   history: createWebHistory(),
   routes: [
-    { path: '/', name: 'dashboard', component: DashboardView },
+    { path: '/', name: 'dashboard', component: HomeView },
+    { path: '/demo', redirect: '/demo/overview' },
+    { path: '/demo/:section(overview|calendar|activity|forecast|plans|accounts)', component: FinanceWorkspace, meta: { public: true, openToAll: true } },
+    ...(['calendar', 'activity', 'forecast', 'plans', 'ledger'] as const).map(section => ({ path: '/' + section, name: section, component: FinanceWorkspace, meta: { personalOnly: true, financeSection: section === 'ledger' ? 'accounts' : section } })),
     { path: '/transactions', name: 'transactions', component: TransactionsView },
     { path: '/categories', name: 'categories', component: CategoriesView },
     // meta.headOnly is checked generically in the guard below, not
@@ -59,6 +65,7 @@ const router = createRouter({
 // subsequent navigation reuses the already-resolved user instead of
 // re-fetching.
 router.beforeEach(async (to) => {
+  if (to.path.startsWith('/demo/')) return;
   const { user, canApprove, initialized, fetchMe } = useAuth();
   if (!initialized.value) {
     await fetchMe();
