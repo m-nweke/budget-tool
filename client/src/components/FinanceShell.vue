@@ -4,6 +4,8 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAuth } from '../composables/useAuth';
 import { useTheme } from '../composables/useTheme';
 import FinanceIcon from './FinanceIcon.vue';
+import FinanceTour from './FinanceTour.vue';
+import { startTour } from '../finance/tour';
 import AppLogo from './AppLogo.vue';
 const route = useRoute();
 const router = useRouter();
@@ -41,13 +43,15 @@ async function signOut() { await logout(); await router.push('/login'); }
         <p v-if="message" role="alert">{{ message }}</p>
         <RouterLink v-if="!demo" to="/categories" class="sidebar-utility"><FinanceIcon name="activity"/> Categories & budgets</RouterLink>
         <RouterLink v-if="!demo" to="/transactions" class="sidebar-utility"><FinanceIcon name="activity"/> Budget transactions</RouterLink>
+        <button class="sidebar-utility" @click="startTour(demo ? 'demo' : 'personal')"><FinanceIcon name="compass"/> Take the tour</button>
         <button class="sidebar-utility" @click="toggleTheme"><FinanceIcon name="sun"/>{{ theme === 'dark' ? 'Light appearance' : 'Dark appearance' }}</button>
         <RouterLink to="/about" class="sidebar-utility">About Budget Tool <FinanceIcon name="arrow"/></RouterLink>
         <button v-if="!demo" class="sidebar-utility" @click="signOut"><FinanceIcon name="logout"/> Sign out</button>
         <div class="sidebar-note"><span class="status-dot"/> {{ demo ? 'A space to explore' : 'A space for your next chapter' }}</div>
       </div>
     </aside>
-    <header class="finance-mobile-header"><RouterLink :to="links[0]!.to" class="finance-brand"><AppLogo :size="25"/> Budget Tool</RouterLink><button class="icon-button" @click="toggleTheme" :aria-label="theme === 'dark' ? 'Use light appearance' : 'Use dark appearance'"><FinanceIcon name="sun"/></button><details v-if="!demo" class="mobile-more"><summary>More</summary><div><RouterLink to="/categories">Categories & budgets</RouterLink><RouterLink to="/transactions">Budget transactions</RouterLink><label v-if="memberships.length > 1" class="field">Workspace<select :value="user?.tenant_id" :disabled="switching" @change="switchWorkspace"><option v-for="membership in memberships" :key="membership.tenant_id" :value="membership.tenant_id">{{ membership.tenant_name }}</option></select></label><button @click="signOut">Sign out</button></div></details></header>
+    <header class="finance-mobile-header"><RouterLink :to="links[0]!.to" class="finance-brand"><AppLogo :size="25"/> Budget Tool</RouterLink><button class="icon-button" @click="toggleTheme" :aria-label="theme === 'dark' ? 'Use light appearance' : 'Use dark appearance'"><FinanceIcon name="sun"/></button><details v-if="!demo" class="mobile-more"><summary>More</summary><div><RouterLink to="/categories">Categories & budgets</RouterLink><RouterLink to="/transactions">Budget transactions</RouterLink><label v-if="memberships.length > 1" class="field">Workspace<select :value="user?.tenant_id" :disabled="switching" @change="switchWorkspace"><option v-for="membership in memberships" :key="membership.tenant_id" :value="membership.tenant_id">{{ membership.tenant_name }}</option></select></label><button @click="startTour('personal')">Take the tour</button><button @click="signOut">Sign out</button></div></details></header>
     <main id="main-content" class="finance-main" tabindex="-1"><slot/></main>
+    <FinanceTour :demo="demo"/>
   </div>
 </template>

@@ -116,6 +116,7 @@ async function handleSubmit() {
 
       <p class="login-hint">
         Already have an account? <RouterLink to="/login">Sign in</RouterLink>
+        <span class="demo-hint">Not ready? <RouterLink to="/demo/overview">Explore the demo</RouterLink> first.</span>
       </p>
     </form>
   </div>
@@ -143,6 +144,12 @@ async function handleSubmit() {
 
 .register-form .btn {
   margin-top: var(--space-1);
+}
+
+.demo-hint {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
 }
 
 .login-hint {

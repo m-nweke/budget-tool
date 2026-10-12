@@ -9,6 +9,7 @@ import CalendarGlance from '../components/CalendarGlance.vue';
 import FinanceIcon from '../components/FinanceIcon.vue';
 import { financeRequest, useFinance } from '../finance/useFinance';
 import { dateOffset, demoForecast } from '../finance/demo';
+import { maybeAutoStart, startTour } from '../finance/tour';
 import type { Commitment, FinanceAccount, FinanceGoal, Forecast, ImportPreview, Movement } from '../finance/types';
 const route=useRoute();const {user}=useAuth();
 const isDemo=computed(()=>route.path.startsWith('/demo'));
@@ -35,6 +36,7 @@ const glanceView=ref<'trajectory'|'calendar'>((()=>{try{return localStorage.getI
 watch(glanceView,view=>{try{localStorage.setItem('overview-glance',view)}catch{/* storage unavailable */}});
 const notice=ref(''),busy=ref(false),dialog=ref<HTMLDialogElement|null>(null),modal=ref('');
 watch(()=>route.path,()=>{notice.value='';load()}, {immediate:true});
+watch(()=>[data.value,section.value] as const,([value,current])=>{if(value&&current==='overview')maybeAutoStart(isDemo.value?'demo':'personal',value.accounts.length>0)},{immediate:true});
 const editing=ref<number|string|null>(null);
 const form=ref({name:'',description:'',amount:'',date:dateOffset(0),kind:'expense',account_id:0,transfer_account_id:0,type:'checking',spendable:true,frequency:'monthly',balance:''});
 watch(()=>form.value.type,type=>{if(!['checking','cash'].includes(type))form.value.spendable=false});
@@ -69,7 +71,7 @@ async function importCsv(){if(!preview.value?.can_import)return;busy.value=true;
 
 <template>
  <div class="finance-workspace">
-  <div v-if="isDemo" class="demo-ribbon"><span><i /> Demo workspace · sample money, real possibilities</span><div><button @click="resetDemo();scenario=null;notice='Demo reset.'">Reset demo</button><RouterLink to="/login">Exit demo <span aria-hidden="true">↗</span></RouterLink></div></div>
+  <div v-if="isDemo" class="demo-ribbon"><span><i /> Demo workspace · sample money, real possibilities</span><div><button @click="startTour('demo')">Take the tour</button><button @click="resetDemo();scenario=null;notice='Demo reset.'">Reset demo</button><RouterLink to="/login">Exit demo <span aria-hidden="true">↗</span></RouterLink></div></div>
   <header class="finance-heading"><div><p class="page-kicker">{{ section==='calendar' ? 'Your money, day by day' : section==='overview' ? 'Your money, at a glance' : section==='activity'?'The everyday ledger':section==='accounts'?'Balances & reconciliation':section==='forecast'?'The next 90 days':'Your next chapter' }}</p><h1>{{ titles[section]??titles.overview }}</h1><p>{{ section==='overview'?`Here’s where you stand, ${firstName}. Let’s give your money a direction.`:section==='calendar'?'Paydays, plans, and the space in between.':section==='forecast'?'A clear view of your commitments, before they arrive.':section==='activity'?'Log it, find it, and keep your balances honest.':section==='accounts'?'Keep an accurate starting point for every decision.':'Small commitments. Meaningful progress.' }}</p></div><button v-if="section==='overview'||section==='activity'||section==='calendar'" class="btn btn-primary" @click="openModal('movement')" :disabled="!data?.accounts.length"><FinanceIcon name="plus"/> Add activity</button><button v-else-if="section==='accounts'" class="btn btn-primary" @click="openModal('account')"><FinanceIcon name="plus"/> Add account</button><button v-else-if="section==='plans'" class="btn btn-primary" @click="openModal('commitment')" :disabled="!data?.accounts.length"><FinanceIcon name="plus"/> Add commitment</button><button v-else class="btn btn-secondary" @click="openModal('settings')">Edit guardrails</button></header>
   <p v-if="error" role="alert" class="alert">{{ error }} <button @click="load">Try again</button></p>
   <p v-if="notice" class="finance-notice" role="status"><FinanceIcon name="check"/>{{ notice }}</p>
