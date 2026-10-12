@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { describe, expect, it, vi } from 'vitest';
+import { api } from '../api';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createDemo } from '../finance/demo';
 import FinanceVaults from './FinanceVaults.vue';
 
@@ -47,5 +48,33 @@ describe('demo vault allocation review', () => {
     await wrapper.findAll('button').find(b => b.text() === 'Emergency fund')!.trigger('click');
     expect((wrapper.get('.vault-form input').element as HTMLInputElement).value).toBe('Emergency fund');
   });
-});
 
+  it('saves a live vault as a savings goal in dollars, without demo-only paycheck rules', async () => {
+    const create = vi.spyOn(api, 'createSavingsGoal').mockResolvedValue({} as never);
+    const data = createDemo();
+    data.goals = [];
+    const wrapper = mount(FinanceVaults, { props: { data, demo: false }, global: { stubs: ['RouterLink'] } });
+    await wrapper.findAll('button').find(b => b.text() === 'Start your own vault')!.trigger('click');
+    expect(wrapper.text()).not.toContain('When I get paid, suggest adding');
+    const inputs = wrapper.findAll('.vault-form input');
+    await inputs[0]!.setValue('Car repairs');
+    await wrapper.get('.vault-form select').setValue(String(data.accounts[1]!.id));
+    await inputs[1]!.setValue('1200.50');
+    await inputs[2]!.setValue('300');
+    await wrapper.get('.vault-form').trigger('submit');
+    await flushPromises();
+    expect(create).toHaveBeenCalledWith({ name: 'Car repairs', target_amount: 1200.5, saved_amount: 300, target_date: null, bank_account_id: data.accounts[1]!.id });
+    expect(wrapper.emitted('saved')?.[0]).toEqual(['Car repairs vault created.']);
+    expect(wrapper.find('.vault-form').exists()).toBe(false);
+  });
+
+  it('keeps the live form open with the server error when saving fails', async () => {
+    vi.spyOn(api, 'updateSavingsGoal').mockRejectedValue(new Error('bank_account_id does not reference an account in this tenant'));
+    const wrapper = mount(FinanceVaults, { props: { data: createDemo(), demo: false }, global: { stubs: ['RouterLink'] } });
+    await wrapper.findAll('button').find(b => b.text().startsWith('Edit vault'))!.trigger('click');
+    await wrapper.get('.vault-form').trigger('submit');
+    await flushPromises();
+    expect(wrapper.get('.vault-form [role="alert"]').text()).toContain('does not reference an account');
+    expect(wrapper.emitted('saved')).toBeUndefined();
+  });
+});
