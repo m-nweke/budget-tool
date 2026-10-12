@@ -1,0 +1,5 @@
+<script setup lang="ts">
+defineProps<{name:string}>();
+const paths:Record<string,string>={calendar:'M4 5h16v16H4zM4 10h16M8 3v4M16 3v4M8 14h2M14 14h2M8 18h2',overview:'M3 10l9-7 9 7M5 9v12h14V9M9 21v-8h6v8',activity:'M4 7h16M4 12h12M4 17h8',accounts:'M3 7h18v14H3zM3 7l3-4h12l3 4M16 13h5M17 13v3',forecast:'M3 18l5-7 4 3 8-10M15 4h5v5',plans:'M12 3v18M3 12h18M5 5l14 14M5 19L19 5',plus:'M12 5v14M5 12h14',arrow:'M5 12h14M14 7l5 5-5 5',sun:'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1 1M18 18l1 1M5 19l1-1M18 6l1-1',check:'M5 12l4 4L19 6',close:'M6 6l12 12M6 18L18 6',download:'M12 3v12M7 10l5 5 5-5M4 17v4h16v-4',search:'M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14M15 15l6 6',logout:'M9 4H4v16h5M10 12h11M17 8l4 4-4 4',compass:'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M15.5 8.5l-2 5-5 2 2-5z'};
+</script>
+<template><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path :d="paths[name]??paths.overview" /></svg></template>

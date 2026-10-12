@@ -87,6 +87,7 @@ async function handleSelectTenant(tenantId: number) {
 
       <p class="register-hint">
         New here? <RouterLink to="/register">Create an account</RouterLink>
+        <span class="demo-hint">or <RouterLink to="/demo/overview">explore the demo</RouterLink> with sample money.</span>
       </p>
     </form>
 
@@ -134,6 +135,12 @@ async function handleSelectTenant(tenantId: number) {
 
 .login-form .btn {
   margin-top: var(--space-1);
+}
+
+.demo-hint {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--color-text-muted);
 }
 
 .register-hint {

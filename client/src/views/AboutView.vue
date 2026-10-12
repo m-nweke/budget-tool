@@ -68,6 +68,7 @@ const decisions = [
         an individual's personal budget with paychecks, bills, investments, savings goals, debts, and a cash-flow
         simulation.
       </p>
+      <RouterLink to="/demo/overview" class="btn btn-primary">Explore the demo</RouterLink>
     </div>
 
     <section class="panel stack-panel">
@@ -160,5 +161,9 @@ const decisions = [
     grid-template-columns: 1fr;
     gap: 2px;
   }
+}
+.hero .btn {
+  margin-top: var(--space-4);
+  display: inline-flex;
 }
 </style>

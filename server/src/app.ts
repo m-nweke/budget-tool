@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 
 import { query } from './db';
+import financeRouter from './routes/finance';
 import authRouter from './routes/auth';
 import departmentsRouter from './routes/departments';
 import categoriesRouter from './routes/categories';
@@ -52,6 +53,7 @@ app.get('/api/health', async (_req: Request, res: Response) => {
   catch { res.status(503).json({ status: 'unavailable' }); }
 });
 app.use('/api/auth', authRouter);
+app.use('/api/finance', authenticate, financeRouter);
 
 // Materialize any due recurring transactions before serving reads. There's
 // no background job runner in this deployment, so generation happens lazily
@@ -75,7 +77,7 @@ async function materializeDueTransactions(req: Request, res: Response, next: Nex
     next(new Error('materializeDueTransactions requires an authenticated request'));
     return;
   }
-  await recurringTransactionRepository.generateDue(req.user.tenant_id);
+  if (req.user.tenant_type === 'enterprise') await recurringTransactionRepository.generateDue(req.user.tenant_id);
   next();
 }
 
