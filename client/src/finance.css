@@ -107,7 +107,12 @@
 .chart-key i.amber { background: var(--finance-amber); margin-left: 7px; }
 .chart-key i.scenario-dot { background: var(--color-text); }
 .trajectory-svg { display: block; width: 100%; height: 200px; overflow: visible; touch-action: pan-y; }
-.chart-grid { stroke: var(--color-border); stroke-width: 1; stroke-dasharray: 3 5; }
+.chart-grid { stroke: var(--color-border); stroke-width: 1; stroke-dasharray: 3 5; vector-effect: non-scaling-stroke; }
+.chart-grid.zero { stroke: var(--color-text-muted); stroke-opacity: .45; stroke-dasharray: none; }
+.trajectory-plot { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; }
+.trajectory-plot > :not(.chart-y-axis) { grid-column: 2; }
+.chart-y-axis { position: relative; grid-row: 1; min-width: 40px; color: var(--color-text-muted); font-size: 9px; font-variant-numeric: tabular-nums; }
+.chart-y-axis span { position: absolute; right: 0; transform: translateY(-50%); white-space: nowrap; line-height: 1; }
 .cash-line { fill: none; stroke: var(--color-primary); stroke-width: 2.5; vector-effect: non-scaling-stroke; stroke-linejoin: round; animation: draw-cash 1s ease-out both; }
 .cushion-line { stroke: var(--finance-amber); stroke-dasharray: 5 5; vector-effect: non-scaling-stroke; }
 .scenario-line { fill: none; stroke: var(--color-text); stroke-width: 2; stroke-dasharray: 5 5; vector-effect: non-scaling-stroke; }
