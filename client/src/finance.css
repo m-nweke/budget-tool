@@ -308,6 +308,7 @@
 .vault-form .field input, .vault-form .field select, .vault-review .field input, .vault-review .field select, .vault-edit-amount input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--color-border); border-radius: 6px; color: var(--color-text); background: var(--color-bg); }
 .vault-form .alert, .vault-review .alert { margin: 10px 0 !important; }
 .vault-form-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+.vault-form-actions .vault-delete { margin-left: auto; color: var(--color-danger); }
 .vault-form > .field-hint { margin: 0 0 14px; }
 .vault-review { display: grid; grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); gap: 12px 35px; background: var(--finance-soft); }
 .vault-review h3 { font: 24px var(--font-serif); margin: 8px 0 10px; }

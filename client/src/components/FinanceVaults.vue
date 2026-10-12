@@ -4,10 +4,11 @@ import type { FinanceData, FinanceGoal } from '../finance/types';
 import { demoVaultRules } from '../finance/useFinance';
 import type { DemoVaultRule } from '../finance/useFinance';
 import FinanceIcon from './FinanceIcon.vue';
+import ConfirmDialog from './ConfirmDialog.vue';
 import { api } from '../api';
 
 const props = defineProps<{ data: FinanceData; demo: boolean }>();
-const emit = defineEmits<{ saveGoal: [goal: FinanceGoal]; saved: [message: string] }>();
+const emit = defineEmits<{ saveGoal: [goal: FinanceGoal]; deleteGoal: [id: number]; saved: [message: string] }>();
 const money = (cents: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(cents / 100);
 const rules = demoVaultRules;
 const editing = ref<number | 'new' | null>(null);
@@ -16,6 +17,7 @@ const accountId = ref<number | null>(null);
 const target = ref('');
 const saved = ref('');
 const saving = ref(false);
+const confirmingDelete = ref(false);
 const targetDate = ref('');
 const ruleMode = ref<DemoVaultRule['mode']>('none');
 const ruleValue = ref('');
@@ -121,6 +123,31 @@ async function save() {
   reviewStatus.value = 'Vault preview updated in this demo.';
   suggest();
 }
+/** Deleting a vault forgets the label only; the money stays in its account. */
+async function removeVault() {
+  confirmingDelete.value = false;
+  if (typeof editing.value !== 'number') return;
+  const id = editing.value;
+  const label = name.value.trim() || 'Vault';
+  if (props.demo) {
+    emit('deleteGoal', id);
+    delete rules[id];
+    editing.value = null;
+    reviewStatus.value = `${label} vault deleted from this demo.`;
+    suggest();
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.deleteSavingsGoal(id);
+    emit('saved', `${label} vault deleted. The money in your account is unchanged.`);
+    editing.value = null;
+  } catch (e) {
+    formError.value = (e as Error).message || 'We couldn’t delete this vault. Try again.';
+  } finally {
+    saving.value = false;
+  }
+}
 function suggest() {
   reviewError.value = '';
   reviewStatus.value = '';
@@ -178,8 +205,10 @@ function skipReview() {
     <div v-else-if="editing === null" class="vault-empty"><h3>What would you like to save for?</h3><p>Not sure where to start? Most people begin with an emergency fund.</p><div class="vault-examples"><button v-for="example in examples" :key="example.name" type="button" class="vault-example" @click="startFromExample(example)"><strong>{{ example.name }} · {{ money(Number(example.target) * 100) }}</strong><small>{{ example.why }}</small></button></div><button class="btn btn-primary" @click="edit()">Start your own vault</button></div>
     <div v-if="data.goals.length && editing === null" class="vault-examples-inline"><span>Ideas:</span><button v-for="example in examples" :key="example.name" type="button" class="text-button" @click="startFromExample(example)">{{ example.name }}</button></div>
 
-    <form v-if="editing !== null" class="vault-form" @submit.prevent="save"><div class="section-heading"><h3>{{ editing === 'new' ? 'Start a new vault' : 'Edit vault' }}</h3><button type="button" class="text-button" @click="editing=null">Close</button></div><p v-if="demo" class="subtle">Demo only. Changes stay in this browser until you reset the demo.</p><p v-else class="subtle">Saved to this workspace. Budget Tool keeps track; it never moves money at your bank.</p><div class="vault-form-grid"><label class="field">What are you saving for?<input v-model="name" required maxlength="120" placeholder="e.g. Emergency fund"/></label><label class="field">Where is this money kept?<select v-model="accountId"><option :value="null">I’ll choose later</option><option v-for="account in data.accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select><small class="field-hint">The account it sits in, like your savings. Nothing moves at your bank.</small></label><label class="field">How much do you want to save? ($)<input v-model="target" type="number" min="0.01" step="0.01" required placeholder="1000"/></label><label class="field">Already saved ($)<input v-model="saved" type="number" min="0" step="0.01" placeholder="0"/><small class="field-hint">Update this whenever you add to it.</small></label><label class="field">Finish by (optional)<input v-model="targetDate" type="date"/><small class="field-hint">We’ll tell you about how much to save each month.</small></label><label v-if="demo" class="field">When I get paid, suggest adding…<select v-model="ruleMode"><option value="none">Nothing. I’ll add money myself</option><option value="percent">A percentage of my paycheck</option><option value="fixed">A set amount from each paycheck</option></select><small class="field-hint">You always see the suggestion and approve it first.</small></label><template v-if="demo && ruleMode !== 'none'"><label class="field">Which account does your paycheck land in?<select v-model="ruleAccountId" required><option :value="null" disabled>Choose an account</option><option v-for="account in data.accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select></label><label class="field">{{ ruleMode === 'percent' ? 'Percent of each paycheck' : 'Amount from each paycheck ($)' }}<input v-model="ruleValue" type="number" :min="ruleMode === 'percent' ? '1' : '0.01'" :max="ruleMode === 'percent' ? '100' : undefined" :step="ruleMode === 'percent' ? '0.1' : '0.01'" required/></label></template></div><p v-if="!demo" class="field-hint">Payday suggestions are still a preview. <RouterLink to="/demo/plans">Try them in the demo</RouterLink>.</p><p v-if="formError" class="alert" role="alert">{{ formError }}</p><div class="vault-form-actions"><button class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Save vault' }}</button><RouterLink v-if="!demo && typeof editing === 'number'" to="/goals" class="text-button">Delete or more options</RouterLink></div></form>
+    <form v-if="editing !== null" class="vault-form" @submit.prevent="save"><div class="section-heading"><h3>{{ editing === 'new' ? 'Start a new vault' : 'Edit vault' }}</h3><button type="button" class="text-button" @click="editing=null">Close</button></div><p v-if="demo" class="subtle">Demo only. Changes stay in this browser until you reset the demo.</p><p v-else class="subtle">Saved to this workspace. Budget Tool keeps track; it never moves money at your bank.</p><div class="vault-form-grid"><label class="field">What are you saving for?<input v-model="name" required maxlength="120" placeholder="e.g. Emergency fund"/></label><label class="field">Where is this money kept?<select v-model="accountId"><option :value="null">I’ll choose later</option><option v-for="account in data.accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select><small class="field-hint">The account it sits in, like your savings. Nothing moves at your bank.</small></label><label class="field">How much do you want to save? ($)<input v-model="target" type="number" min="0.01" step="0.01" required placeholder="1000"/></label><label class="field">Already saved ($)<input v-model="saved" type="number" min="0" step="0.01" placeholder="0"/><small class="field-hint">Update this whenever you add to it.</small></label><label class="field">Finish by (optional)<input v-model="targetDate" type="date"/><small class="field-hint">We’ll tell you about how much to save each month.</small></label><label v-if="demo" class="field">When I get paid, suggest adding…<select v-model="ruleMode"><option value="none">Nothing. I’ll add money myself</option><option value="percent">A percentage of my paycheck</option><option value="fixed">A set amount from each paycheck</option></select><small class="field-hint">You always see the suggestion and approve it first.</small></label><template v-if="demo && ruleMode !== 'none'"><label class="field">Which account does your paycheck land in?<select v-model="ruleAccountId" required><option :value="null" disabled>Choose an account</option><option v-for="account in data.accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select></label><label class="field">{{ ruleMode === 'percent' ? 'Percent of each paycheck' : 'Amount from each paycheck ($)' }}<input v-model="ruleValue" type="number" :min="ruleMode === 'percent' ? '1' : '0.01'" :max="ruleMode === 'percent' ? '100' : undefined" :step="ruleMode === 'percent' ? '0.1' : '0.01'" required/></label></template></div><p v-if="!demo" class="field-hint">Payday suggestions are still a preview. <RouterLink to="/demo/plans">Try them in the demo</RouterLink>.</p><p v-if="formError" class="alert" role="alert">{{ formError }}</p><div class="vault-form-actions"><button class="btn btn-primary" :disabled="saving">{{ saving ? 'Saving…' : 'Save vault' }}</button><button v-if="typeof editing === 'number'" type="button" class="text-button vault-delete" :disabled="saving" @click="confirmingDelete = true">Delete vault</button></div></form>
 
     <div class="vault-review"><div><p class="page-kicker">Payday check-in</p><h3>Got paid? Set a little aside.</h3><p>Your vaults suggest how much of this paycheck to put toward each goal. Change any amount, or skip this time. It’s bookkeeping inside Budget Tool, so no money moves at your bank.</p></div><template v-if="demo"><div class="vault-deposit-fields"><label class="field">Paycheck landed in<select v-model="depositAccountId" @change="suggest"><option v-for="account in data.accounts" :key="account.id" :value="account.id">{{ account.name }}</option></select></label><label class="field">Paycheck amount ($)<input v-model="depositAmount" type="number" min="0.01" step="0.01" @input="suggest"/></label></div><div v-if="eligible.length" class="vault-suggestions"><label v-for="goal in eligible" :key="goal.id" class="vault-suggestion"><span><strong>{{ goal.name }}</strong><small>{{ rules[goal.id]?.mode === 'percent' ? `Suggested: ${rules[goal.id]?.value}% of this paycheck` : `Suggested: ${money(Math.round((rules[goal.id]?.value ?? 0) * 100))} each paycheck` }}</small></span><span class="vault-edit-amount">$ <input v-model="draft[goal.id]" type="number" min="0" step="0.01" :aria-label="`Amount for ${goal.name}`"/></span></label><div class="vault-remainder"><span>Left for everything else</span><strong :class="{ 'vault-overallocated': remaining < 0 }">{{ money(remaining) }}</strong></div><p v-if="reviewError" role="alert" class="alert">{{ reviewError }}</p><p v-if="reviewStatus" role="status" class="finance-notice">{{ reviewStatus }}</p><div class="vault-review-actions"><button class="btn btn-primary" :disabled="remaining < 0" @click="confirmReview">Looks good</button><button class="text-button" @click="skipReview">Skip this paycheck</button></div></div><p v-else class="vault-no-rules">None of your vaults take a share of paychecks that land in this account yet. Edit a vault and choose “When I get paid, suggest adding…” to try it.</p><small class="vault-preview-note">Demo preview. Nothing here changes a balance or moves money.</small></template><RouterLink v-else to="/demo/plans" class="text-button">Try the payday check-in in the demo <FinanceIcon name="arrow"/></RouterLink></div>
+    <!-- The section animates with a transform, which would trap a fixed overlay inside it. -->
+    <Teleport to="body"><ConfirmDialog :open="confirmingDelete" :title="`Delete ${name.trim() || 'this vault'}?`" message="The vault and its goal go away. Any money in the account stays where it is." confirm-label="Delete vault" @confirm="removeVault" @cancel="confirmingDelete = false"/></Teleport>
   </section>
 </template>
