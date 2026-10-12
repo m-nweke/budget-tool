@@ -9,7 +9,7 @@ describe('demo vault allocation review', () => {
     const balance = data.accounts[0]!.balance_cents;
     const wrapper = mount(FinanceVaults, { props: { data, demo: true }, global: { stubs: ['RouterLink'] } });
     expect(wrapper.text()).toContain('Your vaults');
-    expect(wrapper.text()).toContain('Left unallocated');
+    expect(wrapper.text()).toContain('Left for everything else');
     const inputs = wrapper.findAll('.vault-edit-amount input');
     expect(inputs).toHaveLength(2);
     await inputs[0]!.setValue('3200');
@@ -26,9 +26,26 @@ describe('demo vault allocation review', () => {
   it('states each rule trigger, the review step and the holding account on the card', () => {
     const wrapper = mount(FinanceVaults, { props: { data: createDemo(), demo: true }, global: { stubs: ['RouterLink'] } });
     const text = wrapper.text();
-    expect(text).toContain('Suggests 12% of each Everyday checking deposit · you review first');
-    expect(text).toContain('Suggests $150.00 from each Everyday checking deposit · you review first');
-    expect(text).toContain('Held in Rainy day fund');
+    expect(text).toContain('When you’re paid into Everyday checking, we suggest setting aside 12% of it. You approve it first.');
+    expect(text).toContain('When you’re paid into Everyday checking, we suggest setting aside $150.00. You approve it first.');
+    expect(text).toContain('Kept in Rainy day fund');
     expect(text).not.toMatch(/by \d{4}-\d{2}-\d{2}/);
   });
+
+  it('explains vaults in plain language, gives a monthly target, and remembers when the guide is hidden', async () => {
+    localStorage.removeItem('vault-explainer-hidden');
+    const data = createDemo();
+    data.as_of = '2026-10-11';
+    data.goals = [{ id: 1, name: 'Trip', target_cents: 450000, saved_cents: 285000, account_id: 2, target_date: '2027-02-08' }];
+    const wrapper = mount(FinanceVaults, { props: { data, demo: true }, global: { stubs: ['RouterLink'] } });
+    expect(wrapper.text()).toContain('How vaults work');
+    expect(wrapper.text()).toContain('labeled envelope');
+    expect(wrapper.get('.vault-plan').text()).toBe('$1,650.00 to go. Save about $413.00 a month to finish by Feb 8, 2027.');
+    await wrapper.findAll('button').find(b => b.text() === 'Got it, hide this')!.trigger('click');
+    expect(wrapper.find('.vault-explainer').exists()).toBe(false);
+    expect(localStorage.getItem('vault-explainer-hidden')).toBe('1');
+    await wrapper.findAll('button').find(b => b.text() === 'Emergency fund')!.trigger('click');
+    expect((wrapper.get('.vault-form input').element as HTMLInputElement).value).toBe('Emergency fund');
+  });
 });
+

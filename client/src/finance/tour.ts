@@ -13,8 +13,8 @@ export const tourSteps: TourStep[] = [
     body: 'Hollow dots are plans and filled dots have already happened; every amount carries its sign. Payments you link to a plan reduce what’s left on it. Use the arrow keys to move between days.' },
   { section: 'forecast', target: '.what-if-panel', title: 'Try a what-if',
     body: 'Add an expense or income on any day to see how your line moves. Scenarios are temporary; your accounts and plans stay exactly as they are.' },
-  { section: 'plans', target: '.vaults-section', title: 'Vaults, with a review step',
-    body: 'Give savings a purpose and suggest a share of each deposit. You always review suggestions first, and nothing moves money between banks.' },
+  { section: 'plans', target: '.vaults-section', title: 'Vaults: savings with a label',
+    body: 'Put money toward a goal, like an emergency fund, so it doesn’t get spent by accident. On payday we can suggest an amount; you approve it first, and nothing moves at your bank.' },
 ];
 
 export const tour = reactive({ active: false, index: 0, mode: 'demo' as TourMode });

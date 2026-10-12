@@ -264,6 +264,28 @@
 .vaults-heading { margin-bottom: 12px; }
 .vaults-heading h2 { font: 30px var(--font-serif); margin-top: 6px; }
 .vaults-intro { max-width: 65ch; color: var(--color-text-muted); font-size: 12px; line-height: 1.7; margin-bottom: 22px !important; }
+.vault-explainer { margin: 4px 0 24px; padding: 22px 24px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--finance-soft); }
+.vault-explainer-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.vault-explainer h3 { margin: 0; font: 22px var(--font-serif); }
+.vault-explainer-lede { margin: 10px 0 18px !important; max-width: 62ch; font-size: 13px; line-height: 1.65; }
+.vault-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.vault-steps li { display: grid; grid-template-columns: 28px minmax(0, 1fr); column-gap: 10px; row-gap: 3px; align-items: start; }
+.vault-steps span { grid-row: 1 / 3; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--color-primary-bg); color: var(--color-primary); font-size: 12px; font-weight: 700; }
+.vault-steps strong { font-size: 13px; }
+.vault-steps small { color: var(--color-text-muted); font-size: 12px; line-height: 1.55; }
+.vault-explainer-note { margin: 18px 0 0 !important; padding-top: 14px; border-top: 1px solid var(--color-border); color: var(--color-text-muted); font-size: 12px; line-height: 1.6; }
+.vault-explainer-note strong { color: var(--color-text); }
+.vault-explainer-toggle { margin: 0 0 18px; }
+.vault-plan { margin: -10px 0 18px !important; font-size: 12px; line-height: 1.55; }
+.field-hint { display: block; margin-top: 2px; color: var(--color-text-muted); font-size: 11px; font-weight: 400; line-height: 1.5; }
+.vault-examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); gap: 10px; margin: 0 0 20px; }
+.vault-example { display: grid; gap: 4px; text-align: left; padding: 14px 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); color: var(--color-text); font: inherit; cursor: pointer; }
+.vault-example:hover { border-color: var(--color-primary); }
+.vault-example strong { font-size: 13px; }
+.vault-example small { color: var(--color-text-muted); font-size: 11px; line-height: 1.5; }
+.vault-examples-inline { display: flex; align-items: center; gap: 6px 14px; flex-wrap: wrap; margin-top: 14px; color: var(--color-text-muted); font-size: 11px; }
+.vault-examples-inline .text-button { font-size: 11px; }
+@media (max-width: 760px) { .vault-steps { grid-template-columns: 1fr; } .vault-explainer { padding: 18px; } }
 .vault-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 16px; }
 .vault-card { display: flex; flex-direction: column; min-width: 0; padding: 24px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); }
 .vault-card-top, .vault-card-bottom, .vault-remainder { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
