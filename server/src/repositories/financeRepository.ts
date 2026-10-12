@@ -1,7 +1,7 @@
 import { query, transaction } from '../db';
 import { randomUUID, createHash } from 'node:crypto';
 import type { Commitment, FinanceAccount, FinanceData, FinanceSettings, Movement } from '../types/finance';
-import { addDays, cents, occurrences, todayIn, validDate } from '../services/financeForecast';
+import { cents, occurrences, todayIn, validDate } from '../services/financeForecast';
 
 type Row = Record<string, unknown>;
 const n = (row: Row, key: string) => Number(row[key]);
