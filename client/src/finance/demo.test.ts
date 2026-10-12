@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createDemo, demoForecast } from './demo';
+import { createDemo, demoForecast, localToday } from './demo';
 
 describe('demo forecast', () => {
   it('uses a 30-day fallback and a finite amount without scheduled income', () => {
@@ -21,5 +21,13 @@ describe('demo forecast', () => {
     expect(result.next_income_date).toBe('2028-01-31');
     expect(result.headroom_cents).toBeLessThan(0);
     expect(result.daily[29]!.balance_cents).toBeLessThan(result.daily[28]!.balance_cents);
+  });
+});
+
+describe('demo dates', () => {
+  it('anchors today to the workspace timezone, not UTC', () => {
+    const data = createDemo();
+    expect(data.as_of).toBe(localToday(data.settings.timezone));
+    expect(localToday('Pacific/Kiritimati') >= localToday('Pacific/Pago_Pago')).toBe(true);
   });
 });
