@@ -22,3 +22,9 @@ export function capitalize(value: string): string {
 export function accountLabel(account: { name: string; type: string }): string {
   return `${account.name} (${capitalize(account.type)})`;
 }
+
+// "Today" as the viewer sees it. new Date().toISOString() is UTC, so in the
+// evening west of Greenwich it already reads as tomorrow.
+export function localToday(timeZone?: string): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}

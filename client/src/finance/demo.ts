@@ -1,8 +1,9 @@
 import type { FinanceData, Forecast, SpendBreakdown } from './types';
 import { scheduledDates } from './calendar';
+import { localToday as sharedLocalToday } from '../utils/format';
 /** The demo workspace lives in the viewer's own timezone, so "today" is their local date rather than UTC's. */
 export const demoTimezone=()=>Intl.DateTimeFormat().resolvedOptions().timeZone||'America/Chicago';
-export const localToday=(timeZone=demoTimezone())=>new Intl.DateTimeFormat('en-CA',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+export const localToday=(timeZone=demoTimezone())=>sharedLocalToday(timeZone);
 export function dateOffset(offset:number, base = localToday()) { const d=new Date(base+'T12:00:00Z'); d.setUTCDate(d.getUTCDate()+offset); return d.toISOString().slice(0,10) }
 export function demoForecast(data:FinanceData, adjustment = 0, adjustmentDate = data.as_of):Forecast {
  const from=data.as_of,to=dateOffset(89,from),balances=Object.fromEntries(data.accounts.map(a=>[a.id,a.balance_cents]));

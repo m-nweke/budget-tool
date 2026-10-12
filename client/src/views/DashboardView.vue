@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
 import { api } from '../api';
-import { formatCurrency } from '../utils/format';
+import { formatCurrency, localToday } from '../utils/format';
 import { buildDebtSnapshot, type PageSnapshotProps } from '../utils/snapshots';
 import { useAuth } from '../composables/useAuth';
 import PageSnapshot from '../components/PageSnapshot.vue';
@@ -14,7 +14,7 @@ const isPersonal = computed(() => user.value?.tenant_type === 'personal');
 const rows = ref<DashboardRow[]>([]);
 const error = ref('');
 const loaded = ref(false);
-const currentMonth = new Date().toISOString().slice(0, 7);
+const currentMonth = localToday().slice(0, 7);
 const fromMonth = ref(currentMonth);
 const toMonth = ref(currentMonth);
 const departments = ref<Department[]>([]);

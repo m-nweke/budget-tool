@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, onMounted } from 'vue';
 import { api } from '../api';
-import { accountLabel } from '../utils/format';
+import { accountLabel, localToday } from '../utils/format';
 import type { Bill, BillCategory, CreateBillDto, BankAccount } from '../types';
 
 const props = defineProps<{
@@ -20,7 +20,7 @@ const amount = ref<number | string>('');
 const dueDay = ref<number | string>('');
 const active = ref(true);
 const bankAccountId = ref<number | ''>('');
-const startOn = ref(new Date().toISOString().slice(0, 10));
+const startOn = ref(localToday());
 const endDate = ref('');
 const accounts = ref<BankAccount[]>([]);
 
@@ -33,7 +33,7 @@ watch(
     dueDay.value = bill ? bill.due_day : '';
     active.value = bill ? bill.active === 1 : true;
     bankAccountId.value = bill?.bank_account_id ?? '';
-    startOn.value = bill ? bill.start_on : new Date().toISOString().slice(0, 10);
+    startOn.value = bill ? bill.start_on : localToday();
     endDate.value = bill?.end_date ?? '';
   },
   { immediate: true }
