@@ -7,4 +7,6 @@ export interface FinanceGoal { id: number; name: string; target_cents: number; s
 export interface FinanceSettings { timezone: string; cushion_cents: number; essential_allowance_cents: number; spending_account_ids: number[] }
 export interface FinanceData { as_of: string; accounts: FinanceAccount[]; movements: Movement[]; commitments: Commitment[]; goals: FinanceGoal[]; settings: FinanceSettings; warnings: string[] }
 export interface ScenarioEvent { date: string; account_id: number; amount_cents: number; description?: string }
-export interface Forecast { from: string; to: string; daily: { date: string; balance_cents: number; headroom_cents: number; accounts: Record<number, number> }[]; safe_to_spend_cents: number | null; headroom_cents: number | null; next_income_date: string | null; window_end: string; warnings: string[] }
+/** The parts of safe to spend on its tightest day: cash + scheduled − set aside − cushion − allowance = headroom. */
+export interface SpendBreakdown { low_point_date: string; cash_cents: number; scheduled_cents: number; scheduled_items: { date: string; name: string; amount_cents: number }[]; set_aside_cents: number; cushion_cents: number; allowance_cents: number; allowance_days: number }
+export interface Forecast { breakdown: SpendBreakdown | null; from: string; to: string; daily: { date: string; balance_cents: number; headroom_cents: number; accounts: Record<number, number> }[]; safe_to_spend_cents: number | null; headroom_cents: number | null; next_income_date: string | null; window_end: string; warnings: string[] }

@@ -34,4 +34,17 @@ describe('financial forecast',() => {
     expect(occurrences('2024-01-31','monthly','2024-04-30')).toEqual(['2024-01-31','2024-02-29','2024-03-31','2024-04-30']);expect(occurrences('2024-02-29','monthly','2024-04-30',{day_of_month:31})).toEqual(['2024-02-29','2024-03-31','2024-04-30']);
     expect(occurrences('2026-01-10','semimonthly','2026-02-28',{pay_days:[10,25]})).toEqual(['2026-01-10','2026-01-25','2026-02-10','2026-02-25']);expect(validDate('2026-02-29')).toBe(false);
   });
+  it('breaks safe to spend into parts that add back up on its tightest day',() => {
+    const data=fixture();data.settings.essential_allowance_cents=30000;data.goals=[{id:1,name:'Trip',target_cents:50000,saved_cents:20000,account_id:1,target_date:null}];
+    data.commitments=[{key:'rent',name:'Rent',kind:'bill',amount_cents:40000,account_id:1,frequency:'once',next_date:'2026-01-03'},{key:'card',name:'Card payment',kind:'debt',amount_cents:5000,account_id:1,transfer_account_id:2,frequency:'once',next_date:'2026-01-04'},{key:'pay',name:'Payday',kind:'income',amount_cents:200000,account_id:1,frequency:'once',next_date:'2026-01-06'}];
+    const result=forecast(data);const b=result.breakdown!;
+    expect(b.low_point_date).toBe('2026-01-06');
+    expect(b.scheduled_items.map(i=>[i.name,i.amount_cents])).toEqual([['Rent',-40000],['Card payment',-5000]]);
+    expect(b).toMatchObject({cash_cents:100000,scheduled_cents:-45000,set_aside_cents:20000,cushion_cents:10000,allowance_cents:6000,allowance_days:6});
+    expect(b.cash_cents+b.scheduled_cents-b.set_aside_cents-b.cushion_cents-b.allowance_cents).toBe(result.headroom_cents);
+  });
+  it('has no breakdown when setup is incomplete',() => {
+    const data=fixture();data.settings.spending_account_ids=[];expect(forecast(data).breakdown).toBeNull();
+  });
 });
+

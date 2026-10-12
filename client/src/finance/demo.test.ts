@@ -31,3 +31,14 @@ describe('demo dates', () => {
     expect(localToday('Pacific/Kiritimati') >= localToday('Pacific/Pago_Pago')).toBe(true);
   });
 });
+
+describe('safe to spend breakdown', () => {
+  it('adds back up to the headroom and lists what comes out before the tightest day', () => {
+    const data = createDemo();
+    const f = demoForecast(data), b = f.breakdown!;
+    expect(b.cash_cents + b.scheduled_cents - b.set_aside_cents - b.cushion_cents - b.allowance_cents).toBe(f.headroom_cents);
+    expect(b.scheduled_items.reduce((s, i) => s + i.amount_cents, 0)).toBe(b.scheduled_cents);
+    expect(b.scheduled_items.every(i => i.date <= b.low_point_date)).toBe(true);
+    expect(b.scheduled_items.map(i => i.name)).toContain('Apartment rent');
+  });
+});

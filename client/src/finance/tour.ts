@@ -6,7 +6,7 @@ export interface TourStep { section: 'overview' | 'calendar' | 'forecast' | 'pla
 /** One walkthrough for both the demo and a real workspace, since they share the same interface. */
 export const tourSteps: TourStep[] = [
   { section: 'overview', target: '.spend-panel', title: 'Start with safe to spend',
-    body: 'This is the least room you’ll have before your next deposit, after scheduled bills, protected goals, your cushion and an everyday allowance. “How this is calculated” shows each deduction.' },
+    body: 'How much you can spend before your next paycheck and still cover every scheduled bill, your savings and your cushion. The list underneath adds up to it, and “How this is calculated” walks through it step by step.' },
   { section: 'overview', target: '.trajectory-panel', title: 'Trajectory or calendar',
     body: 'Switch this panel between your 90-day cash line and a month at a glance. Choose a day to see what goes in (+), out (−) or between your accounts (↔).' },
   { section: 'calendar', target: '.money-calendar', title: 'Every day, signed',

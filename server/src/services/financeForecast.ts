@@ -1,4 +1,4 @@
-import type { Commitment, FinanceData, Forecast, Frequency, ScenarioEvent } from '../types/finance';
+import type { Commitment, FinanceData, Forecast, Frequency, ScenarioEvent, SpendBreakdown } from '../types/finance';
 
 export function validDate(value: unknown): value is string {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
@@ -95,17 +95,24 @@ export function forecast(data: FinanceData, events: ScenarioEvent[] = [], disabl
   const sum = () => [...selected].reduce((total, id) => total + (balances[id] ?? 0), 0);
   let fixedReserve = protectedCents + data.settings.cushion_cents;
   let minimum = sum() - fixedReserve;
+  const cash = sum(), applied: SpendBreakdown['scheduled_items'] = [];
+  const snapshot = (date: string, allowance: number, day: number): SpendBreakdown => ({
+    low_point_date: date, cash_cents: cash, scheduled_cents: sum() - cash, scheduled_items: [...applied],
+    set_aside_cents: fixedReserve - data.settings.cushion_cents, cushion_cents: data.settings.cushion_cents, allowance_cents: allowance, allowance_days: allowance ? Math.min(day, 30) : 0,
+  });
+  let breakdown = snapshot(from, 0, 0);
+  const track = (event: Event) => { if (selected.has(event.account_id)) applied.push({ date: event.date, name: event.description ?? 'Scheduled', amount_cents: event.amount_cents }); };
   const daily: Forecast['daily'] = [];
   for (let date = from, day = 1; date <= to; date = addDays(date, 1), day++) {
     const allowance = Math.ceil(data.settings.essential_allowance_cents * Math.min(day, 30) / 30);
     const dayEvents = dated.get(date) ?? [];
     // Outflows are assessed before same-day deposits, including the boundary payday.
-    for (const event of dayEvents.filter(e => e.amount_cents < 0 || e.transfer)) { balances[event.account_id] = (balances[event.account_id] ?? 0) + event.amount_cents;fixedReserve+=event.protected_delta ?? 0; }
+    for (const event of dayEvents.filter(e => e.amount_cents < 0 || e.transfer)) { balances[event.account_id] = (balances[event.account_id] ?? 0) + event.amount_cents;fixedReserve+=event.protected_delta ?? 0;track(event); }
     const beforeIncome = sum() - fixedReserve - allowance;
-    if (date <= windowEnd) minimum = Math.min(minimum, beforeIncome);
-    for (const event of dayEvents.filter(e => e.amount_cents >= 0 && !e.transfer)) balances[event.account_id] = (balances[event.account_id] ?? 0) + event.amount_cents;
+    if (date <= windowEnd && beforeIncome < minimum) { minimum = beforeIncome; breakdown = snapshot(date, allowance, day); }
+    for (const event of dayEvents.filter(e => e.amount_cents >= 0 && !e.transfer)) { balances[event.account_id] = (balances[event.account_id] ?? 0) + event.amount_cents;track(event); }
     daily.push({ date, balance_cents: sum(), headroom_cents: sum() - fixedReserve - allowance, accounts: { ...balances } });
   }
   const complete = warnings.length === 0;
-  return { from, to, daily, safe_to_spend_cents: complete ? Math.max(0, minimum) : null, headroom_cents: complete ? minimum : null, next_income_date: nextIncome, window_end: windowEnd, warnings: [...new Set(warnings)] };
+  return { breakdown: complete ? breakdown : null, from, to, daily, safe_to_spend_cents: complete ? Math.max(0, minimum) : null, headroom_cents: complete ? minimum : null, next_income_date: nextIncome, window_end: windowEnd, warnings: [...new Set(warnings)] };
 }
