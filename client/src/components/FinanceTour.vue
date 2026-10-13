@@ -96,7 +96,7 @@ onBeforeUnmount(() => { if (tour.active) { run++; window.removeEventListener('ke
     <section ref="card" class="tour-card" :style="placement" role="dialog" aria-modal="false" aria-labelledby="tour-title" aria-describedby="tour-body">
       <p class="tour-progress"><span>{{ demo ? 'Demo tour' : 'Quick tour' }}</span><span>Step {{ tour.index + 1 }} of {{ tourSteps.length }}</span></p>
       <h2 id="tour-title" ref="heading" tabindex="-1">{{ step.title }}</h2>
-      <p id="tour-body">{{ step.body }}</p>
+      <p id="tour-body">{{ tour.mode === 'personal' && step.personalBody ? step.personalBody : step.body }}</p>
       <div class="tour-dots" aria-hidden="true"><i v-for="(s, i) in tourSteps" :key="s.title" :class="{ current: i === tour.index }" /></div>
       <div class="tour-actions">
         <button type="button" class="text-button" @click="finish">Skip tour</button>

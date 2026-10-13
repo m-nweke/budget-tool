@@ -47,4 +47,19 @@ describe('FinanceTour', () => {
     expect(tourSeen('demo')).toBe(true);
     wrapper.unmount();
   });
+
+  it('describes vaults without promising preview-only payday suggestions in a real workspace', async () => {
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:section?', component: Page }] });
+    await router.push('/');
+    const wrapper = mount(FinanceTour, { props: { demo: false }, global: { plugins: [router] }, attachTo: document.body });
+    const vaultStep = tourSteps.findIndex(step => step.section === 'plans');
+    startTour('personal');
+    tour.index = vaultStep;
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe('/plans');
+    expect(wrapper.get('#tour-body').text()).toBe(tourSteps[vaultStep]!.personalBody);
+    expect(wrapper.get('#tour-body').text()).toContain('preview you can try in the demo');
+    wrapper.unmount();
+  });
 });
+

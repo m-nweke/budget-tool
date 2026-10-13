@@ -1,7 +1,8 @@
 import { reactive } from 'vue';
 
 export type TourMode = 'demo' | 'personal';
-export interface TourStep { section: 'overview' | 'calendar' | 'forecast' | 'plans'; target: string; title: string; body: string }
+/** `personalBody` replaces `body` in a real workspace where the demo copy would promise a preview-only feature. */
+export interface TourStep { section: 'overview' | 'calendar' | 'forecast' | 'plans'; target: string; title: string; body: string; personalBody?: string }
 
 /** One walkthrough for both the demo and a real workspace, since they share the same interface. */
 export const tourSteps: TourStep[] = [
@@ -14,7 +15,8 @@ export const tourSteps: TourStep[] = [
   { section: 'forecast', target: '.what-if-panel', title: 'Try a what-if',
     body: 'Add an expense or income on any day to see how your line moves. Scenarios are temporary; your accounts and plans stay exactly as they are.' },
   { section: 'plans', target: '.vaults-section', title: 'Vaults: savings with a label',
-    body: 'Put money toward a goal, like an emergency fund, so it doesn’t get spent by accident. On payday we can suggest an amount; you approve it first, and nothing moves at your bank.' },
+    body: 'Put money toward a goal, like an emergency fund, so it doesn’t get spent by accident. On payday we can suggest an amount; you approve it first, and nothing moves at your bank.',
+    personalBody: 'Put money toward a goal, like an emergency fund, so it doesn’t get spent by accident. Say which account holds it and update what you’ve saved as you go. Nothing moves at your bank. Payday suggestions are a preview you can try in the demo.' },
 ];
 
 export const tour = reactive({ active: false, index: 0, mode: 'demo' as TourMode });
