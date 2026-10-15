@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue';
 import { api } from '../api';
-import { formatCurrency, accountLabel } from '../utils/format';
+import { formatCurrency, accountLabel, localToday } from '../utils/format';
 import type {
   Paycheck,
   CreatePaycheckDto,
@@ -43,7 +43,7 @@ type SplitRow = Omit<CreatePaycheckSplitDto, 'value'> & {
 const label = ref('');
 const amount = ref<number | string>('');
 const frequency = ref<PaycheckFrequency>('biweekly');
-const nextPayDate = ref(new Date().toISOString().slice(0, 10));
+const nextPayDate = ref(localToday());
 const splits = ref<SplitRow[]>([]);
 const accounts = ref<BankAccount[]>([]);
 let nextKey = 0;
@@ -54,7 +54,7 @@ watch(
     label.value = paycheck ? paycheck.label : '';
     amount.value = paycheck ? paycheck.amount : '';
     frequency.value = paycheck ? paycheck.frequency : 'biweekly';
-    nextPayDate.value = paycheck ? paycheck.next_pay_date : new Date().toISOString().slice(0, 10);
+    nextPayDate.value = paycheck ? paycheck.next_pay_date : localToday();
     // Splits have no independent lifecycle of their own (see
     // paycheckRepository) — the form just edits a local copy of the array
     // and submits it wholesale, same as the server replaces it wholesale.

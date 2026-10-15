@@ -2,7 +2,7 @@
 import { ref, watch, onMounted } from 'vue';
 import { api } from '../api';
 import type { SavingsGoal, CreateSavingsGoalDto, BankAccount } from '../types';
-import { accountLabel } from '../utils/format';
+import { accountLabel, localToday } from '../utils/format';
 
 const props = defineProps<{
   goal: SavingsGoal | null;
@@ -17,7 +17,7 @@ const emit = defineEmits<{
 const name = ref('');
 const targetAmount = ref<number | string>('');
 const savedAmount = ref<number | string>(0);
-const startOn = ref(new Date().toISOString().slice(0, 10));
+const startOn = ref(localToday());
 const targetDate = ref('');
 const bankAccountId = ref<number | ''>('');
 const accounts = ref<BankAccount[]>([]);
@@ -28,7 +28,7 @@ watch(
     name.value = goal ? goal.name : '';
     targetAmount.value = goal ? goal.target_amount : '';
     savedAmount.value = goal ? goal.saved_amount : 0;
-    startOn.value = goal ? goal.start_on : new Date().toISOString().slice(0, 10);
+    startOn.value = goal ? goal.start_on : localToday();
     targetDate.value = goal?.target_date ?? '';
     bankAccountId.value = goal?.bank_account_id ?? '';
   },

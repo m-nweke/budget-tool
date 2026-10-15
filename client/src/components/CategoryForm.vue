@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { localToday } from '../utils/format';
 import { ref, computed, watch, onMounted } from 'vue';
 import { api } from '../api';
 import { useAuth } from '../composables/useAuth';
@@ -24,7 +25,7 @@ const isPersonal = computed(() => user.value?.tenant_type === 'personal');
 
 const name = ref('');
 const budgetedAmount = ref<number | string>('');
-const startOn = ref(new Date().toISOString().slice(0, 10));
+const startOn = ref(localToday());
 const departmentId = ref<number | ''>('');
 const approvalThreshold = ref<number | string>('');
 const departments = ref<Department[]>([]);
@@ -38,7 +39,7 @@ watch(
   (category) => {
     name.value = category ? category.name : '';
     budgetedAmount.value = category ? category.budgeted_amount : '';
-    startOn.value = category ? category.start_on : new Date().toISOString().slice(0, 10);
+    startOn.value = category ? category.start_on : localToday();
     departmentId.value = category?.department_id ?? '';
     approvalThreshold.value = category?.approval_threshold ?? '';
   },
